@@ -11,9 +11,11 @@ const routeTitles: Record<string, { label: string; path: string }[]> = {
   '/workspace': [{ label: 'Study Space', path: '/dashboard' }],
   '/subjects': [{ label: 'My Subjects', path: '/subjects' }],
   '/notes': [{ label: 'Notes Discovery', path: '/notes' }],
+  '/library': [{ label: 'My Library', path: '/library' }],
   '/pyq': [{ label: 'PYQ Archive', path: '/pyq' }],
   '/syllabus': [{ label: 'Syllabus Coverage', path: '/syllabus' }],
-  '/contributions': [{ label: 'My Contributions', path: '/contributions' }],
+  '/uploads': [{ label: 'My Uploads', path: '/uploads' }],
+  '/contributions': [{ label: 'My Uploads', path: '/uploads' }],
   '/moderation': [{ label: 'Moderation Queue', path: '/moderation' }],
   '/settings': [{ label: 'Settings', path: '/settings' }],
 };

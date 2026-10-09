@@ -52,28 +52,115 @@ export interface NoteResource {
   mimeType?: string;
   uploadDate: string;
   downloads: number;
+  upvotes?: number;
+  isUpvoted?: boolean;
+  commentCount?: number;
   topicMatchCount: number;
   totalTopics: number;
   syllabusMatch: string;
+  tags?: string[];
+  userId?: string;
+  status?: 'published' | 'processing' | 'flagged' | string;
   isSaved?: boolean;
+}
+
+export interface NoteComment {
+  id: string;
+  noteId: string;
+  userId: string;
+  userName: string;
+  userInitials: string;
+  userRole?: string;
+  category?: 'Exam Tip' | 'Errata / Correction' | 'Question' | 'Key Takeaway' | 'General' | string;
+  content: string;
+  createdAt: string;
+  upvotes: number;
+  isUpvoted?: boolean;
+}
+
+export interface LeaderboardContributor {
+  rank: number;
+  userId: string;
+  name: string;
+  initials: string;
+  role: string;
+  college: string;
+  department: string;
+  totalUploads: number;
+  totalDownloads: number;
+  totalUpvotes: number;
+  reputationScore: number;
+  badge: string;
+  tier: 'Diamond' | 'Platinum' | 'Gold' | 'Silver' | 'Bronze' | string;
+}
+
+export interface PYQQuestionItem {
+  id: string;
+  qNumber: string;
+  question: string;
+  marks: number;
+  unitName?: string;
+  topicId?: string;
+  topicName?: string;
 }
 
 export interface PYQEntry {
   id: string;
+  title?: string;
   subjectId: string;
+  subjectName?: string;
+  subjectCode?: string;
   year: number;
   month: string;
+  examType?: string;
+  semester?: number;
+  department?: string;
+  totalMarks?: number;
+  primaryTopic?: string;
   questionCount: number;
-  topicMapping: { topicId: string; topicName: string; count: number }[];
+  topicMapping: { topicId: string; topicName: string; count?: number; questionCount?: number }[];
+  questions?: PYQQuestionItem[];
+  format?: string;
+  pages?: number;
+  fileSize?: string;
+  author?: string;
+  uploadDate?: string;
+  downloads?: number;
+  status?: string;
+  isSaved?: boolean;
 }
 
 export interface ModerationItem {
   id: string;
+  noteId?: string;
+  userId?: string;
   resourceName: string;
+  primaryTopic?: string;
+  subjectId?: string;
+  subjectName?: string;
+  subjectCode?: string;
   reporter: string;
-  reason: 'Duplicate' | 'Out of Syllabus' | 'Corrupt Scan' | 'Copyright' | 'Incorrect Syllabus';
+  reporterEmail?: string;
+  reporterDepartment?: string;
+  category?: string;
+  reason: string;
+  details?: string;
   timestamp: string;
-  status: 'pending' | 'dismissed' | 'quarantined';
+  status: 'pending' | 'under_review' | 'resolved' | 'dismissed' | 'quarantined';
+  adminNotes?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  actionTaken?: string;
+  // Attached note context
+  noteTitle?: string;
+  uploaderName?: string;
+  uploaderId?: string;
+  uploaderEmail?: string;
+  uploadDate?: string;
+  pages?: number;
+  format?: string;
+  fileSize?: string;
+  noteStatus?: string;
 }
 
 // --- Subjects & Syllabus ---
@@ -298,6 +385,7 @@ export const notes: NoteResource[] = [
     description: 'Clean handwritten class notes covering OS architecture, system call handling, process lifecycle transitions, and multithreading models with diagrams.',
     department: 'Computer Science', semester: 5, subjectName: 'Operating Systems', subjectCode: 'CS501', unitName: 'Unit 1: Introduction to OS',
     format: 'Handwritten PDF', pages: 34, fileSizeFormatted: '4.8 MB', uploadDate: '2025-09-15', downloads: 128,
+    upvotes: 42, commentCount: 3,
     topicMatchCount: 4, totalTopics: 4, syllabusMatch: 'Matches 4/4 topics in Unit 1'
   },
   {
@@ -308,6 +396,7 @@ export const notes: NoteResource[] = [
     description: 'Visual lecture summary comparing CPU burst algorithms, Gantt charts, average turnaround time calculations, and multi-level feedback queues.',
     department: 'Computer Science', semester: 5, subjectName: 'Operating Systems', subjectCode: 'CS501', unitName: 'Unit 2: Process Scheduling',
     format: 'Typed Slides', pages: 22, fileSizeFormatted: '2.4 MB', uploadDate: '2025-09-12', downloads: 89,
+    upvotes: 28, commentCount: 1,
     topicMatchCount: 2, totalTopics: 3, syllabusMatch: 'Matches 2/3 topics in Unit 2'
   },
   {
@@ -318,6 +407,7 @@ export const notes: NoteResource[] = [
     description: 'Rigorous breakdown of Coffman deadlock conditions, Banker’s avoidance algorithm, wait-for graphs, and semaphore synchronization patterns.',
     department: 'Computer Science', semester: 5, subjectName: 'Operating Systems', subjectCode: 'CS501', unitName: 'Unit 3: Concurrency & Synchronization',
     format: 'Typed Notes', pages: 28, fileSizeFormatted: '3.6 MB', uploadDate: '2025-09-18', downloads: 156,
+    upvotes: 64, commentCount: 2,
     topicMatchCount: 3, totalTopics: 3, syllabusMatch: 'Matches 3/3 topics in Unit 3'
   },
   {
@@ -328,6 +418,7 @@ export const notes: NoteResource[] = [
     description: 'Handwritten architectural breakdown of MMU address translation, multi-level page tables, TLB hit ratios, and inverted page tables.',
     department: 'Computer Science', semester: 5, subjectName: 'Operating Systems', subjectCode: 'CS501', unitName: 'Unit 4: Memory Management',
     format: 'Handwritten PDF', pages: 18, fileSizeFormatted: '2.1 MB', uploadDate: '2025-09-10', downloads: 67,
+    upvotes: 15, commentCount: 0,
     topicMatchCount: 1, totalTopics: 3, syllabusMatch: 'Matches 1/3 topics in Unit 4'
   },
   {
@@ -338,6 +429,7 @@ export const notes: NoteResource[] = [
     description: 'Quick exam cheatsheet summarizing FCFS, SSTF, SCAN, C-SCAN head movement formulas and Unix inode block structures.',
     department: 'Computer Science', semester: 5, subjectName: 'Operating Systems', subjectCode: 'CS501', unitName: 'Unit 5: File Systems & I/O',
     format: 'Cheatsheet', pages: 8, fileSizeFormatted: '920 KB', uploadDate: '2025-09-20', downloads: 201,
+    upvotes: 53, commentCount: 1,
     topicMatchCount: 3, totalTopics: 3, syllabusMatch: 'Matches 3/3 topics in Unit 5'
   },
   {
@@ -348,6 +440,7 @@ export const notes: NoteResource[] = [
     description: 'Complete study material covering strong/weak entity sets, cardinality ratios, generalization, specialization, and relational schema mapping.',
     department: 'Computer Science', semester: 5, subjectName: 'Database Management Systems', subjectCode: 'CS502', unitName: 'Unit 1: Introduction & ER Model',
     format: 'Typed Notes', pages: 42, fileSizeFormatted: '5.1 MB', uploadDate: '2025-09-14', downloads: 93,
+    upvotes: 38, commentCount: 1,
     topicMatchCount: 2, totalTopics: 3, syllabusMatch: 'Matches 2/3 topics in Unit 1'
   },
   {
@@ -358,6 +451,7 @@ export const notes: NoteResource[] = [
     description: 'All-in-one SQL reference guide covering inner/outer joins, correlated subqueries, aggregate grouping, and integrity constraints with exam query samples.',
     department: 'Computer Science', semester: 5, subjectName: 'Database Management Systems', subjectCode: 'CS502', unitName: 'Unit 2: SQL & Relational Algebra',
     format: 'Typed Slides', pages: 35, fileSizeFormatted: '3.9 MB', uploadDate: '2025-09-16', downloads: 174,
+    upvotes: 47, commentCount: 2,
     topicMatchCount: 2, totalTopics: 3, syllabusMatch: 'Matches 2/3 topics in Unit 2'
   },
   {

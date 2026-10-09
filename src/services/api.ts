@@ -1,10 +1,13 @@
 import {
   subjects as mockSubjects,
   notes as mockNotes,
+  pyqEntries as mockPyqEntries,
   type Subject,
   type NoteResource,
   type PYQEntry,
-  type ModerationItem
+  type ModerationItem,
+  type NoteComment,
+  type LeaderboardContributor
 } from '../data/mockData';
 
 // ---------- Token Management ----------
@@ -229,7 +232,7 @@ export const api = {
     }
   },
 
-  async uploadNote(formData: FormData): Promise<{ noteId: string; message: string }> {
+  async uploadNote(formData: FormData): Promise<{ success: boolean; noteId: string; message: string; note: NoteResource }> {
     const res = await authFetch('/api/notes', {
       method: 'POST',
       body: formData,
@@ -239,45 +242,356 @@ export const api = {
     return data;
   },
 
+  async updateNote(noteId: string, updates: Partial<NoteResource>): Promise<{ success: boolean; note: NoteResource; message: string }> {
+    const res = await authFetch(`/api/notes/${noteId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to update note');
+    return data;
+  },
+
+  async deleteNote(noteId: string): Promise<{ success: boolean; message: string }> {
+    const res = await authFetch(`/api/notes/${noteId}`, {
+      method: 'DELETE',
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to delete note');
+    return data;
+  },
+
+  // -------------------- Note Upvotes --------------------
+  async getNoteUpvoteStatus(noteId: string): Promise<{ upvoted: boolean; upvoteCount: number }> {
+    try {
+      const res = await authFetch(`/api/notes/${noteId}/upvote-status`);
+      if (!res.ok) throw new Error('API unavailable');
+      const data = await res.json();
+      return { upvoted: !!data.upvoted, upvoteCount: data.upvotes || 0 };
+    } catch {
+      return { upvoted: false, upvoteCount: 14 };
+    }
+  },
+
+  async toggleNoteUpvote(noteId: string): Promise<{ upvoted: boolean; upvoteCount: number }> {
+    try {
+      const res = await authFetch(`/api/notes/${noteId}/upvote`, { method: 'POST' });
+      if (!res.ok) throw new Error('API unavailable');
+      const data = await res.json();
+      return { upvoted: !!data.upvoted, upvoteCount: data.upvotes };
+    } catch {
+      return { upvoted: true, upvoteCount: 15 };
+    }
+  },
+
+  // -------------------- Note Comments & Discussion --------------------
+  async getNoteComments(noteId: string): Promise<NoteComment[]> {
+    try {
+      const res = await authFetch(`/api/notes/${noteId}/comments`);
+      if (!res.ok) throw new Error('API unavailable');
+      const data = await res.json();
+      return data.comments || [];
+    } catch {
+      return [];
+    }
+  },
+
+  async addNoteComment(noteId: string, content: string, category: string = 'General'): Promise<NoteComment> {
+    const res = await authFetch(`/api/notes/${noteId}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, category }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to post comment');
+    return data.comment;
+  },
+
+  async toggleCommentUpvote(commentId: string): Promise<{ upvoted: boolean; upvotes: number }> {
+    const res = await authFetch(`/api/comments/${commentId}/upvote`, { method: 'POST' });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to toggle comment upvote');
+    return { upvoted: !!data.upvoted, upvotes: data.upvotes };
+  },
+
+  async deleteNoteComment(commentId: string): Promise<boolean> {
+    const res = await authFetch(`/api/comments/${commentId}`, { method: 'DELETE' });
+    const data = await res.json();
+    return !!data.success;
+  },
+
+  // -------------------- Contributor Leaderboard --------------------
+  async getContributorLeaderboard(department?: string): Promise<LeaderboardContributor[]> {
+    try {
+      const query = department && department !== 'all' ? `?department=${encodeURIComponent(department)}` : '';
+      const res = await authFetch(`/api/contributors/leaderboard${query}`);
+      if (!res.ok) throw new Error('API unavailable');
+      const data = await res.json();
+      return data.leaderboard || [];
+    } catch {
+      return [
+        {
+          rank: 1,
+          userId: 'user-am',
+          name: 'Arjun Mehta',
+          initials: 'AM',
+          role: 'Student',
+          college: 'Apex Institute of Technology',
+          department: 'Computer Science',
+          totalUploads: 6,
+          totalDownloads: 489,
+          totalUpvotes: 142,
+          reputationScore: 2450,
+          badge: 'Grand Scribe',
+          tier: 'Diamond'
+        },
+        {
+          rank: 2,
+          userId: 'user-kn',
+          name: 'Kavya Nair',
+          initials: 'KN',
+          role: 'Student',
+          college: 'Apex Institute of Technology',
+          department: 'Computer Science',
+          totalUploads: 5,
+          totalDownloads: 412,
+          totalUpvotes: 118,
+          reputationScore: 2050,
+          badge: 'Syllabus Champion',
+          tier: 'Platinum'
+        },
+        {
+          rank: 3,
+          userId: 'user-ps',
+          name: 'Priya Sharma',
+          initials: 'PS',
+          role: 'Moderator',
+          college: 'Apex Institute of Technology',
+          department: 'Computer Science',
+          totalUploads: 4,
+          totalDownloads: 350,
+          totalUpvotes: 95,
+          reputationScore: 1675,
+          badge: 'Distinguished Scholar',
+          tier: 'Gold'
+        },
+        {
+          rank: 4,
+          userId: 'user-si',
+          name: 'Sneha Iyer',
+          initials: 'SI',
+          role: 'Student',
+          college: 'Apex Institute of Technology',
+          department: 'Computer Science',
+          totalUploads: 3,
+          totalDownloads: 240,
+          totalUpvotes: 72,
+          reputationScore: 1230,
+          badge: "Dean's Honor Roll",
+          tier: 'Silver'
+        }
+      ];
+    }
+  },
+
+  // -------------------- Saved Notes / Library --------------------
+  async getSavedNotes(): Promise<{ success: boolean; savedNotes: any[] }> {
+    try {
+      const res = await authFetch('/api/user/saved-notes');
+      if (!res.ok) throw new Error('API unavailable');
+      const data = await res.json();
+      return data;
+    } catch {
+      return { success: true, savedNotes: [] };
+    }
+  },
+
+  async saveUserNote(noteId: string): Promise<{ success: boolean; savedAt: string }> {
+    try {
+      const res = await authFetch(`/api/user/saved-notes/${noteId}`, { method: 'POST' });
+      const data = await res.json();
+      return data;
+    } catch {
+      return { success: true, savedAt: new Date().toISOString() };
+    }
+  },
+
+  async removeUserSavedNote(noteId: string): Promise<{ success: boolean }> {
+    try {
+      const res = await authFetch(`/api/user/saved-notes/${noteId}`, { method: 'DELETE' });
+      const data = await res.json();
+      return data;
+    } catch {
+      return { success: true };
+    }
+  },
+
+  async recordNoteAccess(noteId: string): Promise<{ success: boolean; lastAccessedAt: string }> {
+    try {
+      const res = await authFetch(`/api/user/saved-notes/${noteId}/access`, { method: 'POST' });
+      const data = await res.json();
+      return data;
+    } catch {
+      return { success: true, lastAccessedAt: new Date().toISOString() };
+    }
+  },
+
   getDownloadUrl(noteId: string): string {
     return `/api/notes/${noteId}/download`;
   },
 
   // -------------------- PYQs --------------------
-  async getPYQs(subjectId?: string): Promise<PYQEntry[]> {
-    const url = subjectId && subjectId !== 'all' ? `/api/pyqs?subjectId=${subjectId}` : '/api/pyqs';
-    const res = await authFetch(url);
+  async getPYQs(filters?: {
+    subjectId?: string;
+    year?: string | number;
+    examType?: string;
+    semester?: string | number;
+    topic?: string;
+    search?: string;
+  } | string): Promise<PYQEntry[]> {
+    try {
+      const params = new URLSearchParams();
+      if (typeof filters === 'string') {
+        if (filters && filters !== 'all') params.append('subjectId', filters);
+      } else if (filters) {
+        if (filters.subjectId && filters.subjectId !== 'all') params.append('subjectId', filters.subjectId);
+        if (filters.year && filters.year !== 'all') params.append('year', String(filters.year));
+        if (filters.examType && filters.examType !== 'all') params.append('examType', filters.examType);
+        if (filters.semester && filters.semester !== 'all') params.append('semester', String(filters.semester));
+        if (filters.topic && filters.topic !== 'all') params.append('topic', filters.topic);
+        if (filters.search && filters.search.trim()) params.append('search', filters.search.trim());
+      }
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const res = await authFetch(`/api/pyqs${qs}`);
+      if (!res.ok) throw new Error('API unavailable');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to fetch PYQs');
+      return data.pyqs;
+    } catch {
+      return mockPyqEntries;
+    }
+  },
+
+  async getPYQ(id: string): Promise<PYQEntry> {
+    try {
+      const res = await authFetch(`/api/pyqs/${id}`);
+      if (!res.ok) throw new Error('API unavailable');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Failed to fetch PYQ');
+      return data.pyq;
+    } catch {
+      const found = mockPyqEntries.find((p: PYQEntry) => p.id === id);
+      if (!found) throw new Error('PYQ not found');
+      return found;
+    }
+  },
+
+  async uploadPYQ(payload: FormData | Record<string, any>): Promise<{ success: boolean; message: string; pyq: any }> {
+    let res: Response;
+    if (payload instanceof FormData) {
+      res = await authFetch('/api/pyqs', {
+        method: 'POST',
+        body: payload
+      });
+    } else {
+      res = await authFetch('/api/pyqs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }
     const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to fetch PYQs');
-    return data.pyqs;
+    if (!data.success) throw new Error(data.error || 'Failed to upload PYQ');
+    return data;
+  },
+
+  getPYQDownloadUrl(pyqId: string): string {
+    return `/api/pyqs/${pyqId}/download`;
   },
 
   // -------------------- Moderation --------------------
-  async getModerationItems(): Promise<ModerationItem[]> {
-    const res = await authFetch('/api/moderation');
+  async getModerationItems(mineOnly = false): Promise<ModerationItem[]> {
+    const res = await authFetch(`/api/moderation${mineOnly ? '?mine=true' : ''}`);
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Failed to fetch moderation queue');
     return data.items;
   },
 
-  async updateModeration(id: string, status: 'dismissed' | 'quarantined'): Promise<void> {
+  async getUserReports(): Promise<ModerationItem[]> {
+    const res = await authFetch('/api/user/reports');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to fetch user reports');
+    return data.reports || data.items || [];
+  },
+
+  async checkNoteReportStatus(noteId: string): Promise<{ hasReported: boolean; report?: any }> {
+    try {
+      const res = await authFetch(`/api/moderation/status/${noteId}`);
+      if (!res.ok) return { hasReported: false };
+      const data = await res.json();
+      return { hasReported: !!data.hasReported, report: data.report };
+    } catch {
+      return { hasReported: false };
+    }
+  },
+
+  async getAdminModerationItems(filter?: { status?: string; category?: string; search?: string }): Promise<ModerationItem[]> {
+    const params = new URLSearchParams();
+    if (filter?.status) params.set('status', filter.status);
+    if (filter?.category) params.set('category', filter.category);
+    if (filter?.search) params.set('search', filter.search);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await authFetch(`/api/admin/moderation${qs}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to fetch admin moderation queue');
+    return data.items;
+  },
+
+  async submitModerationDecision(id: string, payload: {
+    action: 'dismiss' | 'quarantine' | 'under_review' | 'restore';
+    adminNotes?: string;
+  }): Promise<{ message: string; report: ModerationItem }> {
+    const res = await authFetch(`/api/admin/moderation/${id}/decision`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to submit moderation decision');
+    return { message: data.message, report: data.report };
+  },
+
+  async updateModeration(id: string, status: 'pending' | 'under_review' | 'resolved' | 'dismissed' | 'quarantined', adminNotes?: string): Promise<void> {
     const res = await authFetch(`/api/moderation/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, adminNotes }),
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Failed to update moderation item');
   },
 
-  async reportResource(report: { resourceName: string; reporter?: string; reason: string }): Promise<void> {
+  async reportResource(report: {
+    noteId?: string;
+    resourceName?: string;
+    reporter?: string;
+    reason: string;
+    category?: string;
+    details?: string;
+  }): Promise<{ id: string; message: string }> {
     const res = await authFetch('/api/moderation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(report),
     });
     const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to report resource');
+    if (!data.success) {
+      const err = new Error(data.error || 'Failed to report resource');
+      (err as any).status = res.status;
+      throw err;
+    }
+    return { id: data.id, message: data.message };
   },
 
   // -------------------- Dashboard --------------------

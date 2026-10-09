@@ -2,11 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import {
   ArrowRight, AlertTriangle, TrendingUp, Clock, FileText, Search,
-  Sparkles, Bookmark, Layers, X, ChevronRight
+  Sparkles, Bookmark, Layers, X, ChevronRight,
+  Trophy, Crown, ThumbsUp, MessageSquare, Upload
 } from 'lucide-react';
 import { api, type DashboardData } from '../services/api';
 import { useApp } from '../context/AppContext';
-import { notes as fallbackNotes, subjects as fallbackSubjects, type Subject, type NoteResource } from '../data/mockData';
+import { savedNotesService } from '../services/savedNotes';
+import { notes as fallbackNotes, subjects as fallbackSubjects, type Subject, type NoteResource, type LeaderboardContributor } from '../data/mockData';
 
 function CoverageRing({ value, size = 40 }: { value: number; size?: number }) {
   const r = (size - 8) / 2;
@@ -41,23 +43,28 @@ const QUICK_TOPICS = [
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { refreshKey } = useApp();
+  const { refreshKey, setUploadOpen } = useApp();
 
   const [subjectsList, setSubjectsList] = useState<Subject[]>(fallbackSubjects);
   const [notesList, setNotesList] = useState<NoteResource[]>(fallbackNotes);
   const [dashboardStats, setDashboardStats] = useState<DashboardData | null>(null);
 
+  // Contributor Leaderboard State
+  const [leaderboard, setLeaderboard] = useState<LeaderboardContributor[]>([]);
+  const [leaderboardDept, setLeaderboardDept] = useState<'all' | 'Computer Science'>('all');
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+
   // In-page Topic Discovery State (Connecting Landing Page with Notes Discovery)
   const [topicSearch, setTopicSearch] = useState('');
   const [activeTopicChip, setActiveTopicChip] = useState<string | null>(null);
-  const [savedNoteIds, setSavedNoteIds] = useState<string[]>(() => {
-    try {
-      const stored = localStorage.getItem('atelier_saved_notes');
-      return stored ? JSON.parse(stored) : ['n3'];
-    } catch {
-      return ['n3'];
-    }
-  });
+  const [savedNoteIds, setSavedNoteIds] = useState<string[]>(() => savedNotesService.getSavedIds());
+
+  useEffect(() => {
+    const unsubscribe = savedNotesService.subscribe((ids) => {
+      setSavedNoteIds(ids);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     api.getSubjects().then(setSubjectsList).catch(() => setSubjectsList(fallbackSubjects));
@@ -73,7 +80,13 @@ export default function Dashboard() {
     }).catch(() => setNotesList(fallbackNotes));
 
     api.getDashboardData().then(setDashboardStats).catch(console.error);
-  }, [refreshKey]);
+
+    setLeaderboardLoading(true);
+    api.getContributorLeaderboard(leaderboardDept)
+      .then(data => setLeaderboard(data))
+      .catch(console.error)
+      .finally(() => setLeaderboardLoading(false));
+  }, [refreshKey, leaderboardDept]);
 
   // Last accessed note or priority note
   const lastNote = notesList.find(n => n.id === 'n3') || notesList[0];
@@ -94,16 +107,8 @@ export default function Dashboard() {
   ];
 
   // Save / Bookmark Toggle
-  const toggleSave = (noteId: string) => {
-    setSavedNoteIds(prev => {
-      const next = prev.includes(noteId) ? prev.filter(id => id !== noteId) : [...prev, noteId];
-      try {
-        localStorage.setItem('atelier_saved_notes', JSON.stringify(next));
-      } catch (err) {
-        console.error(err);
-      }
-      return next;
-    });
+  const toggleSave = async (noteId: string) => {
+    await savedNotesService.toggleSaveNote(noteId);
   };
 
   // Filter notes on the landing page based on topic search or active chip
@@ -294,6 +299,19 @@ export default function Dashboard() {
                           )}
                           <span className="meta-sep">•</span>
                           <span>{note.downloads} downloads</span>
+                          <span className="meta-sep">•</span>
+                          <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: (note.upvotes || 0) > 0 ? 'var(--color-primary)' : 'inherit' }}>
+                            <ThumbsUp size={11} fill={(note.upvotes || 0) > 0 ? 'currentColor' : 'none'} />
+                            {note.upvotes || 0} helpful
+                          </span>
+                          {note.commentCount !== undefined && note.commentCount > 0 && (
+                            <>
+                              <span className="meta-sep">•</span>
+                              <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <MessageSquare size={11} /> {note.commentCount} discussion
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -651,6 +669,185 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* ================================================================
+          5. HALL OF SCRIBES — CONTRIBUTOR LEADERBOARD (Student Social Layer)
+          ================================================================ */}
+      <section className="dashboard-leaderboard-section" id="contributor-leaderboard">
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                <Trophy size={18} style={{ color: 'var(--color-primary)' }} />
+                <h2 style={{ fontSize: 'var(--text-lg)', margin: 0, fontFamily: 'var(--font-display)' }}>
+                  Hall of Scribes — Contributor Leaderboard
+                </h2>
+              </div>
+              <p className="text-sm text-muted" style={{ margin: '4px 0 0' }}>
+                Recognizing peer contributors who write comprehensive lecture notes, verified numericals, and syllabus guides.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <div className="leaderboard-dept-toggle">
+                <button
+                  type="button"
+                  className={`leaderboard-toggle-btn ${leaderboardDept === 'all' ? 'active' : ''}`}
+                  onClick={() => setLeaderboardDept('all')}
+                >
+                  All Depts
+                </button>
+                <button
+                  type="button"
+                  className={`leaderboard-toggle-btn ${leaderboardDept === 'Computer Science' ? 'active' : ''}`}
+                  onClick={() => setLeaderboardDept('Computer Science')}
+                >
+                  Computer Science
+                </button>
+              </div>
+
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => setUploadOpen(true)}
+                id="btn-leaderboard-upload-cta"
+              >
+                <Upload size={13} />
+                <span>Upload Notes</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="card-body" style={{ padding: 'var(--space-5)' }}>
+            {leaderboardLoading ? (
+              <div style={{ textAlign: 'center', padding: 'var(--space-6)', color: 'var(--color-muted)' }}>
+                <span className="mono" style={{ fontSize: '12px' }}>Loading contributor standings…</span>
+              </div>
+            ) : leaderboard.length >= 3 && (
+              <div className="leaderboard-podium-grid">
+                {/* 2nd Place */}
+                <div className="podium-card rank-2">
+                  <div className="podium-medal-badge silver">
+                    <span>2nd</span>
+                  </div>
+                  <div className="podium-avatar silver">
+                    {leaderboard[1].initials}
+                  </div>
+                  <h3 className="podium-name">{leaderboard[1].name}</h3>
+                  <span className="podium-tier-pill silver">{leaderboard[1].badge}</span>
+                  <div className="podium-score mono">
+                    {leaderboard[1].reputationScore.toLocaleString()} pts
+                  </div>
+                  <div className="podium-stats-row text-muted mono">
+                    <span>{leaderboard[1].totalUploads} uploads</span>
+                    <span>•</span>
+                    <span>{leaderboard[1].totalUpvotes} helpful</span>
+                  </div>
+                  <span className="podium-college">{leaderboard[1].college}</span>
+                </div>
+
+                {/* 1st Place */}
+                <div className="podium-card rank-1">
+                  <div className="podium-crown-icon">
+                    <Crown size={22} style={{ color: '#d97706' }} />
+                  </div>
+                  <div className="podium-medal-badge gold">
+                    <span>1st</span>
+                  </div>
+                  <div className="podium-avatar gold">
+                    {leaderboard[0].initials}
+                  </div>
+                  <h3 className="podium-name">{leaderboard[0].name}</h3>
+                  <span className="podium-tier-pill gold">{leaderboard[0].badge}</span>
+                  <div className="podium-score mono">
+                    {leaderboard[0].reputationScore.toLocaleString()} pts
+                  </div>
+                  <div className="podium-stats-row text-muted mono">
+                    <span>{leaderboard[0].totalUploads} uploads</span>
+                    <span>•</span>
+                    <span>{leaderboard[0].totalUpvotes} helpful</span>
+                  </div>
+                  <span className="podium-college">{leaderboard[0].college}</span>
+                </div>
+
+                {/* 3rd Place */}
+                <div className="podium-card rank-3">
+                  <div className="podium-medal-badge bronze">
+                    <span>3rd</span>
+                  </div>
+                  <div className="podium-avatar bronze">
+                    {leaderboard[2].initials}
+                  </div>
+                  <h3 className="podium-name">{leaderboard[2].name}</h3>
+                  <span className="podium-tier-pill bronze">{leaderboard[2].badge}</span>
+                  <div className="podium-score mono">
+                    {leaderboard[2].reputationScore.toLocaleString()} pts
+                  </div>
+                  <div className="podium-stats-row text-muted mono">
+                    <span>{leaderboard[2].totalUploads} uploads</span>
+                    <span>•</span>
+                    <span>{leaderboard[2].totalUpvotes} helpful</span>
+                  </div>
+                  <span className="podium-college">{leaderboard[2].college}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Runners-up Table */}
+            <div className="leaderboard-table-wrapper" style={{ marginTop: 'var(--space-5)' }}>
+              <table className="leaderboard-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '48px', textAlign: 'center' }}>Rank</th>
+                    <th>Scribe</th>
+                    <th>Department</th>
+                    <th style={{ textAlign: 'center' }}>Uploads</th>
+                    <th style={{ textAlign: 'center' }}>Helpful Votes</th>
+                    <th style={{ textAlign: 'right' }}>Reputation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaderboard.map(item => (
+                    <tr key={item.userId} className={item.rank <= 3 ? `top-rank-row rank-${item.rank}` : ''}>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`rank-number-chip ${item.rank <= 3 ? `rank-${item.rank}` : ''}`}>
+                          #{item.rank}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div className={`table-scribe-avatar ${item.rank <= 3 ? `rank-${item.rank}` : ''}`}>
+                            {item.initials}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 'var(--weight-semibold)', fontSize: 'var(--text-sm)', color: 'var(--color-deep)' }}>
+                              {item.name}
+                            </div>
+                            <span className="mono text-muted" style={{ fontSize: '10.5px' }}>
+                              {item.badge}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ fontSize: 'var(--text-sm)', color: 'var(--color-muted)' }}>
+                        {item.department}
+                      </td>
+                      <td style={{ textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)' }}>
+                        {item.totalUploads}
+                      </td>
+                      <td style={{ textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-primary)' }}>
+                        {item.totalUpvotes} 👍
+                      </td>
+                      <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 'var(--weight-bold)', fontSize: 'var(--text-sm)' }}>
+                        {item.reputationScore.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

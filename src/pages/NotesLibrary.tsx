@@ -2,10 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router';
 import {
   Search, X, Bookmark, ArrowRight, Sparkles, Filter, RotateCcw,
-  FileText, Download, Check, Calendar, ChevronDown, Layers
+  FileText, Download, Check, Calendar, ChevronDown, Layers,
+  ThumbsUp, MessageSquare
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useApp } from '../context/AppContext';
+import { savedNotesService } from '../services/savedNotes';
 import { notes as fallbackNotes, subjects as fallbackSubjects, type NoteResource, type Subject } from '../data/mockData';
 
 // Curated popular topics for quick 1-click discovery
@@ -53,7 +55,7 @@ export default function NotesLibrary() {
   const [selectedSubject, setSelectedSubject] = useState(navState.selectedSubject || 'all');
   const [selectedUnit, setSelectedUnit] = useState(navState.selectedUnit || 'all');
   const [selectedFormat, setSelectedFormat] = useState(navState.selectedFormat || 'All Types');
-  const [sortBy, setSortBy] = useState<'relevance' | 'downloads' | 'recent' | 'pages'>(navState.sortBy || 'relevance');
+  const [sortBy, setSortBy] = useState<'relevance' | 'downloads' | 'recent' | 'pages' | 'upvotes'>(navState.sortBy || 'relevance');
   const [showSavedOnly, setShowSavedOnly] = useState(!!navState.showSavedOnly);
 
   const openNoteDetail = (id: string) => {
@@ -72,19 +74,18 @@ export default function NotesLibrary() {
     });
   };
 
-  // Saved notes in localStorage
-  const [savedNoteIds, setSavedNoteIds] = useState<string[]>(() => {
-    try {
-      const stored = localStorage.getItem('atelier_saved_notes');
-      return stored ? JSON.parse(stored) : ['n3']; // n3 saved by default
-    } catch {
-      return ['n3'];
-    }
-  });
-
+  // Saved notes using reactive savedNotesService
+  const [savedNoteIds, setSavedNoteIds] = useState<string[]>(() => savedNotesService.getSavedIds());
   const [notesList, setNotesList] = useState<NoteResource[]>(fallbackNotes);
   const [subjectsList, setSubjectsList] = useState<Subject[]>(fallbackSubjects);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = savedNotesService.subscribe((ids) => {
+      setSavedNoteIds(ids);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Fetch live subjects and notes if API is reachable
   useEffect(() => {
@@ -114,20 +115,11 @@ export default function NotesLibrary() {
     }
   };
 
-  // Toggle bookmark/save
-  const toggleSaveNote = (noteId: string, noteTitle: string) => {
-    setSavedNoteIds(prev => {
-      const next = prev.includes(noteId) ? prev.filter(id => id !== noteId) : [...prev, noteId];
-      try {
-        localStorage.setItem('atelier_saved_notes', JSON.stringify(next));
-      } catch (err) {
-        console.error(err);
-      }
-      const isNowSaved = next.includes(noteId);
-      setToastMessage(isNowSaved ? `Saved “${noteTitle.slice(0, 30)}...”` : `Removed from saved notes`);
-      setTimeout(() => setToastMessage(null), 2400);
-      return next;
-    });
+  // Toggle bookmark/save using shared service
+  const toggleSaveNote = async (noteId: string, noteTitle: string) => {
+    const isNowSaved = await savedNotesService.toggleSaveNote(noteId);
+    setToastMessage(isNowSaved ? `Saved “${noteTitle.slice(0, 30)}...” to your library` : `Removed from your library`);
+    setTimeout(() => setToastMessage(null), 2400);
   };
 
   // Dynamically resolve units based on selected subject
@@ -170,6 +162,7 @@ export default function NotesLibrary() {
         const matchesSubject = note.subjectName?.toLowerCase().includes(q) || false;
         const matchesCode = note.subjectCode?.toLowerCase().includes(q) || false;
         const matchesAuthor = note.author.toLowerCase().includes(q);
+        const matchesTags = note.tags?.some(t => t.toLowerCase().includes(q)) || false;
 
         // Also check if any associated topic in subjects list matches
         const subject = subjectsList.find(s => s.id === note.subjectId);
@@ -177,7 +170,7 @@ export default function NotesLibrary() {
           u.topics.some(t => note.topicIds.includes(t.id) && t.name.toLowerCase().includes(q))
         );
 
-        if (!matchesPrimaryTopic && !matchesTopicNames && !matchesTitle && !matchesDesc && !matchesSubject && !matchesCode && !matchesAuthor && !subjectTopicMatch) {
+        if (!matchesPrimaryTopic && !matchesTopicNames && !matchesTitle && !matchesDesc && !matchesSubject && !matchesCode && !matchesAuthor && !matchesTags && !subjectTopicMatch) {
           return false;
         }
       }
@@ -217,6 +210,9 @@ export default function NotesLibrary() {
 
       return true;
     }).sort((a, b) => {
+      if (sortBy === 'upvotes') {
+        return (b.upvotes || 0) - (a.upvotes || 0);
+      }
       if (sortBy === 'downloads') {
         return b.downloads - a.downloads;
       }
@@ -467,6 +463,7 @@ export default function NotesLibrary() {
               aria-label="Sort notes by"
             >
               <option value="relevance">Most Relevant</option>
+              <option value="upvotes">Most Helpful (Upvotes)</option>
               <option value="downloads">Most Downloaded</option>
               <option value="recent">Most Recent</option>
               <option value="pages">Page Count</option>
@@ -569,6 +566,24 @@ export default function NotesLibrary() {
                         {note.description}
                       </p>
                     )}
+                    {note.tags && note.tags.length > 0 && (
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                        {note.tags.map(t => (
+                          <span
+                            key={t}
+                            className="chip"
+                            style={{ fontSize: '11px', cursor: 'pointer', padding: '2px 8px' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSearchQuery(t);
+                            }}
+                            title={`Filter by tag #${t}`}
+                          >
+                            #{t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Bottom Row: File Details, Author & Action Buttons */}
@@ -613,6 +628,37 @@ export default function NotesLibrary() {
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                         <Download size={11} /> {note.downloads} downloads
                       </span>
+
+                      <span className="discovery-info-sep">•</span>
+
+                      {/* Helpful Upvotes */}
+                      <span
+                        className="discovery-helpful-chip"
+                        title={`${note.upvotes || 0} students marked this as helpful`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          color: (note.upvotes || 0) > 0 ? 'var(--color-primary)' : 'inherit',
+                          fontWeight: (note.upvotes || 0) > 0 ? 'var(--weight-semibold)' : 'normal'
+                        }}
+                      >
+                        <ThumbsUp size={11} fill={(note.upvotes || 0) > 0 ? 'currentColor' : 'none'} />
+                        <span>{note.upvotes || 0} helpful</span>
+                      </span>
+
+                      {note.commentCount !== undefined && note.commentCount > 0 && (
+                        <>
+                          <span className="discovery-info-sep">•</span>
+                          <span
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--color-deep-soft)' }}
+                            title={`${note.commentCount} discussions and errata tips`}
+                          >
+                            <MessageSquare size={11} />
+                            <span>{note.commentCount} discussion</span>
+                          </span>
+                        </>
+                      )}
                     </div>
 
                     {/* Action Buttons: Save & Open Notes */}

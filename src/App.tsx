@@ -10,10 +10,13 @@ import MySubjects from './pages/MySubjects';
 import SubjectOverview from './pages/SubjectOverview';
 import NotesLibrary from './pages/NotesLibrary';
 import NoteDetail from './pages/NoteDetail';
+import MyLibrary from './pages/MyLibrary';
 import PYQArchive from './pages/PYQArchive';
+import PYQDetail from './pages/PYQDetail';
 import SyllabusCoverage from './pages/SyllabusCoverage';
 import Contributions from './pages/Contributions';
 import ModerationQueue from './pages/ModerationQueue';
+import AdminModeration from './pages/AdminModeration';
 import SettingsPage from './pages/Settings';
 
 import { useApp } from './context/AppContext';
@@ -50,6 +53,20 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated) {
     return <Navigate to="/?auth=signin" replace />;
   }
+  return <>{children}</>;
+}
+
+function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, authLoading } = useApp();
+
+  if (authLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/?auth=signin" replace />;
+
+  const isAuthorized = user && (user.role?.toLowerCase() === 'moderator' || user.role?.toLowerCase() === 'admin');
+  if (!isAuthorized) {
+    return <Navigate to="/moderation" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -91,10 +108,23 @@ export default function App() {
             <Route path="subjects/:subjectId" element={<SubjectOverview />} />
             <Route path="notes" element={<NotesLibrary />} />
             <Route path="notes/:noteId" element={<NoteDetail />} />
+            <Route path="library" element={<MyLibrary />} />
+            <Route path="saved-notes" element={<Navigate to="/library" replace />} />
             <Route path="pyq" element={<PYQArchive />} />
+            <Route path="pyq/:pyqId" element={<PYQDetail />} />
             <Route path="syllabus" element={<SyllabusCoverage />} />
+            <Route path="uploads" element={<Contributions />} />
             <Route path="contributions" element={<Contributions />} />
             <Route path="moderation" element={<ModerationQueue />} />
+            <Route path="my-reports" element={<ModerationQueue />} />
+            <Route
+              path="admin/moderation"
+              element={
+                <RequireAdmin>
+                  <AdminModeration />
+                </RequireAdmin>
+              }
+            />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>

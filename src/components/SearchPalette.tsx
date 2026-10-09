@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { Search, FileText, FolderOpen, Clock, Compass, ArrowRight } from 'lucide-react';
+import { Search, FileText, FolderOpen, Clock, Compass, ArrowRight, Bookmark, Upload } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import type { Subject, NoteResource } from '../data/mockData';
@@ -16,6 +16,8 @@ interface SearchResult {
 const staticPages: SearchResult[] = [
   { type: 'page', label: 'Dashboard', meta: 'Page', path: '/', icon: Compass },
   { type: 'page', label: 'Notes Discovery', meta: 'Page', path: '/notes', icon: FileText },
+  { type: 'page', label: 'My Library (Saved Notes)', meta: 'Personal Study Collection', path: '/library', icon: Bookmark },
+  { type: 'page', label: 'My Uploads', meta: 'Contributed Resources', path: '/uploads', icon: Upload },
   { type: 'page', label: 'PYQ Archive', meta: 'Page', path: '/pyq', icon: Clock },
   { type: 'page', label: 'Syllabus Coverage', meta: 'Page', path: '/syllabus', icon: Compass },
   { type: 'page', label: 'Moderation Queue', meta: 'Page', path: '/moderation', icon: FileText },

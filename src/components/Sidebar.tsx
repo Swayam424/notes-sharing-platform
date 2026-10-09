@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import {
   BookOpen, FolderOpen, FileText, Clock, Compass,
-  Upload, Flag, Settings, LayoutDashboard, Sparkles, LogOut
+  Upload, Flag, Settings, LayoutDashboard, Sparkles, LogOut, Bookmark, ShieldAlert
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
@@ -15,12 +15,13 @@ const navItems = {
   ],
   library: [
     { to: '/notes', icon: FileText, label: 'Notes Discovery' },
+    { to: '/library', icon: Bookmark, label: 'My Library' },
     { to: '/pyq', icon: Clock, label: 'PYQ Archive' },
     { to: '/syllabus', icon: Compass, label: 'Syllabus Coverage' },
   ],
   personal: [
-    { to: '/contributions', icon: Upload, label: 'My Contributions' },
-    { to: '/moderation', icon: Flag, label: 'Moderation' },
+    { to: '/uploads', icon: Upload, label: 'My Uploads' },
+    { to: '/moderation', icon: Flag, label: 'My Reports' },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ],
   showcase: [
@@ -125,6 +126,22 @@ export default function Sidebar() {
             </NavLink>
           ))}
         </div>
+
+        {((currentUser?.role || '').toLowerCase() === 'moderator' || (currentUser?.role || '').toLowerCase() === 'admin') && (
+          <div className="sidebar-section">
+            <div className="sidebar-section-label" style={{ color: 'var(--color-primary)' }}>
+              Administration
+            </div>
+            <NavLink
+              to="/admin/moderation"
+              className={`sidebar-nav-item ${isActive('/admin/moderation') ? 'active' : ''}`}
+              id="nav-moderation-console"
+            >
+              <ShieldAlert className="sidebar-nav-icon" size={20} strokeWidth={1.5} style={{ color: 'var(--color-primary)' }} />
+              Moderation Console
+            </NavLink>
+          </div>
+        )}
 
         <div className="sidebar-section">
           <div className="sidebar-section-label">Showcase</div>

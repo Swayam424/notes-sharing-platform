@@ -4,11 +4,54 @@ import {
   ArrowLeft, Home, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCw,
   Bookmark, Download, Flag, FileText, Check, X,
   Maximize2, Minimize2, Sparkles, BookOpen, Sun, Moon,
-  PanelLeftClose, PanelLeft, AlertCircle, RefreshCw
+  PanelLeftClose, PanelLeft, AlertCircle, RefreshCw,
+  Compass, Copy, ShieldAlert, AlertTriangle, Lock,
+  CheckCircle2, Info, ExternalLink, Loader2,
+  ThumbsUp, MessageSquare, Send, Lightbulb, Trash2, HelpCircle
 } from 'lucide-react';
 import { api } from '../services/api';
-import { notes as fallbackNotes, subjects as fallbackSubjects, type NoteResource, type Subject } from '../data/mockData';
+import { savedNotesService } from '../services/savedNotes';
+import { notes as fallbackNotes, subjects as fallbackSubjects, type NoteResource, type Subject, type NoteComment } from '../data/mockData';
 import { getDocumentPages, type NotePageData } from '../data/noteContent';
+
+export const REPORT_REASONS = [
+  {
+    category: 'incorrect_info',
+    label: 'Incorrect Information',
+    description: 'Factual mistakes, erroneous formulas, or misleading calculations/answers',
+    icon: AlertCircle,
+  },
+  {
+    category: 'syllabus_mismatch',
+    label: "Doesn't Match Topic / Syllabus",
+    description: 'Misclassified topic, wrong unit, or out of course curriculum scope',
+    icon: Compass,
+  },
+  {
+    category: 'duplicate',
+    label: 'Duplicate Resource',
+    description: 'Already uploaded or identical to another note in this subject',
+    icon: Copy,
+  },
+  {
+    category: 'inappropriate',
+    label: 'Inappropriate Content',
+    description: 'Offensive, defamatory, abusive, or non-educational material',
+    icon: ShieldAlert,
+  },
+  {
+    category: 'spam',
+    label: 'Spam or Promotional',
+    description: 'Advertisements, commercial links, junk content, or solicitations',
+    icon: AlertTriangle,
+  },
+  {
+    category: 'copyright',
+    label: 'Copyright / Ownership Concern',
+    description: 'Unauthorized publication of private/proprietary intellectual property',
+    icon: Lock,
+  },
+];
 
 export default function NoteDetail() {
   const { noteId } = useParams<{ noteId: string }>();
@@ -27,10 +70,14 @@ export default function NoteDetail() {
 
   // Modals & Feedback
   const [reportOpen, setReportOpen] = useState(false);
-  const [selectedReason, setSelectedReason] = useState('Incorrect Syllabus Mapping');
+  const [selectedReason, setSelectedReason] = useState<string>('Incorrect Information');
   const [reportNotes, setReportNotes] = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportedSuccess, setReportedSuccess] = useState(false);
+  const [submittedReportId, setSubmittedReportId] = useState<string | null>(null);
+  const [alreadyReported, setAlreadyReported] = useState(false);
+  const [alreadyReportedInfo, setAlreadyReportedInfo] = useState<{ id?: string; reason?: string; timestamp?: string; status?: string; details?: string } | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Note Data & Loading/Error states
@@ -41,6 +88,18 @@ export default function NoteDetail() {
 
   // Saved Notes state from localStorage (synced with Notes Discovery)
   const [isSaved, setIsSaved] = useState(false);
+
+  // Social Engagement & Discussion state
+  const [upvotesCount, setUpvotesCount] = useState(0);
+  const [isUpvoted, setIsUpvoted] = useState(false);
+  const [upvoting, setUpvoting] = useState(false);
+  const [showDiscussion, setShowDiscussion] = useState(false);
+  const [comments, setComments] = useState<NoteComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentCategory, setCommentCategory] = useState<'Exam Tip' | 'Errata / Correction' | 'Question' | 'Key Takeaway' | 'General'>('Exam Tip');
+  const [commentText, setCommentText] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [activeCommentFilter, setActiveCommentFilter] = useState<'all' | 'Exam Tip' | 'Errata / Correction' | 'Question' | 'Key Takeaway'>('all');
 
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -91,18 +150,41 @@ export default function NoteDetail() {
     loadData();
   }, [loadData]);
 
-  // Sync saved status with localStorage
+  // Sync saved status and record note access timestamp
   useEffect(() => {
     if (!noteId) return;
-    try {
-      const stored = localStorage.getItem('atelier_saved_notes');
-      if (stored) {
-        const ids: string[] = JSON.parse(stored);
-        setIsSaved(ids.includes(noteId));
-      }
-    } catch {
-      setIsSaved(false);
-    }
+    setIsSaved(savedNotesService.isSaved(noteId));
+    savedNotesService.recordNoteAccess(noteId);
+
+    const unsubscribe = savedNotesService.subscribe((ids) => {
+      setIsSaved(ids.includes(noteId));
+    });
+
+    // Check if current authenticated user already reported this note
+    api.checkNoteReportStatus(noteId)
+      .then(res => {
+        if (res.hasReported) {
+          setAlreadyReported(true);
+          setAlreadyReportedInfo(res.report);
+        } else {
+          setAlreadyReported(false);
+          setAlreadyReportedInfo(null);
+        }
+      })
+      .catch(() => {});
+
+    // Fetch live upvote status & comments
+    api.getNoteUpvoteStatus(noteId).then(res => {
+      setIsUpvoted(res.upvoted);
+      setUpvotesCount(res.upvoteCount);
+    }).catch(() => {});
+
+    setCommentsLoading(true);
+    api.getNoteComments(noteId).then(list => {
+      setComments(list);
+    }).catch(() => {}).finally(() => setCommentsLoading(false));
+
+    return () => unsubscribe();
   }, [noteId]);
 
   // Sync page input with currentPage
@@ -181,27 +263,74 @@ export default function NoteDetail() {
     );
   }, [note, primaryTopic, subject, unit]);
 
-  // Save / Bookmark Toggle
-  const handleToggleSave = () => {
+  // Save / Bookmark Toggle using reactive service
+  const handleToggleSave = async () => {
     if (!note) return;
+    const isNowSaved = await savedNotesService.toggleSaveNote(note.id);
+    setIsSaved(isNowSaved);
+    showToast(isNowSaved ? `Saved “${note.title.slice(0, 32)}...” to your library` : `Removed “${note.title.slice(0, 32)}...” from your library`);
+  };
+
+  // Upvote / Helpful Toggle
+  const handleToggleUpvote = async () => {
+    if (!note || upvoting) return;
+    setUpvoting(true);
     try {
-      const stored = localStorage.getItem('atelier_saved_notes');
-      const ids: string[] = stored ? JSON.parse(stored) : [];
-      let nextIds: string[];
-      if (ids.includes(note.id)) {
-        nextIds = ids.filter(id => id !== note.id);
-        setIsSaved(false);
-        showToast(`Removed “${note.title.slice(0, 32)}...” from saved notes`);
-      } else {
-        nextIds = [...ids, note.id];
-        setIsSaved(true);
-        showToast(`Saved “${note.title.slice(0, 32)}...” to your collection`);
-      }
-      localStorage.setItem('atelier_saved_notes', JSON.stringify(nextIds));
+      const res = await api.toggleNoteUpvote(note.id);
+      setIsUpvoted(res.upvoted);
+      setUpvotesCount(res.upvoteCount);
+      showToast(res.upvoted ? 'Marked as helpful for exam prep! 👍' : 'Removed helpful vote');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUpvoting(false);
+    }
+  };
+
+  // Add Comment / Discussion Contribution
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!note || !commentText.trim() || submittingComment) return;
+    setSubmittingComment(true);
+    try {
+      const newComm = await api.addNoteComment(note.id, commentText.trim(), commentCategory);
+      setComments(prev => [newComm, ...prev]);
+      setCommentText('');
+      showToast('Contribution added to discussion thread!');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to post contribution');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  // Upvote a comment
+  const handleToggleCommentUpvote = async (commentId: string) => {
+    try {
+      const res = await api.toggleCommentUpvote(commentId);
+      setComments(prev => prev.map(c => c.id === commentId ? { ...c, isUpvoted: res.upvoted, upvotes: res.upvotes } : c));
     } catch (err) {
       console.error(err);
     }
   };
+
+  // Delete a comment
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      await api.deleteNoteComment(commentId);
+      setComments(prev => prev.filter(c => c.id !== commentId));
+      showToast('Comment deleted');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Filtered comments
+  const filteredComments = useMemo(() => {
+    if (activeCommentFilter === 'all') return comments;
+    return comments.filter(c => c.category === activeCommentFilter);
+  }, [comments, activeCommentFilter]);
 
   // Download Action
   const handleDownload = () => {
@@ -217,27 +346,37 @@ export default function NoteDetail() {
 
   // Report submission
   const handleReportSubmit = async () => {
-    if (!note) return;
+    if (!note || !selectedReason) return;
     setReportSubmitting(true);
+    setReportError(null);
     try {
-      await api.reportResource({
+      const activeReason = REPORT_REASONS.find(r => r.label === selectedReason);
+      const res = await api.reportResource({
+        noteId: note.id,
         resourceName: note.title,
-        reason: `${selectedReason}${reportNotes ? ` - Notes: ${reportNotes}` : ''}`
+        reason: selectedReason,
+        category: activeReason?.category || 'other',
+        details: reportNotes.trim()
+      });
+      setSubmittedReportId(res.id);
+      setAlreadyReported(true);
+      setAlreadyReportedInfo({
+        id: res.id,
+        reason: selectedReason,
+        details: reportNotes.trim(),
+        timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
+        status: 'pending'
       });
       setReportedSuccess(true);
-      setTimeout(() => {
-        setReportOpen(false);
-        setReportedSuccess(false);
-        setReportNotes('');
-        showToast('Report submitted for moderation review.');
-      }, 1400);
-    } catch (err) {
-      console.error(err);
-      setReportedSuccess(true);
-      setTimeout(() => {
-        setReportOpen(false);
-        setReportedSuccess(false);
-      }, 1400);
+      showToast('Report submitted for moderation review.');
+    } catch (err: any) {
+      console.error('Report submission error:', err);
+      if (err.status === 409 || err.message?.includes('already')) {
+        setAlreadyReported(true);
+        setReportError('A report for this note has already been queued and is pending review.');
+      } else {
+        setReportError(err.message || 'Failed to submit report. Please try again.');
+      }
     } finally {
       setReportSubmitting(false);
     }
@@ -504,7 +643,7 @@ export default function NoteDetail() {
               </button>
             </div>
 
-            {/* Action Buttons: Save/Bookmark, Download, Report, Focus Mode */}
+            {/* Action Buttons: Save/Bookmark, Upvote, Discussion, Download, Report, Focus Mode */}
             <div className="note-viewer-actions">
               {/* Save / Bookmark Button */}
               <button
@@ -515,6 +654,31 @@ export default function NoteDetail() {
               >
                 <Bookmark size={15} fill={isSaved ? 'currentColor' : 'none'} />
                 <span>{isSaved ? 'Saved' : 'Save'}</span>
+              </button>
+
+              {/* Upvote / Helpful Button */}
+              <button
+                className={`note-viewer-btn note-viewer-btn-upvote ${isUpvoted ? 'active upvoted' : ''}`}
+                onClick={handleToggleUpvote}
+                disabled={upvoting}
+                id="btn-viewer-upvote"
+                title={isUpvoted ? "You found this helpful" : "Mark as helpful for exam prep"}
+                aria-label="Upvote note as helpful"
+              >
+                <ThumbsUp size={15} fill={isUpvoted ? 'currentColor' : 'none'} />
+                <span>{upvotesCount} Helpful</span>
+              </button>
+
+              {/* Discussion Drawer Toggle Button */}
+              <button
+                className={`note-viewer-btn note-viewer-btn-discussion ${showDiscussion ? 'active' : ''}`}
+                onClick={() => setShowDiscussion(!showDiscussion)}
+                id="btn-viewer-discussion"
+                title="Toggle note discussion and errata thread"
+                aria-label="Toggle discussion thread"
+              >
+                <MessageSquare size={15} />
+                <span>Discussion ({comments.length})</span>
               </button>
 
               {/* Download Button */}
@@ -530,13 +694,15 @@ export default function NoteDetail() {
 
               {/* Report Button */}
               <button
-                className="note-viewer-btn note-viewer-btn-report"
+                className={`note-viewer-btn note-viewer-btn-report ${alreadyReported ? 'active' : ''}`}
                 onClick={() => setReportOpen(true)}
                 id="btn-viewer-report"
-                aria-label="Report issue with this note"
+                aria-label={alreadyReported ? 'View report status for this note' : 'Report issue with this note'}
+                style={alreadyReported ? { color: 'var(--color-primary)', borderColor: 'var(--color-primary)', background: 'var(--color-primary-light)' } : undefined}
+                title={alreadyReported ? 'Report pending review' : 'Report an issue with this note'}
               >
                 <Flag size={14} />
-                <span>Report</span>
+                <span>{alreadyReported ? 'Reported' : 'Report'}</span>
               </button>
 
               {/* Distraction-Free / Focus Toggle */}
@@ -613,7 +779,7 @@ export default function NoteDetail() {
           ================================================================ */}
       <div className="note-viewer-toolbar-wrapper">
         <div className="note-viewer-toolbar" id="note-viewer-toolbar" role="toolbar" aria-label="Document viewer controls">
-          {/* Left Controls: Thumbnails Toggle & Page Navigation */}
+          {/* Left Controls: Thumbnails Toggle, Discussion Toggle & Page Navigation */}
           <div className="toolbar-group">
             <button
               className={`toolbar-btn ${showThumbnails ? 'active' : ''}`}
@@ -624,6 +790,17 @@ export default function NoteDetail() {
             >
               {showThumbnails ? <PanelLeftClose size={15} /> : <PanelLeft size={15} />}
               <span className="toolbar-btn-text">Thumbnails</span>
+            </button>
+
+            <button
+              className={`toolbar-btn ${showDiscussion ? 'active' : ''}`}
+              onClick={() => setShowDiscussion(!showDiscussion)}
+              title="Toggle Community Discussion & Errata"
+              id="btn-toolbar-discussion"
+              aria-label="Toggle community discussion & errata rail"
+            >
+              <MessageSquare size={14} />
+              <span className="toolbar-btn-text">Discussion ({comments.length})</span>
             </button>
 
             <div className="toolbar-divider" />
@@ -1023,6 +1200,174 @@ export default function NoteDetail() {
             </div>
           </div>
         </div>
+
+        {/* Optional Community Discussion & Errata Rail (Collapsible Right Rail) */}
+        {showDiscussion && (
+          <aside className="note-viewer-discussion-rail" id="discussion-rail" aria-label="Community discussion and errata">
+            <div className="discussion-rail-header">
+              <div className="discussion-header-title">
+                <MessageSquare size={16} style={{ color: 'var(--color-primary)' }} />
+                <span style={{ fontWeight: 'var(--weight-semibold)', fontSize: '13px' }}>Discussion & Errata</span>
+                <span className="discussion-count-pill mono">{comments.length}</span>
+              </div>
+              <button
+                className="btn-icon btn-ghost btn-sm"
+                onClick={() => setShowDiscussion(false)}
+                title="Close Discussion"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="discussion-filter-pills" role="tablist">
+              {(['all', 'Exam Tip', 'Errata / Correction', 'Question', 'Key Takeaway'] as const).map(filterKey => {
+                const count = filterKey === 'all'
+                  ? comments.length
+                  : comments.filter(c => c.category === filterKey).length;
+                return (
+                  <button
+                    key={filterKey}
+                    type="button"
+                    className={`discussion-filter-pill ${activeCommentFilter === filterKey ? 'active' : ''}`}
+                    onClick={() => setActiveCommentFilter(filterKey)}
+                  >
+                    {filterKey === 'all' ? 'All' : filterKey.split(' ')[0]} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* New Comment / Contribution Composer Form */}
+            <form onSubmit={handleAddComment} className="discussion-composer-card">
+              <div className="discussion-category-selector">
+                <span className="mono" style={{ fontSize: '10px', color: 'var(--color-muted)', letterSpacing: '0.04em' }}>TYPE:</span>
+                <div className="category-chips-row">
+                  {(['Exam Tip', 'Errata / Correction', 'Question', 'Key Takeaway', 'General'] as const).map(cat => (
+                    <button
+                      type="button"
+                      key={cat}
+                      className={`cat-chip-btn ${commentCategory === cat ? 'active' : ''} ${cat.toLowerCase().replace(/[^a-z]/g, '-')}`}
+                      onClick={() => setCommentCategory(cat)}
+                    >
+                      {cat === 'Exam Tip' && <Sparkles size={11} />}
+                      {cat === 'Errata / Correction' && <AlertTriangle size={11} />}
+                      {cat === 'Question' && <HelpCircle size={11} />}
+                      {cat === 'Key Takeaway' && <BookOpen size={11} />}
+                      <span>{cat === 'Errata / Correction' ? 'Errata' : cat}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="discussion-input-wrapper">
+                <textarea
+                  className="discussion-textarea"
+                  rows={2}
+                  value={commentText}
+                  onChange={e => setCommentText(e.target.value)}
+                  placeholder={
+                    commentCategory === 'Exam Tip'
+                      ? 'Share an important exam insight, frequent viva question, or shortcut…'
+                      : commentCategory === 'Errata / Correction'
+                      ? 'Point out a formula typo, correction, or erratum in this note…'
+                      : commentCategory === 'Question'
+                      ? 'Ask a question or request clarification on this unit’s concepts…'
+                      : 'Add a helpful comment or study tip for fellow students…'
+                  }
+                  required
+                />
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm discussion-submit-btn"
+                  disabled={submittingComment || !commentText.trim()}
+                >
+                  {submittingComment ? <Loader2 size={13} className="spin" /> : <Send size={13} />}
+                  <span>Post</span>
+                </button>
+              </div>
+            </form>
+
+            {/* List of Comments */}
+            <div className="discussion-comments-list">
+              {commentsLoading ? (
+                <div style={{ textAlign: 'center', padding: 'var(--space-4)', color: 'var(--color-muted)' }}>
+                  <Loader2 size={18} className="spin" style={{ margin: '0 auto var(--space-2)' }} />
+                  <span style={{ fontSize: '12px' }}>Loading discussion…</span>
+                </div>
+              ) : filteredComments.length === 0 ? (
+                <div className="discussion-empty-state">
+                  <Lightbulb size={24} style={{ color: 'var(--color-muted)', marginBottom: '8px' }} />
+                  <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--color-muted)' }}>
+                    {activeCommentFilter === 'all'
+                      ? 'No comments yet. Be the first to share an exam tip or errata note!'
+                      : `No posts under "${activeCommentFilter}".`}
+                  </p>
+                </div>
+              ) : (
+                filteredComments.map(c => {
+                  const isModeratorUser = c.userRole?.toLowerCase() === 'moderator' || c.userRole?.toLowerCase() === 'admin';
+                  return (
+                    <div key={c.id} className="discussion-comment-card">
+                      <div className="comment-card-header">
+                        <div className="comment-author-info">
+                          <div className={`comment-avatar ${isModeratorUser ? 'moderator' : ''}`}>
+                            {c.userInitials}
+                          </div>
+                          <div className="comment-author-names">
+                            <span className="comment-author-name">{c.userName}</span>
+                            {isModeratorUser && (
+                              <span className="comment-role-badge">Staff</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {c.category && c.category !== 'General' && (
+                          <span className={`comment-cat-badge ${c.category.toLowerCase().replace(/[^a-z]/g, '-')}`}>
+                            {c.category === 'Exam Tip' && <Sparkles size={10} />}
+                            {c.category === 'Errata / Correction' && <AlertTriangle size={10} />}
+                            {c.category === 'Question' && <HelpCircle size={10} />}
+                            {c.category === 'Key Takeaway' && <BookOpen size={10} />}
+                            {c.category === 'Errata / Correction' ? 'Errata' : c.category}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="comment-card-body">
+                        {c.content}
+                      </div>
+
+                      <div className="comment-card-footer">
+                        <span className="comment-time mono">{c.createdAt}</span>
+
+                        <div className="comment-footer-actions">
+                          <button
+                            className={`comment-upvote-action ${c.isUpvoted ? 'active' : ''}`}
+                            onClick={() => handleToggleCommentUpvote(c.id)}
+                            title="Helpful comment"
+                          >
+                            <ThumbsUp size={12} fill={c.isUpvoted ? 'currentColor' : 'none'} />
+                            <span>{c.upvotes || 0}</span>
+                          </button>
+
+                          {(c.userId === 'user-student' || isModeratorUser) && (
+                            <button
+                              className="comment-delete-action"
+                              onClick={() => handleDeleteComment(c.id)}
+                              title="Delete comment"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </aside>
+        )}
       </div>
 
       {/* ================================================================
@@ -1030,90 +1375,254 @@ export default function NoteDetail() {
           ================================================================ */}
       {reportOpen && (
         <div className="modal-overlay" onClick={() => setReportOpen(false)}>
-          <div className="modal-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+          <div className="modal-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                <Flag size={18} style={{ color: 'var(--color-danger)' }} />
-                <h3>Report Note Resource</h3>
+                <Flag size={18} style={{ color: alreadyReported ? 'var(--color-primary)' : 'var(--color-danger)' }} />
+                <h3>{reportedSuccess ? 'Report Submitted' : alreadyReported ? 'Report Status' : 'Report Note Resource'}</h3>
               </div>
-              <button className="btn btn-ghost btn-icon" onClick={() => setReportOpen(false)}>
+              <button className="btn btn-ghost btn-icon" onClick={() => setReportOpen(false)} aria-label="Close dialog">
                 <X size={16} />
               </button>
             </div>
 
-            <div className="modal-body">
+            <div className="modal-body" style={{ overflowY: 'auto', flex: 1 }}>
               {reportedSuccess ? (
-                <div className="report-success-banner">
-                  <Check size={20} />
-                  <div>
-                    <div style={{ fontWeight: 'var(--weight-semibold)', fontSize: 'var(--text-md)' }}>
-                      Report Submitted
+                <div className="report-success-card">
+                  <div className="report-success-icon-wrap">
+                    <CheckCircle2 size={28} />
+                  </div>
+                  <h3 style={{ margin: 'var(--space-1) 0 2px', fontSize: 'var(--text-lg)', fontWeight: 'var(--weight-bold)', color: 'var(--color-deep)' }}>
+                    Report Received & Queued
+                  </h3>
+                  <span className="mono text-muted" style={{ fontSize: '11.5px' }}>
+                    Reference: #{submittedReportId || 'm-pending'}
+                  </span>
+
+                  <div className="report-note-summary" style={{ width: '100%', marginTop: 'var(--space-2)' }}>
+                    <FileText size={18} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+                    <div style={{ minWidth: 0, textAlign: 'left', flex: 1 }}>
+                      <div style={{ fontWeight: 'var(--weight-semibold)', fontSize: 'var(--text-sm)', color: 'var(--color-deep)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {note.title}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
+                        Flagged for: <strong style={{ color: 'var(--color-deep)' }}>{selectedReason}</strong>
+                      </div>
                     </div>
-                    <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-secondary)', marginTop: '4px' }}>
-                      This resource has been flagged for administrative audit in the moderation queue. Thank you for keeping the repository accurate.
-                    </p>
+                  </div>
+
+                  <div className="report-assurance-box" style={{ width: '100%', textAlign: 'left' }}>
+                    <Info size={18} style={{ color: 'var(--color-secondary)', flexShrink: 0, marginTop: '1px' }} />
+                    <div>
+                      <strong>Non-destructive policy:</strong> This note remains accessible to students in the repository while our moderation team evaluates the report.
+                    </div>
+                  </div>
+                </div>
+              ) : alreadyReported ? (
+                <div style={{ padding: 'var(--space-3) 0' }}>
+                  <div style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: '50%',
+                    background: 'rgba(245, 158, 11, 0.12)',
+                    border: '1px solid rgba(245, 158, 11, 0.28)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fbbf24',
+                    margin: '0 auto var(--space-3)'
+                  }}>
+                    <AlertCircle size={24} />
+                  </div>
+                  <h3 style={{ textAlign: 'center', marginBottom: '4px', fontSize: 'var(--text-md)', color: 'var(--color-deep)' }}>
+                    Report Pending Review
+                  </h3>
+                  <p className="text-sm text-muted" style={{ textAlign: 'center', marginBottom: 'var(--space-4)' }}>
+                    You have already submitted a report for <strong>“{note.title}”</strong>.
+                  </p>
+
+                  <div className="report-note-summary" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)' }}>
+                      <span className="text-muted">Reason:</span>
+                      <strong style={{ color: 'var(--color-deep)' }}>{alreadyReportedInfo?.reason || selectedReason}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 'var(--text-xs)' }}>
+                      <span className="text-muted">Status:</span>
+                      <span className="report-status-badge report-status-pending">
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
+                        Pending Moderator Review
+                      </span>
+                    </div>
+                    {alreadyReportedInfo?.timestamp && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)' }}>
+                        <span className="text-muted">Submitted:</span>
+                        <span className="mono text-muted">{alreadyReportedInfo.timestamp}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="report-assurance-box" style={{ marginTop: 'var(--space-4)' }}>
+                    <Info size={16} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: '1px' }} />
+                    <div>
+                      Submitting a report alerts our review team. The resource remains available to ensure uninterrupted study for classmates.
+                    </div>
                   </div>
                 </div>
               ) : (
                 <>
-                  <p className="text-sm text-muted" style={{ marginBottom: 'var(--space-4)' }}>
-                    Flagging <strong>“{note.title}”</strong>. Please choose the primary reason for your report:
+                  <div className="report-note-summary">
+                    <FileText size={18} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 'var(--weight-semibold)', fontSize: 'var(--text-sm)', color: 'var(--color-deep)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {note.title}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
+                        Topic: {primaryTopic} • {note.pages} pages
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="report-assurance-box">
+                    <Info size={16} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: '2px' }} />
+                    <div>
+                      <strong>Academic Feedback Channel:</strong> Reporting flags issues for human moderator review. Submitting a report <strong>does NOT immediately delete or hide</strong> the note.
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted" style={{ marginBottom: 'var(--space-2)', fontWeight: 'var(--weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Select Problem Reason <span style={{ color: 'var(--color-danger)' }}>*</span>
                   </p>
 
                   <div className="report-reasons-list">
-                    {[
-                      'Incorrect Syllabus Mapping',
-                      'Bad Scan Quality / Unreadable',
-                      'Out of Syllabus',
-                      'Missing Pages / Cutoff Content',
-                      'Duplicate Resource',
-                      'Copyright Violation'
-                    ].map(reason => (
-                      <div
-                        key={reason}
-                        className={`report-reason-item ${selectedReason === reason ? 'selected' : ''}`}
-                        onClick={() => setSelectedReason(reason)}
-                      >
-                        <div className={`radio-dot ${selectedReason === reason ? 'checked' : ''}`} />
-                        <span className="report-reason-text">{reason}</span>
-                      </div>
-                    ))}
+                    {REPORT_REASONS.map(r => {
+                      const IconComponent = r.icon;
+                      const isSelected = selectedReason === r.label;
+                      return (
+                        <div
+                          key={r.category}
+                          className={`report-reason-item ${isSelected ? 'selected' : ''}`}
+                          onClick={() => setSelectedReason(r.label)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') setSelectedReason(r.label); }}
+                        >
+                          <div className="report-reason-icon">
+                            <IconComponent size={16} />
+                          </div>
+                          <div className="report-reason-content">
+                            <div className="report-reason-title">{r.label}</div>
+                            <div className="report-reason-desc">{r.description}</div>
+                          </div>
+                          <div className={`radio-dot ${isSelected ? 'checked' : ''}`} />
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <div style={{ marginTop: 'var(--space-4)' }}>
-                    <label className="text-xs text-muted" style={{ display: 'block', marginBottom: 'var(--space-1)' }}>
-                      Additional Details (Optional)
-                    </label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-1)' }}>
+                      <label className="text-xs text-muted" style={{ fontWeight: 'var(--weight-medium)' }}>
+                        Additional Explanation (Optional)
+                      </label>
+                      <span className="text-xs text-muted">
+                        {reportNotes.length} / 500
+                      </span>
+                    </div>
                     <textarea
                       className="input"
                       rows={3}
-                      style={{ width: '100%', resize: 'vertical', fontSize: 'var(--text-xs)' }}
-                      placeholder="Specify page numbers or relevant syllabus discrepancies..."
+                      maxLength={500}
+                      style={{ width: '100%', resize: 'vertical', fontSize: 'var(--text-xs)', lineHeight: '1.5' }}
+                      placeholder="Specify page numbers, incorrect equations, or syllabus mismatch details..."
                       value={reportNotes}
                       onChange={e => setReportNotes(e.target.value)}
                     />
                   </div>
+
+                  {reportError && (
+                    <div style={{
+                      padding: '8px 12px',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: '#f87171',
+                      fontSize: '12px',
+                      marginTop: 'var(--space-3)'
+                    }}>
+                      {reportError}
+                    </div>
+                  )}
                 </>
               )}
             </div>
 
-            {!reportedSuccess && (
-              <div className="modal-footer">
-                <button className="btn" onClick={() => setReportOpen(false)} disabled={reportSubmitting}>
-                  Cancel
-                </button>
-                <button
-                  className="btn"
-                  style={{ background: 'var(--color-danger)', borderColor: 'var(--color-danger)', color: '#fff' }}
-                  onClick={handleReportSubmit}
-                  disabled={reportSubmitting}
-                  id="btn-submit-report"
-                >
-                  <Flag size={14} />
-                  {reportSubmitting ? 'Submitting...' : 'Submit Report'}
-                </button>
-              </div>
-            )}
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-3)' }}>
+              {reportedSuccess ? (
+                <>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => {
+                      setReportOpen(false);
+                      setReportedSuccess(false);
+                    }}
+                  >
+                    Continue Reading
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setReportOpen(false);
+                      setReportedSuccess(false);
+                      navigate('/moderation');
+                    }}
+                  >
+                    <ExternalLink size={14} />
+                    Track in My Reports
+                  </button>
+                </>
+              ) : alreadyReported ? (
+                <>
+                  <button className="btn btn-ghost" onClick={() => setReportOpen(false)}>
+                    Close
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setReportOpen(false);
+                      navigate('/moderation');
+                    }}
+                  >
+                    <ExternalLink size={14} />
+                    View in My Reports
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="btn" onClick={() => setReportOpen(false)} disabled={reportSubmitting}>
+                    Cancel
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ background: 'var(--color-danger)', borderColor: 'var(--color-danger)', color: '#fff' }}
+                    onClick={handleReportSubmit}
+                    disabled={reportSubmitting || !selectedReason}
+                    id="btn-submit-report"
+                  >
+                    {reportSubmitting ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Flag size={14} />
+                        Submit Report
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
