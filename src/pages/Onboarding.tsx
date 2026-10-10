@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import {
   GraduationCap, BookOpen, Target, CheckCircle2, ArrowRight, ArrowLeft,
@@ -8,12 +8,23 @@ import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import type { Subject } from '../data/mockData';
 
-const DEGREE_OPTIONS = [
-  'B.Tech / B.E.',
-  'BCA / MCA',
-  'B.Sc Computer Science / IT',
-  'M.Tech',
-  'Diploma in Engineering',
+export interface DegreeOption {
+  id: string;
+  name: string;
+  shortName: string;
+  durationLabel: string;
+  years: number;
+  totalSemesters: number;
+}
+
+export const DEGREE_OPTIONS: DegreeOption[] = [
+  { id: 'btech', name: 'B.Tech / B.E.', shortName: 'B.Tech', durationLabel: '4 Years • 8 Sems', years: 4, totalSemesters: 8 },
+  { id: 'bca', name: 'BCA', shortName: 'BCA', durationLabel: '3 Years • 6 Sems', years: 3, totalSemesters: 6 },
+  { id: 'mca', name: 'MCA', shortName: 'MCA', durationLabel: '2 Years • 4 Sems', years: 2, totalSemesters: 4 },
+  { id: 'bsc', name: 'B.Sc Computer Science / IT', shortName: 'B.Sc', durationLabel: '3 Years • 6 Sems', years: 3, totalSemesters: 6 },
+  { id: 'mtech', name: 'M.Tech / M.E.', shortName: 'M.Tech', durationLabel: '2 Years • 4 Sems', years: 2, totalSemesters: 4 },
+  { id: 'diploma', name: 'Diploma (Polytechnic)', shortName: 'Diploma', durationLabel: '3 Years • 6 Sems', years: 3, totalSemesters: 6 },
+  { id: 'dual', name: 'Integrated Dual Degree (B.Tech + M.Tech)', shortName: 'Dual Degree', durationLabel: '5 Years • 10 Sems', years: 5, totalSemesters: 10 }
 ];
 
 const STREAM_PRESETS = [
@@ -63,6 +74,22 @@ export default function Onboarding() {
   const [customStream, setCustomStream] = useState('');
   const [semester, setSemester] = useState<number>(user?.semester || 5);
   const [college, setCollege] = useState(user?.college || 'Apex Institute of Technology');
+
+  const selectedDegreeObj = useMemo(() => {
+    return DEGREE_OPTIONS.find(d => d.name === degree || d.id === degree || d.shortName === degree) || DEGREE_OPTIONS[0];
+  }, [degree]);
+
+  const totalSemesters = selectedDegreeObj.totalSemesters;
+  const semesterList = useMemo(() => {
+    return Array.from({ length: totalSemesters }, (_, i) => i + 1);
+  }, [totalSemesters]);
+
+  // When degree changes, clamp current semester if it exceeds the new total semesters
+  useEffect(() => {
+    if (semester > totalSemesters) {
+      setSemester(totalSemesters);
+    }
+  }, [totalSemesters, semester]);
 
   // Subjects & Goals
   const [availableSubjects, setAvailableSubjects] = useState<Subject[]>([]);
@@ -303,26 +330,47 @@ export default function Onboarding() {
                   Degree Program
                 </label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {DEGREE_OPTIONS.map(d => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => setDegree(d)}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: '8px',
-                        fontSize: '0.82rem',
-                        fontWeight: degree === d ? 600 : 500,
-                        background: degree === d ? 'var(--color-primary-light, #FDF0EC)' : 'var(--color-surface, #FFFFFF)',
-                        border: degree === d ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
-                        color: degree === d ? 'var(--color-primary, #D95D39)' : 'var(--color-deep, #1F2421)',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {d}
-                    </button>
-                  ))}
+                  {DEGREE_OPTIONS.map(d => {
+                    const isSelected = degree === d.name;
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => {
+                          setDegree(d.name);
+                          if (semester > d.totalSemesters) {
+                            setSemester(d.totalSemesters);
+                          }
+                        }}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: '8px',
+                          fontSize: '0.82rem',
+                          fontWeight: isSelected ? 600 : 500,
+                          background: isSelected ? 'var(--color-primary-light, #FDF0EC)' : 'var(--color-surface, #FFFFFF)',
+                          border: isSelected ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
+                          color: isSelected ? 'var(--color-primary, #D95D39)' : 'var(--color-deep, #1F2421)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <span>{d.name}</span>
+                        <span style={{
+                          fontSize: '0.7rem',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          background: isSelected ? 'rgba(217, 93, 57, 0.14)' : 'var(--color-surface-alt, #F2EFE9)',
+                          color: isSelected ? 'var(--color-primary, #D95D39)' : 'var(--color-muted, #706B63)',
+                          fontWeight: 600
+                        }}>
+                          {d.durationLabel}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -429,11 +477,16 @@ export default function Onboarding() {
               {/* Semester & College */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, #1F2421)', marginBottom: '8px' }}>
-                    Current Semester (1 – 8)
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, #1F2421)', margin: 0 }}>
+                      Current Semester (1 – {totalSemesters})
+                    </label>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--color-muted, #706B63)', fontWeight: 500 }}>
+                      {selectedDegreeObj.years} Years • {totalSemesters} Semesters Total
+                    </span>
+                  </div>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
+                    {semesterList.map(sem => (
                       <button
                         key={sem}
                         type="button"
@@ -765,11 +818,11 @@ export default function Onboarding() {
                   gap: '8px',
                   flexWrap: 'wrap'
                 }}>
-                  <span><strong>{degree}</strong></span>
+                  <span><strong>{selectedDegreeObj.name} ({selectedDegreeObj.years} Years)</strong></span>
                   <span>•</span>
                   <span><strong>{stream === 'other' ? (customStream || 'Custom Branch') : stream}</strong></span>
                   <span>•</span>
-                  <span><strong>Semester {semester}</strong></span>
+                  <span><strong>Semester {semester} of {totalSemesters}</strong></span>
                   <span>•</span>
                   <span><strong>{selectedSubjects.length} enrolled subjects</strong></span>
                 </div>
