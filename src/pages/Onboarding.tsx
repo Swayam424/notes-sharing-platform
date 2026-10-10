@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  GraduationCap, BookOpen, Target, CheckCircle2, ArrowRight, ArrowLeft,
+  GraduationCap, BookOpen, CheckCircle2, ArrowRight, ArrowLeft,
   Sparkles, Check, School
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -37,32 +37,11 @@ const STREAM_PRESETS = [
   { id: 'mech', name: 'Mechanical Engineering', icon: '⚙️', desc: 'Thermodynamics, Mechanics, CAD/CAM' },
 ];
 
-const GOAL_OPTIONS = [
-  {
-    id: 'cgpa_topper',
-    title: 'High CGPA & End-Semester Topper',
-    tagline: 'Comprehensive coverage of all units, lecture notes, formulas, and errata verification.',
-    badge: 'Comprehensive Mode',
-  },
-  {
-    id: 'exam_revision',
-    title: 'Fast Exam Revision & PYQ Numerical Drills',
-    tagline: 'Focus on 5-year frequent exam questions, high-weightage topics, and speed summaries.',
-    badge: 'Exam-Oriented',
-  },
-  {
-    id: 'concept_mastery',
-    title: 'Concept Mastery & Daily Coursework',
-    tagline: 'Clean unit-by-unit explanations, diagrams, and assignments review for deep understanding.',
-    badge: 'Foundation First',
-  }
-];
-
 export default function Onboarding() {
   const navigate = useNavigate();
   const { user, loginWithUser } = useApp();
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2>(1);
   const [slideDir, setSlideDir] = useState<'forward' | 'backward'>('forward');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +69,7 @@ export default function Onboarding() {
     }
   }, [totalSemesters, semester]);
 
-  // Subjects & Goals
+  // Subjects
   const [availableSubjects, setAvailableSubjects] = useState<Subject[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>(() => {
     if (user?.enrolledSubjects && user.enrolledSubjects.length > 0) {
@@ -98,7 +77,6 @@ export default function Onboarding() {
     }
     return ['os', 'dbms', 'cn', 'toc', 'se'];
   });
-  const [academicGoal, setAcademicGoal] = useState<string>(user?.academicGoal || 'High CGPA & End-Semester Topper');
 
   useEffect(() => {
     api.getSubjects().then(subs => {
@@ -129,13 +107,13 @@ export default function Onboarding() {
     }
     setError(null);
     setSlideDir('forward');
-    setStep(s => (s + 1) as any);
+    setStep(2);
   };
 
   const goToPrevStep = () => {
     setError(null);
     setSlideDir('backward');
-    setStep(s => (s - 1) as any);
+    setStep(1);
   };
 
   const handleFinish = async () => {
@@ -164,7 +142,7 @@ export default function Onboarding() {
         college: college.trim() || 'Apex Institute of Technology',
         semester,
         enrolledSubjects: selectedSubjects,
-        academicGoal
+        academicGoal: user?.academicGoal || ''
       });
 
       loginWithUser(res.user);
@@ -176,7 +154,7 @@ export default function Onboarding() {
     }
   };
 
-  const progressPct = step === 1 ? 33 : step === 2 ? 66 : 100;
+  const progressPct = step === 1 ? 50 : 100;
 
   return (
     <div className="onboarding-root">
@@ -202,13 +180,12 @@ export default function Onboarding() {
           </div>
         </div>
 
-        {/* Step Indicator with Progress Bar */}
+        {/* Step Indicator with Progress Bar (2-step setup) */}
         <div className="onboarding-steps-container">
           <div className="onboarding-steps-pills">
             {[
               { num: 1, label: 'Stream & Degree' },
-              { num: 2, label: 'Course Roster' },
-              { num: 3, label: 'Study Target' }
+              { num: 2, label: 'Course Roster' }
             ].map(s => {
               const isCurrent = step === s.num;
               const isDone = step > s.num;
@@ -258,7 +235,7 @@ export default function Onboarding() {
             >
               <div>
                 <span className="step-eyebrow">
-                  <Sparkles size={12} /> Step 1 of 3: Academic Profile
+                  <Sparkles size={12} /> Step 1 of 2: Academic Profile
                 </span>
                 <h1 className="step-title">
                   What stream are you studying?
@@ -382,7 +359,7 @@ export default function Onboarding() {
                       Current Semester (1 – {totalSemesters})
                     </label>
                     <span style={{ fontSize: '0.72rem', color: 'var(--color-muted, #706B63)', fontWeight: 500 }}>
-                      {selectedDegreeObj.years} Years • {totalSemesters} Semesters
+                      {selectedDegreeObj.years} Years • {totalSemesters} Semesters Total
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -436,7 +413,7 @@ export default function Onboarding() {
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
                   <span className="step-eyebrow">
-                    <BookOpen size={12} /> Step 2 of 3: Subject Selection
+                    <BookOpen size={12} /> Step 2 of 2: Course Roster
                   </span>
                   <h1 className="step-title">
                     Which subjects are on your roster?
@@ -532,6 +509,7 @@ export default function Onboarding() {
                 })}
               </div>
 
+              {/* Roster Summary Banner */}
               <div style={{
                 background: 'var(--color-surface-alt, #F2EFE9)',
                 borderRadius: '8px',
@@ -542,111 +520,11 @@ export default function Onboarding() {
                 border: '1px solid var(--color-border, #E8E5DF)'
               }}>
                 <span style={{ fontSize: '0.85rem', color: 'var(--color-deep, #1F2421)' }}>
-                  Selected <strong>{selectedSubjects.length} of {availableSubjects.length}</strong> subjects for Semester {semester}
+                  Selected <strong>{selectedSubjects.length} of {availableSubjects.length}</strong> subjects for <strong>{selectedDegreeObj.name} • Semester {semester}</strong>
                 </span>
                 <span style={{ fontSize: '0.78rem', color: 'var(--color-muted, #706B63)' }}>
                   Adjustable anytime in Settings
                 </span>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 3: Study Focus & Exam Target */}
-          {step === 3 && (
-            <div
-              key="step-3"
-              className={`slide-${slideDir}`}
-              style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', flex: 1 }}
-            >
-              <div>
-                <span className="step-eyebrow">
-                  <Target size={12} /> Step 3 of 3: Study Objective
-                </span>
-                <h1 className="step-title">
-                  What is your primary study objective?
-                </h1>
-                <p className="step-subtitle">
-                  This shapes which quick topics, frequent exam streaks, and peer notes take priority on your study desk.
-                </p>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {GOAL_OPTIONS.map(g => {
-                  const isSelected = academicGoal === g.title;
-                  return (
-                    <div
-                      key={g.id}
-                      onClick={() => setAcademicGoal(g.title)}
-                      className={`goal-card ${isSelected ? 'selected' : ''}`}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-                          <span style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 600,
-                            padding: '3px 8px',
-                            borderRadius: '4px',
-                            background: isSelected ? 'rgba(217, 93, 57, 0.15)' : 'var(--color-surface-alt, #F2EFE9)',
-                            color: isSelected ? 'var(--color-primary, #D95D39)' : 'var(--color-deep, #1F2421)'
-                          }}>
-                            {g.badge}
-                          </span>
-                          <h3 style={{
-                            margin: 0,
-                            fontSize: '1rem',
-                            fontWeight: 600,
-                            color: isSelected ? 'var(--color-primary, #D95D39)' : 'var(--color-deep, #1F2421)'
-                          }}>
-                            {g.title}
-                          </h3>
-                        </div>
-                        <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--color-muted, #706B63)', lineHeight: 1.4 }}>
-                          {g.tagline}
-                        </p>
-                      </div>
-
-                      <div className="goal-radio">
-                        {isSelected && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Summary Paper Deck */}
-              <div style={{
-                background: 'var(--color-surface-alt, #F2EFE9)',
-                borderRadius: '10px',
-                border: '1px solid var(--color-border, #E8E5DF)',
-                padding: '16px 20px',
-                marginTop: 'auto'
-              }}>
-                <div style={{
-                  fontSize: '0.72rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  color: 'var(--color-primary, #D95D39)',
-                  fontWeight: 600,
-                  marginBottom: '6px'
-                }}>
-                  Configured Study Space:
-                </div>
-                <div style={{
-                  fontSize: '0.9rem',
-                  color: 'var(--color-deep, #1F2421)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  flexWrap: 'wrap'
-                }}>
-                  <span><strong>{selectedDegreeObj.name} ({selectedDegreeObj.years} Years)</strong></span>
-                  <span>•</span>
-                  <span><strong>{stream === 'other' ? (customStream || 'Custom Branch') : stream}</strong></span>
-                  <span>•</span>
-                  <span><strong>Semester {semester} of {totalSemesters}</strong></span>
-                  <span>•</span>
-                  <span><strong>{selectedSubjects.length} enrolled subjects</strong></span>
-                </div>
               </div>
             </div>
           )}
@@ -660,26 +538,26 @@ export default function Onboarding() {
             paddingTop: '1.5rem',
             marginTop: '2rem'
           }}>
-            {step > 1 ? (
+            {step === 2 ? (
               <button
                 type="button"
                 onClick={goToPrevStep}
                 disabled={loading}
                 className="nav-btn-back"
               >
-                <ArrowLeft size={16} /> Back
+                <ArrowLeft size={16} /> Back to Stream
               </button>
             ) : (
               <div />
             )}
 
-            {step < 3 ? (
+            {step === 1 ? (
               <button
                 type="button"
                 onClick={goToNextStep}
                 className="nav-btn-next"
               >
-                Continue to {step === 1 ? 'Subjects' : 'Study Target'} <ArrowRight size={16} />
+                Continue to Course Roster <ArrowRight size={16} />
               </button>
             ) : (
               <button
