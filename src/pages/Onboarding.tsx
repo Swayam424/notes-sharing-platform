@@ -7,6 +7,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import type { Subject } from '../data/mockData';
+import './onboarding.css';
 
 export interface DegreeOption {
   id: string;
@@ -42,21 +43,18 @@ const GOAL_OPTIONS = [
     title: 'High CGPA & End-Semester Topper',
     tagline: 'Comprehensive coverage of all units, lecture notes, formulas, and errata verification.',
     badge: 'Comprehensive Mode',
-    accent: '#2F5233'
   },
   {
     id: 'exam_revision',
     title: 'Fast Exam Revision & PYQ Numerical Drills',
     tagline: 'Focus on 5-year frequent exam questions, high-weightage topics, and speed summaries.',
     badge: 'Exam-Oriented',
-    accent: '#D95D39'
   },
   {
     id: 'concept_mastery',
     title: 'Concept Mastery & Daily Coursework',
     tagline: 'Clean unit-by-unit explanations, diagrams, and assignments review for deep understanding.',
     badge: 'Foundation First',
-    accent: '#4A5568'
   }
 ];
 
@@ -65,6 +63,7 @@ export default function Onboarding() {
   const { user, loginWithUser } = useApp();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [slideDir, setSlideDir] = useState<'forward' | 'backward'>('forward');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,6 +119,25 @@ export default function Onboarding() {
     setSelectedSubjects(availableSubjects.map(s => s.id));
   };
 
+  const goToNextStep = () => {
+    if (step === 1) {
+      const effectiveStream = stream === 'other' ? customStream.trim() : stream;
+      if (!effectiveStream) {
+        setError('Please enter or select your branch/stream.');
+        return;
+      }
+    }
+    setError(null);
+    setSlideDir('forward');
+    setStep(s => (s + 1) as any);
+  };
+
+  const goToPrevStep = () => {
+    setError(null);
+    setSlideDir('backward');
+    setStep(s => (s - 1) as any);
+  };
+
   const handleFinish = async () => {
     setError(null);
     setLoading(true);
@@ -158,126 +176,65 @@ export default function Onboarding() {
     }
   };
 
+  const progressPct = step === 1 ? 33 : step === 2 ? 66 : 100;
+
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--color-base, #F9F8F6)',
-      color: 'var(--color-deep, #1F2421)',
-      fontFamily: 'var(--font-body, "Inter", sans-serif)',
-      display: 'flex',
-      flexDirection: 'column',
-      padding: '2.5rem 1.5rem',
-      position: 'relative'
-    }}>
-      {/* Top Academic Brand Bar */}
-      <header style={{
-        maxWidth: '880px',
-        width: '100%',
-        margin: '0 auto 2rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            width: '38px',
-            height: '38px',
-            borderRadius: '8px',
-            background: 'var(--color-primary, #D95D39)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '2px 2px 0px rgba(31, 36, 33, 0.12)'
-          }}>
-            <GraduationCap size={20} color="#FFFFFF" strokeWidth={2} />
+    <div className="onboarding-root">
+      {/* Ambient background atmosphere */}
+      <div className="onboarding-ambient" aria-hidden="true">
+        <div className="onboarding-blob-1" />
+        <div className="onboarding-blob-2" />
+      </div>
+
+      {/* Top Academic Brand Header */}
+      <header className="onboarding-header">
+        <div className="onboarding-brand">
+          <div className="onboarding-emblem">
+            <GraduationCap size={22} color="#FFFFFF" strokeWidth={2} />
           </div>
           <div>
-            <div style={{
-              fontFamily: 'var(--font-display, "Newsreader", Georgia, serif)',
-              fontWeight: 600,
-              fontSize: '1.25rem',
-              color: 'var(--color-deep, #1F2421)',
-              letterSpacing: '-0.01em'
-            }}>
+            <div className="onboarding-brand-title">
               Atelier <span style={{ color: 'var(--color-primary, #D95D39)' }}>Notes</span>
             </div>
-            <div style={{
-              fontSize: '0.72rem',
-              color: 'var(--color-muted, #8C857B)',
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              fontWeight: 500
-            }}>
-              Academic Workspace Personalization
+            <div className="onboarding-brand-sub">
+              Academic Studio Personalization
             </div>
           </div>
         </div>
 
-        {/* Tactile Step Indicators */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {[
-            { num: 1, label: 'Stream & Degree' },
-            { num: 2, label: 'Course Roster' },
-            { num: 3, label: 'Exam Target' }
-          ].map(s => {
-            const isCurrent = step === s.num;
-            const isDone = step > s.num;
-            return (
-              <div
-                key={s.num}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 14px',
-                  borderRadius: '20px',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  background: isCurrent
-                    ? 'var(--color-primary-light, #FDF0EC)'
-                    : isDone
-                    ? 'var(--color-secondary-light, #EAF2EB)'
-                    : 'var(--color-surface-alt, #F2EFE9)',
-                  border: isCurrent
-                    ? '1px solid var(--color-primary, #D95D39)'
-                    : isDone
-                    ? '1px solid rgba(47, 82, 51, 0.35)'
-                    : '1px solid var(--color-border, #E8E5DF)',
-                  color: isCurrent
-                    ? 'var(--color-primary, #D95D39)'
-                    : isDone
-                    ? 'var(--color-secondary, #2F5233)'
-                    : 'var(--color-muted, #8C857B)',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {isDone ? <Check size={12} strokeWidth={3} /> : <span>{s.num}</span>}
-                <span>{s.label}</span>
-              </div>
-            );
-          })}
+        {/* Step Indicator with Progress Bar */}
+        <div className="onboarding-steps-container">
+          <div className="onboarding-steps-pills">
+            {[
+              { num: 1, label: 'Stream & Degree' },
+              { num: 2, label: 'Course Roster' },
+              { num: 3, label: 'Study Target' }
+            ].map(s => {
+              const isCurrent = step === s.num;
+              const isDone = step > s.num;
+              return (
+                <div
+                  key={s.num}
+                  className={`onboarding-step-pill ${isCurrent ? 'active' : ''} ${isDone ? 'done' : ''}`}
+                >
+                  {isDone ? <Check size={12} strokeWidth={3} /> : <span>{s.num}</span>}
+                  <span>{s.label}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="onboarding-progress-bar">
+            <div
+              className="onboarding-progress-fill"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
         </div>
       </header>
 
-      {/* Main Crisp White Atelier Card */}
-      <main style={{
-        maxWidth: '880px',
-        width: '100%',
-        margin: '0 auto',
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
-        <div style={{
-          background: 'var(--color-surface, #FFFFFF)',
-          border: '1px solid var(--color-border, #E8E5DF)',
-          borderRadius: '16px',
-          padding: '2.5rem',
-          boxShadow: 'var(--shadow-elevated, 4px 4px 0px rgba(31, 36, 33, 0.06))',
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
+      {/* Main Paper Card */}
+      <main className="onboarding-card-wrapper">
+        <div className="onboarding-card">
           {error && (
             <div style={{
               background: 'var(--color-danger-light, #FCEAEA)',
@@ -294,32 +251,19 @@ export default function Onboarding() {
 
           {/* STEP 1: Academic Identity, Stream & Degree */}
           {step === 1 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', flex: 1 }}>
+            <div
+              key="step-1"
+              className={`slide-${slideDir}`}
+              style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', flex: 1 }}
+            >
               <div>
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  color: 'var(--color-primary, #D95D39)',
-                  marginBottom: '6px'
-                }}>
+                <span className="step-eyebrow">
                   <Sparkles size={12} /> Step 1 of 3: Academic Profile
                 </span>
-                <h1 style={{
-                  fontFamily: 'var(--font-display, "Newsreader", Georgia, serif)',
-                  fontSize: '2rem',
-                  fontWeight: 600,
-                  color: 'var(--color-deep, #1F2421)',
-                  margin: '0 0 6px 0',
-                  letterSpacing: '-0.02em'
-                }}>
+                <h1 className="step-title">
                   What stream are you studying?
                 </h1>
-                <p style={{ color: 'var(--color-muted, #706B63)', fontSize: '0.92rem', margin: 0 }}>
+                <p className="step-subtitle">
                   We curate your note feeds, topic syllabus coverage, and university PYQ papers specifically to your branch.
                 </p>
               </div>
@@ -342,30 +286,10 @@ export default function Onboarding() {
                             setSemester(d.totalSemesters);
                           }
                         }}
-                        style={{
-                          padding: '8px 14px',
-                          borderRadius: '8px',
-                          fontSize: '0.82rem',
-                          fontWeight: isSelected ? 600 : 500,
-                          background: isSelected ? 'var(--color-primary-light, #FDF0EC)' : 'var(--color-surface, #FFFFFF)',
-                          border: isSelected ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
-                          color: isSelected ? 'var(--color-primary, #D95D39)' : 'var(--color-deep, #1F2421)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          transition: 'all 0.15s ease'
-                        }}
+                        className={`degree-pill-btn ${isSelected ? 'active' : ''}`}
                       >
                         <span>{d.name}</span>
-                        <span style={{
-                          fontSize: '0.7rem',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          background: isSelected ? 'rgba(217, 93, 57, 0.14)' : 'var(--color-surface-alt, #F2EFE9)',
-                          color: isSelected ? 'var(--color-primary, #D95D39)' : 'var(--color-muted, #706B63)',
-                          fontWeight: 600
-                        }}>
+                        <span className="degree-pill-tag">
                           {d.durationLabel}
                         </span>
                       </button>
@@ -379,40 +303,16 @@ export default function Onboarding() {
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, #1F2421)', marginBottom: '8px' }}>
                   Branch / Department
                 </label>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                  gap: '12px'
-                }}>
+                <div className="stream-grid">
                   {STREAM_PRESETS.map(p => {
                     const isSelected = stream === p.name;
                     return (
                       <div
                         key={p.id}
                         onClick={() => { setStream(p.name); setCustomStream(''); }}
-                        style={{
-                          padding: '14px 16px',
-                          borderRadius: '10px',
-                          background: isSelected ? 'var(--color-primary-light, #FDF0EC)' : 'var(--color-surface, #FFFFFF)',
-                          border: isSelected ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
-                          boxShadow: isSelected ? '2px 2px 0px rgba(217, 93, 57, 0.15)' : 'var(--shadow-card, 2px 2px 0px rgba(31, 36, 33, 0.04))',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: '12px'
-                        }}
+                        className={`stream-card ${isSelected ? 'selected' : ''}`}
                       >
-                        <span style={{
-                          fontSize: '1.25rem',
-                          background: isSelected ? '#FFFFFF' : 'var(--color-surface-alt, #F2EFE9)',
-                          width: '36px',
-                          height: '36px',
-                          borderRadius: '8px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
+                        <span className="stream-icon-box">
                           {p.icon}
                         </span>
                         <div style={{ flex: 1 }}>
@@ -427,7 +327,7 @@ export default function Onboarding() {
                             {p.desc}
                           </div>
                         </div>
-                        {isSelected && <CheckCircle2 size={18} color="var(--color-primary, #D95D39)" style={{ marginTop: '2px' }} />}
+                        {isSelected && <CheckCircle2 size={18} color="var(--color-primary, #D95D39)" style={{ marginTop: '2px', flexShrink: 0 }} />}
                       </div>
                     );
                   })}
@@ -482,7 +382,7 @@ export default function Onboarding() {
                       Current Semester (1 – {totalSemesters})
                     </label>
                     <span style={{ fontSize: '0.72rem', color: 'var(--color-muted, #706B63)', fontWeight: 500 }}>
-                      {selectedDegreeObj.years} Years • {totalSemesters} Semesters Total
+                      {selectedDegreeObj.years} Years • {totalSemesters} Semesters
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -491,19 +391,7 @@ export default function Onboarding() {
                         key={sem}
                         type="button"
                         onClick={() => setSemester(sem)}
-                        style={{
-                          width: '42px',
-                          height: '42px',
-                          borderRadius: '8px',
-                          fontWeight: 600,
-                          fontSize: '0.88rem',
-                          background: semester === sem ? 'var(--color-primary, #D95D39)' : 'var(--color-surface, #FFFFFF)',
-                          border: semester === sem ? '1px solid var(--color-primary-hover, #C4502F)' : '1px solid var(--color-border, #E8E5DF)',
-                          color: semester === sem ? '#FFFFFF' : 'var(--color-deep, #1F2421)',
-                          boxShadow: semester === sem ? '2px 2px 0px rgba(31, 36, 33, 0.12)' : 'none',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
+                        className={`sem-btn ${semester === sem ? 'active' : ''}`}
                       >
                         S{sem}
                       </button>
@@ -540,33 +428,20 @@ export default function Onboarding() {
 
           {/* STEP 2: Subject & Curriculum Enrolment */}
           {step === 2 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', flex: 1 }}>
+            <div
+              key="step-2"
+              className={`slide-${slideDir}`}
+              style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', flex: 1 }}
+            >
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
-                  <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    color: 'var(--color-primary, #D95D39)',
-                    marginBottom: '6px'
-                  }}>
+                  <span className="step-eyebrow">
                     <BookOpen size={12} /> Step 2 of 3: Subject Selection
                   </span>
-                  <h1 style={{
-                    fontFamily: 'var(--font-display, "Newsreader", Georgia, serif)',
-                    fontSize: '2rem',
-                    fontWeight: 600,
-                    color: 'var(--color-deep, #1F2421)',
-                    margin: '0 0 6px 0',
-                    letterSpacing: '-0.02em'
-                  }}>
+                  <h1 className="step-title">
                     Which subjects are on your roster?
                   </h1>
-                  <p style={{ color: 'var(--color-muted, #706B63)', fontSize: '0.92rem', margin: 0 }}>
+                  <p className="step-subtitle">
                     Select your active courses. Your workspace will prioritize topic outlines, notes, and pyqs for these subjects.
                   </p>
                 </div>
@@ -582,14 +457,15 @@ export default function Onboarding() {
                     fontWeight: 600,
                     padding: '8px 14px',
                     borderRadius: '8px',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 150ms ease'
                   }}
                 >
                   Select All Recommended ({availableSubjects.length})
                 </button>
               </div>
 
-              {/* Subject Cards Grid */}
+              {/* Subject Cards Grid with micro-animations */}
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
@@ -606,19 +482,7 @@ export default function Onboarding() {
                     <div
                       key={sub.id}
                       onClick={() => toggleSubject(sub.id)}
-                      style={{
-                        padding: '16px',
-                        borderRadius: '10px',
-                        background: isChecked ? 'var(--color-primary-light, #FDF0EC)' : 'var(--color-surface, #FFFFFF)',
-                        border: isChecked ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
-                        boxShadow: isChecked ? '2px 2px 0px rgba(217, 93, 57, 0.12)' : 'var(--shadow-card, 2px 2px 0px rgba(31, 36, 33, 0.04))',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        gap: '10px'
-                      }}
+                      className={`course-card ${isChecked ? 'selected' : ''}`}
                     >
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                         <div>
@@ -644,16 +508,7 @@ export default function Onboarding() {
                             {sub.name}
                           </h3>
                         </div>
-                        <div style={{
-                          width: '22px',
-                          height: '22px',
-                          borderRadius: '6px',
-                          border: isChecked ? '2px solid var(--color-primary, #D95D39)' : '2px solid var(--color-border, #E8E5DF)',
-                          background: isChecked ? 'var(--color-primary, #D95D39)' : '#FFFFFF',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
+                        <div className="course-checkbox">
                           {isChecked && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
                         </div>
                       </div>
@@ -698,32 +553,19 @@ export default function Onboarding() {
 
           {/* STEP 3: Study Focus & Exam Target */}
           {step === 3 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', flex: 1 }}>
+            <div
+              key="step-3"
+              className={`slide-${slideDir}`}
+              style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem', flex: 1 }}
+            >
               <div>
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  color: 'var(--color-primary, #D95D39)',
-                  marginBottom: '6px'
-                }}>
+                <span className="step-eyebrow">
                   <Target size={12} /> Step 3 of 3: Study Objective
                 </span>
-                <h1 style={{
-                  fontFamily: 'var(--font-display, "Newsreader", Georgia, serif)',
-                  fontSize: '2rem',
-                  fontWeight: 600,
-                  color: 'var(--color-deep, #1F2421)',
-                  margin: '0 0 6px 0',
-                  letterSpacing: '-0.02em'
-                }}>
+                <h1 className="step-title">
                   What is your primary study objective?
                 </h1>
-                <p style={{ color: 'var(--color-muted, #706B63)', fontSize: '0.92rem', margin: 0 }}>
+                <p className="step-subtitle">
                   This shapes which quick topics, frequent exam streaks, and peer notes take priority on your study desk.
                 </p>
               </div>
@@ -735,19 +577,7 @@ export default function Onboarding() {
                     <div
                       key={g.id}
                       onClick={() => setAcademicGoal(g.title)}
-                      style={{
-                        padding: '18px 20px',
-                        borderRadius: '12px',
-                        background: isSelected ? 'var(--color-primary-light, #FDF0EC)' : 'var(--color-surface, #FFFFFF)',
-                        border: isSelected ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
-                        boxShadow: isSelected ? '2px 2px 0px rgba(217, 93, 57, 0.12)' : 'var(--shadow-card, 2px 2px 0px rgba(31, 36, 33, 0.04))',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '16px'
-                      }}
+                      className={`goal-card ${isSelected ? 'selected' : ''}`}
                     >
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
@@ -775,16 +605,7 @@ export default function Onboarding() {
                         </p>
                       </div>
 
-                      <div style={{
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '50%',
-                        border: isSelected ? '2px solid var(--color-primary, #D95D39)' : '2px solid var(--color-border, #E8E5DF)',
-                        background: isSelected ? 'var(--color-primary, #D95D39)' : 'transparent',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
+                      <div className="goal-radio">
                         {isSelected && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
                       </div>
                     </div>
@@ -792,7 +613,7 @@ export default function Onboarding() {
                 })}
               </div>
 
-              {/* Summary Paper Box */}
+              {/* Summary Paper Deck */}
               <div style={{
                 background: 'var(--color-surface-alt, #F2EFE9)',
                 borderRadius: '10px',
@@ -842,22 +663,9 @@ export default function Onboarding() {
             {step > 1 ? (
               <button
                 type="button"
-                onClick={() => setStep(s => (s - 1) as any)}
+                onClick={goToPrevStep}
                 disabled={loading}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  background: 'var(--color-surface, #FFFFFF)',
-                  border: '1px solid var(--color-border, #E8E5DF)',
-                  color: 'var(--color-deep, #1F2421)',
-                  padding: '10px 18px',
-                  borderRadius: '8px',
-                  fontWeight: 600,
-                  fontSize: '0.88rem',
-                  cursor: 'pointer',
-                  boxShadow: 'var(--shadow-card, 2px 2px 0px rgba(31, 36, 33, 0.04))'
-                }}
+                className="nav-btn-back"
               >
                 <ArrowLeft size={16} /> Back
               </button>
@@ -868,31 +676,8 @@ export default function Onboarding() {
             {step < 3 ? (
               <button
                 type="button"
-                onClick={() => {
-                  if (step === 1) {
-                    const effectiveStream = stream === 'other' ? customStream.trim() : stream;
-                    if (!effectiveStream) {
-                      setError('Please enter or select your branch/stream.');
-                      return;
-                    }
-                  }
-                  setError(null);
-                  setStep(s => (s + 1) as any);
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  background: 'var(--color-primary, #D95D39)',
-                  border: 'none',
-                  color: '#FFFFFF',
-                  padding: '12px 24px',
-                  borderRadius: '8px',
-                  fontWeight: 600,
-                  fontSize: '0.92rem',
-                  cursor: 'pointer',
-                  boxShadow: '2px 2px 0px rgba(31, 36, 33, 0.12)'
-                }}
+                onClick={goToNextStep}
+                className="nav-btn-next"
               >
                 Continue to {step === 1 ? 'Subjects' : 'Study Target'} <ArrowRight size={16} />
               </button>
@@ -901,20 +686,7 @@ export default function Onboarding() {
                 type="button"
                 onClick={handleFinish}
                 disabled={loading}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  background: 'var(--color-secondary, #2F5233)',
-                  border: 'none',
-                  color: '#FFFFFF',
-                  padding: '12px 28px',
-                  borderRadius: '8px',
-                  fontWeight: 600,
-                  fontSize: '0.96rem',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  boxShadow: '2px 2px 0px rgba(31, 36, 33, 0.12)'
-                }}
+                className="nav-btn-finish"
               >
                 {loading ? 'Setting up Workspace…' : 'Launch My Study Space'} <ArrowRight size={18} />
               </button>
