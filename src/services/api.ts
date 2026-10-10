@@ -56,6 +56,11 @@ export interface AuthUser {
   role: string;
   college: string;
   department: string;
+  stream?: string;
+  degree?: string;
+  academicGoal?: string;
+  enrolledSubjects?: string[];
+  onboardingCompleted?: boolean;
   semester: number;
   created_at?: string;
 }
@@ -157,6 +162,24 @@ export const api = {
 
   hasToken(): boolean {
     return !!getToken();
+  },
+
+  async completeOnboarding(payload: {
+    degree?: string;
+    stream: string;
+    college?: string;
+    semester: number;
+    enrolledSubjects: string[];
+    academicGoal?: string;
+  }): Promise<{ success: boolean; user: AuthUser }> {
+    const res = await authFetch('/api/user/onboarding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to complete onboarding');
+    return { success: true, user: data.user };
   },
 
   // -------------------- Subjects --------------------

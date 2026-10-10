@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router';
 import {
   ArrowRight, AlertTriangle, TrendingUp, Clock, FileText, Search,
   Sparkles, Bookmark, Layers, X, ChevronRight,
-  Trophy, Crown, ThumbsUp, MessageSquare, Upload
+  Trophy, Crown, ThumbsUp, MessageSquare, Upload,
+  Target, GraduationCap, SlidersHorizontal
 } from 'lucide-react';
 import { api, type DashboardData } from '../services/api';
 import { useApp } from '../context/AppContext';
@@ -43,11 +44,21 @@ const QUICK_TOPICS = [
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { refreshKey, setUploadOpen } = useApp();
+  const { user, refreshKey, setUploadOpen } = useApp();
 
   const [subjectsList, setSubjectsList] = useState<Subject[]>(fallbackSubjects);
   const [notesList, setNotesList] = useState<NoteResource[]>(fallbackNotes);
   const [dashboardStats, setDashboardStats] = useState<DashboardData | null>(null);
+
+  // Enrolled subjects filter
+  const enrolledSubjectIds = user?.enrolledSubjects || [];
+  const displaySubjects = useMemo(() => {
+    if (!enrolledSubjectIds || enrolledSubjectIds.length === 0) {
+      return subjectsList;
+    }
+    const filtered = subjectsList.filter(s => enrolledSubjectIds.includes(s.id));
+    return filtered.length > 0 ? filtered : subjectsList;
+  }, [subjectsList, enrolledSubjectIds]);
 
   // Contributor Leaderboard State
   const [leaderboard, setLeaderboard] = useState<LeaderboardContributor[]>([]);
@@ -134,18 +145,38 @@ export default function Dashboard() {
       <div className="page-header" style={{ marginBottom: 'var(--space-6)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
           <div>
-            <h1 className="page-title">Semester Studio</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span className="badge badge-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
+                <GraduationCap size={12} /> {user?.degree || 'B.Tech / B.E.'}
+              </span>
+              {user?.academicGoal && (
+                <span className="chip chip-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
+                  <Target size={11} /> {user.academicGoal}
+                </span>
+              )}
+            </div>
+            <h1 className="page-title">{user?.stream || 'Computer Science & Engineering'} Studio</h1>
             <p className="page-subtitle">
-              Computer Science • Semester 5 • Connected Study Space & Topic Discovery
+              Semester {user?.semester || 5} • {user?.college || 'Apex Institute of Technology'} • {displaySubjects.length} Active Enrolled Courses
             </p>
           </div>
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={() => navigate('/notes')}
-            id="btn-goto-full-discovery"
-          >
-            <Layers size={14} /> Full Notes Discovery
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => navigate('/onboarding')}
+              title="Change your enrolled stream, semester, or subjects"
+              style={{ fontSize: '12px' }}
+            >
+              <SlidersHorizontal size={13} /> Tune Stream & Roster
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => navigate('/notes')}
+              id="btn-goto-full-discovery"
+            >
+              <Layers size={14} /> Full Notes Discovery
+            </button>
+          </div>
         </div>
       </div>
 
@@ -365,13 +396,29 @@ export default function Dashboard() {
           <h3 style={{ fontSize: 'var(--text-base)', fontFamily: 'var(--font-display)', fontWeight: 'var(--weight-semibold)' }}>
             Course Workspaces
           </h3>
-          <span className="mono text-muted" style={{ fontSize: '11px' }}>
-            5 ACTIVE COURSES • 2022–2026 SCHEME
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className="mono text-muted" style={{ fontSize: '11px' }}>
+              {displaySubjects.length} ENROLLED COURSES • SEMESTER {user?.semester || 5}
+            </span>
+            <button
+              onClick={() => navigate('/onboarding')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-primary)',
+                fontSize: '11px',
+                cursor: 'pointer',
+                padding: 0,
+                textDecoration: 'underline'
+              }}
+            >
+              Edit Courses
+            </button>
+          </div>
         </div>
 
         <div className="dashboard-focus-strip" id="focus-strip">
-          {subjectsList.map(s => (
+          {displaySubjects.map(s => (
             <div
               key={s.id}
               className="subject-tile"

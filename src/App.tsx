@@ -18,11 +18,12 @@ import Contributions from './pages/Contributions';
 import ModerationQueue from './pages/ModerationQueue';
 import AdminModeration from './pages/AdminModeration';
 import SettingsPage from './pages/Settings';
+import Onboarding from './pages/Onboarding';
 
 import { useApp } from './context/AppContext';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, authLoading } = useApp();
+  const { user, isAuthenticated, authLoading } = useApp();
 
   if (authLoading) {
     return (
@@ -50,6 +51,19 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     );
   }
 
+  if (!isAuthenticated) {
+    return <Navigate to="/?auth=signin" replace />;
+  }
+  if (user && !user.onboardingCompleted) {
+    return <Navigate to="/onboarding" replace />;
+  }
+  return <>{children}</>;
+}
+
+function RequireAuthForOnboarding({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, authLoading } = useApp();
+
+  if (authLoading) return null;
   if (!isAuthenticated) {
     return <Navigate to="/?auth=signin" replace />;
   }
@@ -93,6 +107,16 @@ export default function App() {
         <Routes>
           {/* Scroll-Animated Landing Page Showcase */}
           <Route path="/" element={<LandingPage />} />
+
+          {/* Academic Stream & Subject Onboarding */}
+          <Route
+            path="/onboarding"
+            element={
+              <RequireAuthForOnboarding>
+                <Onboarding />
+              </RequireAuthForOnboarding>
+            }
+          />
 
           {/* Protected Interconnected Study Space Workspace */}
           <Route

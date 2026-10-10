@@ -219,7 +219,11 @@ export default function LandingPage() {
 
       loginWithUser(result.user);
       setAuthModalOpen(false);
-      navigate('/dashboard');
+      if (result.user.onboardingCompleted) {
+        navigate('/dashboard');
+      } else {
+        navigate('/onboarding');
+      }
     } catch (err: any) {
       setAuthError(err.message || 'Authentication failed. Please try again.');
     } finally {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Palette, Bell, HardDrive, ShieldCheck, LogOut } from 'lucide-react';
+import { User, Palette, Bell, HardDrive, ShieldCheck, LogOut, SlidersHorizontal, Target } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
@@ -27,6 +27,11 @@ export default function SettingsPage() {
     navigate('/');
   };
 
+  const streamName = (profile as any).stream || profile.department;
+  const degreeName = (profile as any).degree || 'B.Tech / B.E.';
+  const goalName = (profile as any).academicGoal;
+  const enrolledCount = (profile as any).enrolledSubjects?.length || 0;
+
   return (
     <div>
       <div className="page-header">
@@ -36,9 +41,18 @@ export default function SettingsPage() {
 
       {/* Profile Section */}
       <div className="card" style={{ marginBottom: 'var(--space-5)' }}>
-        <div className="card-header" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <User size={16} strokeWidth={1.5} />
-          <h3 style={{ fontSize: 'var(--text-md)' }}>Profile</h3>
+        <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+            <User size={16} strokeWidth={1.5} />
+            <h3 style={{ fontSize: 'var(--text-md)' }}>Academic Identity & Profile</h3>
+          </div>
+          <button
+            className="btn btn-sm btn-ghost"
+            onClick={() => navigate('/onboarding')}
+            style={{ fontSize: '12px', color: 'var(--color-primary)' }}
+          >
+            <SlidersHorizontal size={13} /> Edit Academic Roster
+          </button>
         </div>
         <div className="card-body">
           <div style={{ display: 'flex', gap: 'var(--space-5)', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -55,11 +69,17 @@ export default function SettingsPage() {
                 {profile.name}
               </div>
               <div className="text-sm text-muted" style={{ marginTop: '2px' }}>
-                {profile.department} • Semester {profile.semester}
+                {degreeName} • {streamName} • Semester {profile.semester}
               </div>
-              <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
+              <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)', flexWrap: 'wrap' }}>
                 <span className="badge badge-primary">{profile.role}</span>
                 <span className="chip">{profile.college}</span>
+                {enrolledCount > 0 && <span className="chip">{enrolledCount} enrolled subjects</span>}
+                {goalName && (
+                  <span className="chip chip-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <Target size={11} /> {goalName}
+                  </span>
+                )}
               </div>
             </div>
           </div>

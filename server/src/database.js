@@ -131,6 +131,11 @@ export function initDatabase() {
       role TEXT NOT NULL DEFAULT 'student',
       college TEXT NOT NULL,
       department TEXT NOT NULL,
+      stream TEXT,
+      degree TEXT DEFAULT 'B.Tech / B.E.',
+      academic_goal TEXT,
+      enrolled_subjects TEXT DEFAULT '[]',
+      onboarding_completed INTEGER DEFAULT 0,
       semester INTEGER NOT NULL,
       created_at TEXT
     );
@@ -214,6 +219,21 @@ export function initDatabase() {
   }
   if (!cols.includes('created_at')) {
     db.exec('ALTER TABLE users ADD COLUMN created_at TEXT;');
+  }
+  if (!cols.includes('stream')) {
+    db.exec('ALTER TABLE users ADD COLUMN stream TEXT;');
+  }
+  if (!cols.includes('degree')) {
+    db.exec('ALTER TABLE users ADD COLUMN degree TEXT DEFAULT \'B.Tech / B.E.\';');
+  }
+  if (!cols.includes('academic_goal')) {
+    db.exec('ALTER TABLE users ADD COLUMN academic_goal TEXT;');
+  }
+  if (!cols.includes('enrolled_subjects')) {
+    db.exec('ALTER TABLE users ADD COLUMN enrolled_subjects TEXT DEFAULT \'[]\';');
+  }
+  if (!cols.includes('onboarding_completed')) {
+    db.exec('ALTER TABLE users ADD COLUMN onboarding_completed INTEGER DEFAULT 0;');
   }
 
   // Migrate existing notes table if columns don't exist

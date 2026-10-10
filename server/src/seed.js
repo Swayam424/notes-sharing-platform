@@ -443,25 +443,43 @@ startxref
 
 export function seedDemoUsers() {
   const existingStudent = db.prepare('SELECT id FROM users WHERE email = ?').get('student@atelier.edu');
-  if (!existingStudent) {
-    const studentPass = hashPassword('password123');
-    const modPass = hashPassword('password123');
-    const now = new Date().toISOString();
+  const studentPass = hashPassword('password123');
+  const modPass = hashPassword('password123');
+  const now = new Date().toISOString();
+  const defaultSubjects = JSON.stringify(['os', 'dbms', 'cn', 'toc', 'se', 'dm']);
 
+  if (!existingStudent) {
     const insertUser = db.prepare(`
-      INSERT OR REPLACE INTO users (id, email, password_hash, salt, name, initials, role, college, department, semester, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO users (
+        id, email, password_hash, salt, name, initials, role, college, department,
+        stream, degree, academic_goal, enrolled_subjects, onboarding_completed, semester, created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     `);
 
     insertUser.run(
       'user-student', 'student@atelier.edu', studentPass.hash, studentPass.salt,
-      'Nishant Verma', 'NV', 'Student', 'Apex Institute of Technology', 'Computer Science', 5, now
+      'Nishant Verma', 'NV', 'Student', 'Apex Institute of Technology', 'Computer Science',
+      'Computer Science & Engineering', 'B.Tech / B.E.', 'End-Semester Prep & High CGPA',
+      defaultSubjects, 5, now
     );
 
     insertUser.run(
       'user-moderator', 'moderator@atelier.edu', modPass.hash, modPass.salt,
-      'Priya Sharma', 'PS', 'Moderator', 'Apex Institute of Technology', 'Computer Science', 5, now
+      'Priya Sharma', 'PS', 'Moderator', 'Apex Institute of Technology', 'Computer Science',
+      'Computer Science & Engineering', 'B.Tech / B.E.', 'Academic Quality & Errata Review',
+      defaultSubjects, 5, now
     );
+  } else {
+    // Ensure existing demo users have onboarding_completed = 1 and populated subjects
+    db.prepare(`
+      UPDATE users 
+      SET onboarding_completed = 1,
+          stream = COALESCE(stream, 'Computer Science & Engineering'),
+          degree = COALESCE(degree, 'B.Tech / B.E.'),
+          enrolled_subjects = CASE WHEN enrolled_subjects IS NULL OR enrolled_subjects = '[]' THEN ? ELSE enrolled_subjects END
+      WHERE email IN ('student@atelier.edu', 'moderator@atelier.edu')
+    `).run(defaultSubjects);
   }
 }
 

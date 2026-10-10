@@ -50,6 +50,33 @@ function calculateCoverage(subjectId) {
   return Math.round((covered / allTopics.length) * 100);
 }
 
+// Helper: Format a safe public/authenticated user object
+function formatSafeUser(row) {
+  if (!row) return null;
+  let enrolledSubjects = [];
+  try {
+    enrolledSubjects = typeof row.enrolled_subjects === 'string' ? JSON.parse(row.enrolled_subjects || '[]') : (row.enrolled_subjects || []);
+  } catch {
+    enrolledSubjects = [];
+  }
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    initials: row.initials,
+    role: row.role,
+    college: row.college,
+    department: row.department,
+    stream: row.stream || row.department || 'Computer Science & Engineering',
+    degree: row.degree || 'B.Tech / B.E.',
+    academicGoal: row.academic_goal || '',
+    enrolledSubjects: Array.isArray(enrolledSubjects) ? enrolledSubjects : [],
+    onboardingCompleted: Boolean(row.onboarding_completed),
+    semester: row.semester || 1,
+    created_at: row.created_at
+  };
+}
+
 // Helper: Extract authenticated user from Authorization Bearer token header
 function getUserFromRequest(req) {
   const authHeader = req.headers.authorization;
@@ -61,8 +88,8 @@ function getUserFromRequest(req) {
     db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
     return null;
   }
-  const user = db.prepare('SELECT id, email, name, initials, role, college, department, semester, created_at FROM users WHERE id = ?').get(session.user_id);
-  return user || null;
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id);
+  return formatSafeUser(user);
 }
 
 // Helper: Check if user has administrator or moderator privileges
@@ -1719,8 +1746,16 @@ app.get('/api/stats/dashboard', (_req, res) => {
 // -------------------------------------------------------------
 app.get('/api/user/profile', (req, res) => {
   try {
-    const user = getUserFromRequest(req) || db.prepare('SELECT id, email, name, initials, role, college, department, semester, created_at FROM users LIMIT 1').get();
-    res.json({ success: true, user: user || { name: 'Student', initials: 'ST', role: 'Student' } });
+    let user = getUserFromRequest(req);
+    if (!user) {
+      const fallbackRow = db.prepare('SELECT * FROM users LIMIT 1').get();
+      user = formatSafeUser(fallbackRow);
+    }
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Not authenticated' });
+    }
+    const notesCount = db.prepare('SELECT COUNT(*) as count FROM notes WHERE LOWER(author) = LOWER(?)').get(user.name)?.count || 0;
+    res.json({ success: true, user: { ...user, uploadedNotesCount: notesCount } });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1728,7 +1763,7 @@ app.get('/api/user/profile', (req, res) => {
 
 const handleSignup = (req, res) => {
   try {
-    const { email, password, name, college, department, semester } = req.body;
+    const { email, password, name, college, department, semester, stream, degree } = req.body;
     if (!email || !password || !name) {
       return res.status(400).json({ success: false, error: 'Name, email, and password are required' });
     }
@@ -1744,8 +1779,11 @@ const handleSignup = (req, res) => {
     const now = new Date().toISOString();
 
     db.prepare(`
-      INSERT INTO users (id, email, password_hash, salt, name, initials, role, college, department, semester, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'student', ?, ?, ?, ?)
+      INSERT INTO users (
+        id, email, password_hash, salt, name, initials, role, college, department,
+        stream, degree, academic_goal, enrolled_subjects, onboarding_completed, semester, created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, 'student', ?, ?, ?, ?, '', '[]', 0, ?, ?)
     `).run(
       userId,
       cleanEmail,
@@ -1755,7 +1793,9 @@ const handleSignup = (req, res) => {
       initials,
       college || 'Apex Institute of Technology',
       department || 'Computer Science',
-      parseInt(semester) || 5,
+      stream || '',
+      degree || 'B.Tech / B.E.',
+      parseInt(semester) || 1,
       now
     );
 
@@ -1764,19 +1804,10 @@ const handleSignup = (req, res) => {
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(token, userId, now, expiresAt);
 
-    const user = {
-      id: userId,
-      email: cleanEmail,
-      name: name.trim(),
-      initials,
-      role: 'student',
-      college: college || 'Apex Institute of Technology',
-      department: department || 'Computer Science',
-      semester: parseInt(semester) || 5,
-      created_at: now
-    };
+    const userRow = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    const safeUser = formatSafeUser(userRow);
 
-    res.status(201).json({ success: true, token, user });
+    res.status(201).json({ success: true, token, user: safeUser });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1807,17 +1838,7 @@ app.post('/api/auth/login', (req, res) => {
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(token, user.id, now, expiresAt);
 
-    const safeUser = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      initials: user.initials,
-      role: user.role,
-      college: user.college,
-      department: user.department,
-      semester: user.semester,
-      created_at: user.created_at
-    };
+    const safeUser = formatSafeUser(user);
 
     res.json({ success: true, token, user: safeUser });
   } catch (err) {
@@ -1837,14 +1858,47 @@ app.get('/api/auth/me', (req, res) => {
   }
 });
 
-app.get('/api/user/profile', (req, res) => {
+// Update student academic profile & complete onboarding
+app.post('/api/user/onboarding', (req, res) => {
   try {
     const user = getUserFromRequest(req);
     if (!user) {
       return res.status(401).json({ success: false, error: 'Not authenticated' });
     }
-    const notesCount = db.prepare('SELECT COUNT(*) as count FROM notes WHERE LOWER(author) = LOWER(?)').get(user.name)?.count || 0;
-    res.json({ success: true, user: { ...user, uploadedNotesCount: notesCount } });
+    const { degree, stream, college, semester, enrolledSubjects, academicGoal } = req.body;
+    if (!stream || !stream.trim()) {
+      return res.status(400).json({ success: false, error: 'Stream/branch is required' });
+    }
+
+    const enrolledArr = Array.isArray(enrolledSubjects) ? enrolledSubjects : [];
+    const sem = parseInt(semester) || user.semester || 1;
+
+    db.prepare(`
+      UPDATE users
+      SET degree = ?,
+          stream = ?,
+          department = ?,
+          college = ?,
+          semester = ?,
+          enrolled_subjects = ?,
+          academic_goal = ?,
+          onboarding_completed = 1
+      WHERE id = ?
+    `).run(
+      degree || user.degree || 'B.Tech / B.E.',
+      stream.trim(),
+      stream.trim(),
+      (college && college.trim()) || user.college || 'Apex Institute of Technology',
+      sem,
+      JSON.stringify(enrolledArr),
+      academicGoal || '',
+      user.id
+    );
+
+    const updatedRaw = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+    const safeUser = formatSafeUser(updatedRaw);
+
+    res.json({ success: true, user: safeUser });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
