@@ -7,7 +7,8 @@ import {
   PanelLeftClose, PanelLeft, AlertCircle, RefreshCw,
   Compass, Copy, ShieldAlert, AlertTriangle, Lock,
   CheckCircle2, Info, ExternalLink, Loader2,
-  ThumbsUp, MessageSquare, Send, Lightbulb, Trash2, HelpCircle
+  ThumbsUp, MessageSquare, Send, Lightbulb, Trash2, HelpCircle,
+  Share2, Award
 } from 'lucide-react';
 import { api } from '../services/api';
 import { savedNotesService } from '../services/savedNotes';
@@ -80,6 +81,11 @@ export default function NoteDetail() {
   const [reportError, setReportError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Peer Sharing & Author Profile State
+  const [shareOpen, setShareOpen] = useState(false);
+  const [authorModalOpen, setAuthorModalOpen] = useState(false);
+  const [allNotesList, setAllNotesList] = useState<NoteResource[]>(fallbackNotes);
+
   // Note Data & Loading/Error states
   const [note, setNote] = useState<NoteResource | null>(null);
   const [subject, setSubject] = useState<Subject | null>(null);
@@ -96,18 +102,49 @@ export default function NoteDetail() {
   const [showDiscussion, setShowDiscussion] = useState(false);
   const [comments, setComments] = useState<NoteComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
-  const [commentCategory, setCommentCategory] = useState<'Exam Tip' | 'Errata / Correction' | 'Question' | 'Key Takeaway' | 'General'>('Exam Tip');
+  const [commentCategory, setCommentCategory] = useState<'Study Tip' | 'Errata / Correction' | 'Question' | 'Key Takeaway' | 'General'>('Study Tip');
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
-  const [activeCommentFilter, setActiveCommentFilter] = useState<'all' | 'Exam Tip' | 'Errata / Correction' | 'Question' | 'Key Takeaway'>('all');
+  const [activeCommentFilter, setActiveCommentFilter] = useState<'all' | 'Study Tip' | 'Errata / Correction' | 'Question' | 'Key Takeaway'>('all');
 
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  // Fetch all notes for author profiles
+  useEffect(() => {
+    api.getNotes().then(setAllNotesList).catch(() => setAllNotesList(fallbackNotes));
+  }, []);
+
+  // Compute author portfolio & metrics
+  const authorNotes = useMemo(() => {
+    if (!note?.author) return [];
+    return allNotesList.filter(n => n.author.toLowerCase() === note.author.toLowerCase());
+  }, [allNotesList, note?.author]);
+
+  const authorStats = useMemo(() => {
+    const totalNotes = authorNotes.length || 1;
+    const totalDownloads = authorNotes.reduce((sum, n) => sum + (n.downloads || 0), 0) || (note?.downloads || 64);
+    const totalUpvotes = authorNotes.reduce((sum, n) => sum + (n.upvotes || 0), 0) || (note?.upvotes || 22);
+    return { totalNotes, totalDownloads, totalUpvotes };
+  }, [authorNotes, note]);
 
   // Toast helper
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  const handleCopyLink = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url);
+    showToast('Note link copied to clipboard!');
+  };
+
+  const handleCopyClassMessage = () => {
+    if (!note) return;
+    const msg = `📚 Check out ${note.author}'s notes on "${note.title}" (${note.subjectName || 'Course Note'}, ${note.pages} pages): ${window.location.href}`;
+    navigator.clipboard.writeText(msg);
+    showToast('Class group share text copied!');
   };
 
   // Load Note & Subject Data
@@ -394,9 +431,9 @@ export default function NoteDetail() {
     }
   };
 
-  // Zoom handlers
-  const handleZoomIn = () => setZoom(z => Math.min(250, z + 15));
-  const handleZoomOut = () => setZoom(z => Math.max(50, z - 15));
+  // Zoom handlers (supports up to 300% for fine handwriting & diagrams)
+  const handleZoomIn = () => setZoom(z => Math.min(300, z + 20));
+  const handleZoomOut = () => setZoom(z => Math.max(50, z - 20));
   const handleFitWidth = () => setZoom(110);
   const handleRotate = () => setRotation(r => (r + 90) % 360);
 
@@ -643,7 +680,7 @@ export default function NoteDetail() {
               </button>
             </div>
 
-            {/* Action Buttons: Save/Bookmark, Upvote, Discussion, Download, Report, Focus Mode */}
+            {/* Action Buttons: Save/Bookmark, Share, Upvote, Discussion, Download, Report, Focus Mode */}
             <div className="note-viewer-actions">
               {/* Save / Bookmark Button */}
               <button
@@ -656,13 +693,25 @@ export default function NoteDetail() {
                 <span>{isSaved ? 'Saved' : 'Save'}</span>
               </button>
 
+              {/* Share Note Button */}
+              <button
+                className="note-viewer-btn note-viewer-btn-share"
+                onClick={() => setShareOpen(true)}
+                id="btn-viewer-share"
+                title="Share this note with classmates or batch study groups"
+                aria-label="Share note"
+              >
+                <Share2 size={15} />
+                <span>Share</span>
+              </button>
+
               {/* Upvote / Helpful Button */}
               <button
                 className={`note-viewer-btn note-viewer-btn-upvote ${isUpvoted ? 'active upvoted' : ''}`}
                 onClick={handleToggleUpvote}
                 disabled={upvoting}
                 id="btn-viewer-upvote"
-                title={isUpvoted ? "You found this helpful" : "Mark as helpful for exam prep"}
+                title={isUpvoted ? "You marked this peer note as helpful" : "Mark as helpful peer note"}
                 aria-label="Upvote note as helpful"
               >
                 <ThumbsUp size={15} fill={isUpvoted ? 'currentColor' : 'none'} />
@@ -674,7 +723,7 @@ export default function NoteDetail() {
                 className={`note-viewer-btn note-viewer-btn-discussion ${showDiscussion ? 'active' : ''}`}
                 onClick={() => setShowDiscussion(!showDiscussion)}
                 id="btn-viewer-discussion"
-                title="Toggle note discussion and errata thread"
+                title="Toggle note discussion and peer clarifications"
                 aria-label="Toggle discussion thread"
               >
                 <MessageSquare size={15} />
@@ -754,7 +803,11 @@ export default function NoteDetail() {
               <span className="note-viewer-spec-dot">•</span>
 
               {/* Author */}
-              <div className="note-viewer-author-badge">
+              <div
+                className="note-viewer-author-badge note-author-clickable"
+                onClick={() => setAuthorModalOpen(true)}
+                title={`View ${note.author}'s student profile and uploaded notes`}
+              >
                 <div className="note-viewer-author-initials">{note.authorInitials}</div>
                 <span>{note.author}</span>
               </div>
@@ -865,7 +918,7 @@ export default function NoteDetail() {
             <button
               className="toolbar-btn toolbar-btn-icon"
               onClick={handleZoomIn}
-              disabled={zoom >= 250}
+              disabled={zoom >= 300}
               title="Zoom In (+)"
               id="btn-zoom-in"
               aria-label="Zoom in"
@@ -883,12 +936,21 @@ export default function NoteDetail() {
             </button>
 
             <button
-              className="toolbar-btn"
+              className={`toolbar-btn ${zoom === 100 ? 'active' : ''}`}
               onClick={() => setZoom(100)}
-              title="Reset Zoom to 100%"
-              id="btn-zoom-reset"
+              title="Standard 100% Zoom"
+              id="btn-zoom-100"
             >
               100%
+            </button>
+
+            <button
+              className={`toolbar-btn ${zoom === 150 ? 'active' : ''}`}
+              onClick={() => setZoom(150)}
+              title="Handwriting Magnification (150%)"
+              id="btn-zoom-150"
+            >
+              150% Ink
             </button>
           </div>
 
@@ -1221,10 +1283,10 @@ export default function NoteDetail() {
 
             {/* Category Filter Pills */}
             <div className="discussion-filter-pills" role="tablist">
-              {(['all', 'Exam Tip', 'Errata / Correction', 'Question', 'Key Takeaway'] as const).map(filterKey => {
+              {(['all', 'Study Tip', 'Errata / Correction', 'Question', 'Key Takeaway'] as const).map(filterKey => {
                 const count = filterKey === 'all'
                   ? comments.length
-                  : comments.filter(c => c.category === filterKey).length;
+                  : comments.filter(c => (c.category as string) === filterKey || (filterKey === 'Study Tip' && (c.category as string) === 'Exam Tip')).length;
                 return (
                   <button
                     key={filterKey}
@@ -1243,14 +1305,14 @@ export default function NoteDetail() {
               <div className="discussion-category-selector">
                 <span className="mono" style={{ fontSize: '10px', color: 'var(--color-muted)', letterSpacing: '0.04em' }}>TYPE:</span>
                 <div className="category-chips-row">
-                  {(['Exam Tip', 'Errata / Correction', 'Question', 'Key Takeaway', 'General'] as const).map(cat => (
+                  {(['Study Tip', 'Errata / Correction', 'Question', 'Key Takeaway', 'General'] as const).map(cat => (
                     <button
                       type="button"
                       key={cat}
                       className={`cat-chip-btn ${commentCategory === cat ? 'active' : ''} ${cat.toLowerCase().replace(/[^a-z]/g, '-')}`}
                       onClick={() => setCommentCategory(cat)}
                     >
-                      {cat === 'Exam Tip' && <Sparkles size={11} />}
+                      {cat === 'Study Tip' && <Sparkles size={11} />}
                       {cat === 'Errata / Correction' && <AlertTriangle size={11} />}
                       {cat === 'Question' && <HelpCircle size={11} />}
                       {cat === 'Key Takeaway' && <BookOpen size={11} />}
@@ -1267,13 +1329,13 @@ export default function NoteDetail() {
                   value={commentText}
                   onChange={e => setCommentText(e.target.value)}
                   placeholder={
-                    commentCategory === 'Exam Tip'
-                      ? 'Share an important exam insight, frequent viva question, or shortcut…'
+                    commentCategory === 'Study Tip'
+                      ? 'Share a helpful study tip, diagram explanation, or conceptual shortcut…'
                       : commentCategory === 'Errata / Correction'
-                      ? 'Point out a formula typo, correction, or erratum in this note…'
+                      ? 'Point out a formula typo, correction, or clarification in this note…'
                       : commentCategory === 'Question'
                       ? 'Ask a question or request clarification on this unit’s concepts…'
-                      : 'Add a helpful comment or study tip for fellow students…'
+                      : 'Add a helpful comment or note explanation for fellow students…'
                   }
                   required
                 />
@@ -1622,6 +1684,246 @@ export default function NoteDetail() {
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================
+          SHARE NOTE WITH CLASSMATES MODAL
+          ================================================================ */}
+      {shareOpen && (
+        <div className="modal-backdrop" onClick={() => setShareOpen(false)}>
+          <div
+            className="modal-card"
+            style={{ maxWidth: '520px', width: '92%' }}
+            onClick={e => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="share-modal-title"
+          >
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Share2 size={18} style={{ color: 'var(--color-primary)' }} />
+                <h3 id="share-modal-title" style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)' }}>
+                  Share Note with Peers
+                </h3>
+              </div>
+              <button
+                className="btn-icon"
+                onClick={() => setShareOpen(false)}
+                aria-label="Close share dialog"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="share-modal-body">
+              <div>
+                <label className="text-xs text-muted" style={{ fontWeight: 'var(--weight-semibold)', display: 'block', marginBottom: '6px' }}>
+                  DIRECT STUDY LINK
+                </label>
+                <div className="share-copy-box">
+                  <input
+                    type="text"
+                    readOnly
+                    value={window.location.href}
+                    className="share-copy-input"
+                  />
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleCopyLink}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    <Copy size={13} /> Copy Link
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-muted" style={{ fontWeight: 'var(--weight-semibold)', display: 'block', marginBottom: '6px' }}>
+                  ONE-CLICK SHARING CHANNELS
+                </label>
+                <div className="share-channel-grid">
+                  <div
+                    className="share-channel-card"
+                    onClick={handleCopyClassMessage}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="share-channel-icon" style={{ background: '#DCFCE7', color: '#166534' }}>
+                      💬
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)' }}>Class WhatsApp</div>
+                      <div className="mono text-muted" style={{ fontSize: '10px' }}>Copy formatted text</div>
+                    </div>
+                  </div>
+
+                  <div
+                    className="share-channel-card"
+                    onClick={() => {
+                      const text = `Check out this note on ${note?.title}: ${window.location.href}`;
+                      window.open(`https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(text)}`, '_blank');
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="share-channel-icon" style={{ background: '#E0F2FE', color: '#0369A1' }}>
+                      ✈️
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)' }}>Telegram Batch</div>
+                      <div className="mono text-muted" style={{ fontSize: '10px' }}>Send to channel</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: 'var(--color-base)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
+                <div className="mono text-muted" style={{ fontSize: '10px', marginBottom: '4px', textTransform: 'uppercase' }}>
+                  Resource Summary Preview
+                </div>
+                <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)', color: 'var(--color-deep)' }}>
+                  {note?.title}
+                </div>
+                <div className="mono text-muted" style={{ fontSize: '11px', marginTop: '2px' }}>
+                  by {note?.author} • {note?.format} • {note?.pages} pages
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShareOpen(false)}>
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================
+          STUDENT AUTHOR / SCRIBE PROFILE MODAL
+          ================================================================ */}
+      {authorModalOpen && note && (
+        <div className="modal-backdrop" onClick={() => setAuthorModalOpen(false)}>
+          <div
+            className="modal-card"
+            style={{ maxWidth: '580px', width: '92%', overflow: 'hidden' }}
+            onClick={e => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="author-modal-name"
+          >
+            <div className="modal-header" style={{ padding: '12px 18px' }}>
+              <span className="mono text-muted" style={{ fontSize: '11px', letterSpacing: '0.05em' }}>
+                STUDENT SCRIBE PROFILE
+              </span>
+              <button
+                className="btn-icon"
+                onClick={() => setAuthorModalOpen(false)}
+                aria-label="Close author profile"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Author Profile Hero */}
+            <div className="author-profile-hero">
+              <div className="author-hero-avatar">
+                {note.authorInitials || 'ST'}
+              </div>
+              <div className="author-hero-info">
+                <h3 className="author-hero-name" id="author-modal-name">
+                  {note.author}
+                  <span className="badge badge-primary" style={{ fontSize: '10px', padding: '2px 8px' }}>
+                    <Award size={11} /> Verified Peer Scribe
+                  </span>
+                </h3>
+                <div className="author-hero-meta">
+                  {note.department || 'Academic Department'} • Apex Institute of Technology
+                  <br />
+                  <span>Shares handwritten lecture notes, formula sheets, and numerical proofs.</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Author Stats Row */}
+            <div className="author-stats-grid">
+              <div className="author-stat-card">
+                <div className="author-stat-val">{authorStats.totalNotes}</div>
+                <div className="author-stat-lbl">Notes Shared</div>
+              </div>
+              <div className="author-stat-card">
+                <div className="author-stat-val">{authorStats.totalDownloads}</div>
+                <div className="author-stat-lbl">Student Reads</div>
+              </div>
+              <div className="author-stat-card">
+                <div className="author-stat-val">{authorStats.totalUpvotes}</div>
+                <div className="author-stat-lbl">Helpful Upvotes</div>
+              </div>
+            </div>
+
+            {/* All Notes Uploaded by this Student */}
+            <div style={{ padding: '12px 20px 4px' }}>
+              <div className="mono text-muted" style={{ fontSize: '11px', fontWeight: 'var(--weight-semibold)' }}>
+                NOTEBOOKS SHARED BY {note.author.toUpperCase()} ({authorNotes.length})
+              </div>
+            </div>
+
+            <div className="author-notes-list">
+              {authorNotes.length > 0 ? (
+                authorNotes.map(n => (
+                  <div key={n.id} className="author-note-item">
+                    <div>
+                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)', color: 'var(--color-deep)' }}>
+                        {n.title}
+                      </div>
+                      <div className="mono text-muted" style={{ fontSize: '10px', marginTop: '2px' }}>
+                        {n.subjectName || n.subjectId} • {n.format} • {n.pages} pages • {n.downloads || 0} reads
+                      </div>
+                    </div>
+                    {n.id === note.id ? (
+                      <span className="chip chip-secondary" style={{ fontSize: '10px' }}>
+                        Currently Reading
+                      </span>
+                    ) : (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ fontSize: '11px' }}
+                        onClick={() => {
+                          setAuthorModalOpen(false);
+                          navigate(`/notes/${n.id}`);
+                        }}
+                      >
+                        Read Note →
+                      </button>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-muted" style={{ padding: '16px', textAlign: 'center' }}>
+                  Currently viewing this student's uploaded notes.
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--color-border)', padding: '12px 18px' }}>
+              <button
+                className="btn btn-ghost"
+                onClick={() => setAuthorModalOpen(false)}
+              >
+                Close Profile
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setAuthorModalOpen(false);
+                  navigate(`/notes?q=${encodeURIComponent(note.author)}`);
+                }}
+              >
+                Browse All in Discovery →
+              </button>
             </div>
           </div>
         </div>

@@ -71,18 +71,30 @@ This document tracks all completed features, active work, and planned next steps
 - **Adaptive Hall of Scribes:** Department toggle adapts from "All Depts" to the student's specific branch (e.g. "Electronics & Communication", "Mechanical", "AI & Data Science").
 - **Multi-Branch Catalog Expansion:** Enriched backend database with courses and starter verified notes for ECE, Mechanical, Electrical, AI/DS, BCA, and MCA.
 
+### 13. Collaborative Notes Sharing Core Refocus
+- **1-Click Peer Share Dialog:** Added a dedicated "Share" action in the Note Detail header with direct copyable study links, formatted class WhatsApp/batch Telegram blurbs, and instant clipboard toast confirmation.
+- **Student Scribe / Author Profile Sheet:** Clickable author badges on notes opening a dedicated student profile drawer displaying the author's bio, verification badge, total notes shared, student reads/downloads, upvotes, and full portfolio of shared notebooks with 1-click reading.
+- **High-Definition Handwriting Magnification:** Extended reader zoom up to 300% and added a `150% Ink` quick preset button for crystal-clear legibility of student handwritten notes, mathematical derivations, and schematic diagrams.
+- **Post-Upload Share CTA:** Enhanced the Note Upload success view with an instant "Share Note Link with Classmates" action.
+- **Identity & Tone Realignment:** Softened exam-cramming jargon across the Dashboard:
+  - *"Upcoming Midterm Topic Gap"* $\rightarrow$ *"Syllabus Notes Coverage Gap"*
+  - *"Exam Radar"* $\rightarrow$ *"Trending Study Topics (Most Read by Peers)"*
+  - *"Syllabus Gap Recommendation"* $\rightarrow$ *"Community Notes Spotlight"*
+  - Note discussion categories realigned from test tips to collaborative note study (`Study Tip`, `Errata / Clarification`, `Question`, `Key Takeaway`).
+
 ---
 
 ## Planned Next Steps (Candidate Options)
 
 | Option | Focus Area | Description |
 | :--- | :--- | :--- |
-| **Option A** | **AI Study Copilot & Flashcards** | Add an AI study drawer inside the Note Detail reader to generate 1-click TL;DR summaries, key exam takeaways, and 5-question revision flashcards. |
-| **Option B** | **Interactive Document Annotations** | Allow students to highlight text in terracotta/amber/sage, attach sticky margin notes, and toggle distraction-free sepia/dark reading modes. |
-| **Option C** | **PYQ Solved Solutions & Answer Keys** | Add community crowdsourced step-by-step solutions for exam questions with verified badges and peer voting. |
-| **Option D** | **Peer Study Rooms & Batch Discussion** | Allow students enrolled in the same course/semester to start collaborative study threads and share private batch notes. |
+| **Option A** | **Interactive Document Annotations** | Allow students to highlight text in terracotta/amber/sage, attach sticky margin notes, and toggle distraction-free sepia/dark reading modes. |
+| **Option B** | **Student Author Profiles & Batch Collections** | Create dedicated `/authors/:name` profile pages with custom student study lists and bundle sharing ("Unit 1-5 Complete Pack"). |
+| **Option C** | **Peer Study Rooms & Class Notes Discussion** | Dedicated course channels where students in the same class batch can post note requests and share private notes. |
+| **Option D** | **Smart Note Search & Handwriting OCR Indexing** | Deep search that searches text inside handwritten note scans, formulas, and topic diagrams. |
 
 ---
 
 *Last Updated: 2026-10-11*
+
 

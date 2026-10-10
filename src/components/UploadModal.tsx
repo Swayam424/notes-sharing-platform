@@ -14,7 +14,8 @@ import {
   Plus,
   Layers,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Share2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
@@ -85,6 +86,7 @@ export default function UploadModal() {
   const [uploadStatusMessage, setUploadStatusMessage] = useState('');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadedNote, setUploadedNote] = useState<NoteResource | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1164,6 +1166,28 @@ export default function UploadModal() {
                   </>
                 )}
               </div>
+
+              {resourceKind === 'note' && uploadedNote && (
+                <button
+                  className="btn btn-sm"
+                  style={{
+                    width: '100%',
+                    justifyContent: 'center',
+                    marginTop: 'var(--space-2)',
+                    borderColor: 'var(--color-primary-muted)',
+                    color: 'var(--color-primary)'
+                  }}
+                  onClick={() => {
+                    const url = `${window.location.origin}/notes/${uploadedNote.id}`;
+                    navigator.clipboard.writeText(url);
+                    setCopiedLink(true);
+                    setTimeout(() => setCopiedLink(false), 2500);
+                  }}
+                >
+                  <Share2 size={14} />
+                  <span>{copiedLink ? '✓ Study Link Copied to Clipboard!' : 'Share Note Link with Classmates'}</span>
+                </button>
+              )}
 
               <button
                 className="btn btn-ghost btn-sm"

@@ -627,7 +627,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Topic Coverage Alert with Direct Search Connection */}
+          {/* Syllabus Notes Coverage Gap with Direct Search Connection */}
           <div className="card" style={{ borderColor: 'var(--color-primary-muted)' }} id="coverage-alert">
             <div className="card-body" style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start' }}>
               <div style={{
@@ -638,13 +638,13 @@ export default function Dashboard() {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 'var(--weight-semibold)', marginBottom: 'var(--space-1)', fontSize: 'var(--text-base)' }}>
-                  Upcoming Midterm Topic Gap
+                  Syllabus Notes Coverage Gap
                 </div>
                 <p className="text-sm" style={{ color: 'var(--color-muted)', marginBottom: 'var(--space-3)' }}>
                   {lowestCoverageSubject ? (
-                    `${lowestCoverageSubject.name} ${gapUnitAndTopic?.unitName ? `(${gapUnitAndTopic.unitName}: ${gapUnitAndTopic.topicName})` : ''} has only ${lowestCoverageSubject.coverage || 42}% verified coverage in your library.`
+                    `${lowestCoverageSubject.name} ${gapUnitAndTopic?.unitName ? `(${gapUnitAndTopic.unitName}: ${gapUnitAndTopic.topicName})` : ''} has only ${lowestCoverageSubject.coverage || 42}% verified notes coverage in your peer library.`
                   ) : (
-                    'Review your syllabus units to identify gap topics before the upcoming exam.'
+                    'Review your course units to identify missing peer notes and contribute.'
                   )}
                 </p>
                 <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
@@ -717,14 +717,14 @@ export default function Dashboard() {
 
         {/* Right Column (35%) — Exam Radar & Recent Peer Notes */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-          {/* Exam Radar (Clicking any topic directly discovers notes for that topic!) */}
+          {/* Trending Study Topics (Clicking any topic directly discovers notes for that topic!) */}
           <div className="card" id="exam-radar">
             <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                 <TrendingUp size={16} strokeWidth={1.5} style={{ color: 'var(--color-primary)' }} />
-                <h3 style={{ fontSize: 'var(--text-md)' }}>Exam Radar</h3>
+                <h3 style={{ fontSize: 'var(--text-md)' }}>Trending Study Topics</h3>
               </div>
-              <span className="mono text-muted" style={{ fontSize: '10px' }}>CLICK TO DISCOVER</span>
+              <span className="mono text-muted" style={{ fontSize: '10px' }}>MOST READ BY PEERS</span>
             </div>
             <div className="card-body" style={{ padding: 0 }}>
               {frequentTopics.slice(0, 5).map((t, i) => (
@@ -790,11 +790,11 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Smart Syllabus Gap Recommendation */}
+          {/* Community Notes Spotlight */}
           <div className="card" style={{ background: 'var(--color-secondary-light)', border: '1px solid var(--color-secondary-muted)' }} id="smart-rec">
             <div className="card-body" style={{ padding: 'var(--space-4) var(--space-5)' }}>
               <div className="mono" style={{ fontSize: '10px', color: 'var(--color-secondary)', marginBottom: 'var(--space-2)', letterSpacing: '0.06em' }}>
-                SYLLABUS GAP RECOMMENDATION
+                COMMUNITY NOTES SPOTLIGHT
               </div>
               <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-deep-soft)', lineHeight: '1.5' }}>
                 Explore verified student notes across {displaySubjects.length > 0 ? displaySubjects.slice(0, 4).map(s => s.name).join(', ') : 'your active courses'}.
