@@ -182,16 +182,43 @@ export const api = {
     return { success: true, user: data.user };
   },
 
+  async updateProfile(payload: {
+    degree?: string;
+    stream?: string;
+    department?: string;
+    college?: string;
+    semester?: number;
+    enrolledSubjects?: string[];
+  }): Promise<{ success: boolean; user: AuthUser }> {
+    const res = await authFetch('/api/user/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to update academic profile');
+    return { success: true, user: data.user };
+  },
+
   // -------------------- Subjects --------------------
-  async getSubjects(): Promise<Subject[]> {
+  async getSubjects(filters?: { stream?: string; semester?: number }): Promise<Subject[]> {
     try {
-      const res = await authFetch('/api/subjects');
+      const params = new URLSearchParams();
+      if (filters?.stream && filters.stream !== 'all') params.append('stream', filters.stream);
+      if (filters?.semester && filters.semester !== undefined) params.append('semester', filters.semester.toString());
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+
+      const res = await authFetch(`/api/subjects${queryStr}`);
       if (!res.ok) throw new Error('API unavailable');
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to fetch subjects');
       return data.subjects;
     } catch {
-      return mockSubjects;
+      let filtered = mockSubjects;
+      if (filters?.semester) {
+        filtered = filtered.filter(s => s.semester === filters.semester);
+      }
+      return filtered.length > 0 ? filtered : mockSubjects;
     }
   },
 

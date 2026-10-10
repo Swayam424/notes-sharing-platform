@@ -26,7 +26,8 @@ export function initDatabase() {
       code TEXT NOT NULL,
       semester INTEGER NOT NULL,
       scheme TEXT NOT NULL,
-      coverage INTEGER DEFAULT 0
+      coverage INTEGER DEFAULT 0,
+      department TEXT DEFAULT 'Computer Science & Engineering'
     );
 
     CREATE TABLE IF NOT EXISTS units (
@@ -234,6 +235,12 @@ export function initDatabase() {
   }
   if (!cols.includes('onboarding_completed')) {
     db.exec('ALTER TABLE users ADD COLUMN onboarding_completed INTEGER DEFAULT 0;');
+  }
+
+  // Migrate existing subjects table if department column doesn't exist
+  const subCols = db.prepare('PRAGMA table_info(subjects)').all().map(c => c.name);
+  if (!subCols.includes('department')) {
+    db.exec("ALTER TABLE subjects ADD COLUMN department TEXT DEFAULT 'Computer Science & Engineering';");
   }
 
   // Migrate existing notes table if columns don't exist

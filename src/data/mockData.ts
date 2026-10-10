@@ -24,6 +24,7 @@ export interface Subject {
   code: string;
   semester: number;
   scheme: string;
+  department?: string;
   units: Unit[];
   coverage: number;
 }
@@ -659,5 +660,8 @@ export const currentUser = {
   role: 'Moderator',
   college: 'Apex Institute of Technology',
   department: 'Computer Science',
+  stream: 'Computer Science & Engineering',
+  degree: 'B.Tech / B.E.',
   semester: 5,
+  enrolledSubjects: ['os', 'dbms', 'cn', 'toc', 'se'],
 };

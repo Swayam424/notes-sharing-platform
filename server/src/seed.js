@@ -2,12 +2,17 @@ import { db, initDatabase, uploadsDir } from './database.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { hashPassword } from './auth.js';
+import { extendedCurricula } from './curriculumData.js';
 
 export function seedDatabase() {
   initDatabase();
 
+  // Ensure department is set for existing subjects
+  db.exec("UPDATE subjects SET department = 'Computer Science & Engineering' WHERE department IS NULL OR department = '';");
+
   const countRow = db.prepare('SELECT COUNT(*) as count FROM subjects').get();
   if (countRow && countRow.count > 0) {
+    seedExtendedSubjects();
     seedDemoUsers();
     return;
   }
@@ -438,7 +443,75 @@ startxref
   // 5. Seed Users (Demo Accounts)
   seedDemoUsers();
 
+  // 6. Seed Extended Curricula
+  seedExtendedSubjects();
+
   console.log('Database seeded successfully!');
+}
+
+export function seedExtendedSubjects() {
+  const insertSubject = db.prepare('INSERT OR REPLACE INTO subjects (id, name, code, semester, scheme, coverage, department) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  const insertUnit = db.prepare('INSERT OR REPLACE INTO units (id, subject_id, name, order_index) VALUES (?, ?, ?, ?)');
+  const insertTopic = db.prepare('INSERT OR REPLACE INTO topics (id, unit_id, name, status, note_count, pyq_count, pyq_years, pyq_questions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  const insertNote = db.prepare(`
+    INSERT OR REPLACE INTO notes (
+      id, title, author, author_initials, subject_id, unit_id, topic_ids,
+      primary_topic, description, tags, department, semester, user_id, status,
+      format, pages, file_path, file_size, mime_type, upload_date, downloads,
+      topic_match_count, total_topics, syllabus_match, upvotes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  for (const sub of extendedCurricula) {
+    const existing = db.prepare('SELECT id FROM subjects WHERE id = ?').get(sub.id);
+    if (!existing) {
+      insertSubject.run(sub.id, sub.name, sub.code, sub.semester, sub.scheme, sub.coverage, sub.department);
+      for (let uIdx = 0; uIdx < sub.units.length; uIdx++) {
+        const u = sub.units[uIdx];
+        insertUnit.run(u.id, sub.id, u.name, uIdx);
+        for (const t of u.topics) {
+          insertTopic.run(
+            t.id, u.id, t.name, t.status, t.noteCount, t.pyqCount,
+            JSON.stringify(t.pyqYears || []),
+            JSON.stringify(t.pyqQuestions || [])
+          );
+        }
+      }
+
+      // Add a starter verified note for each subject
+      const firstUnit = sub.units[0];
+      const firstTopic = firstUnit?.topics[0];
+      if (firstUnit && firstTopic) {
+        insertNote.run(
+          `note-${sub.id}-intro`,
+          `${sub.name} — Unit 1 Comprehensive Lecture Notes`,
+          'Faculty Curriculum Board',
+          'FC',
+          sub.id,
+          firstUnit.id,
+          JSON.stringify([firstTopic.id]),
+          firstTopic.name,
+          `High-yield academic study notes covering essential theory, architectural diagrams, and exam derivations for ${sub.name}.`,
+          JSON.stringify([sub.code, 'Syllabus', 'Core']),
+          sub.department,
+          sub.semester,
+          'user-student',
+          'published',
+          'Handwritten PDF',
+          28,
+          'sample_lecture_notes.pdf',
+          2450000,
+          'application/pdf',
+          '2025-09-01',
+          45,
+          firstUnit.topics.length,
+          firstUnit.topics.length,
+          `Matches ${firstUnit.topics.length}/${firstUnit.topics.length} topics in ${firstUnit.name}`,
+          32
+        );
+      }
+    }
+  }
 }
 
 export function seedDemoUsers() {
@@ -446,7 +519,7 @@ export function seedDemoUsers() {
   const studentPass = hashPassword('password123');
   const modPass = hashPassword('password123');
   const now = new Date().toISOString();
-  const defaultSubjects = JSON.stringify(['os', 'dbms', 'cn', 'toc', 'se', 'dm']);
+  const defaultSubjects = JSON.stringify(['os', 'dbms', 'cn', 'toc', 'se']);
 
   if (!existingStudent) {
     const insertUser = db.prepare(`

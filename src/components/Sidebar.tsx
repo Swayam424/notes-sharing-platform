@@ -7,6 +7,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import { currentUser as fallbackUser } from '../data/mockData';
+import { getStreamShortCode } from '../data/degrees';
 
 const navItems = {
   workspace: [
@@ -45,7 +46,10 @@ export default function Sidebar() {
             role: profile.role || fallbackUser.role,
             college: profile.college || fallbackUser.college,
             department: profile.department || fallbackUser.department,
+            stream: (profile as any).stream || fallbackUser.stream,
+            degree: (profile as any).degree || fallbackUser.degree,
             semester: profile.semester || fallbackUser.semester,
+            enrolledSubjects: (profile as any).enrolledSubjects || fallbackUser.enrolledSubjects,
           });
         }
       })
@@ -74,7 +78,7 @@ export default function Sidebar() {
           </div>
           <div className="sidebar-brand-text">
             <span className="sidebar-brand-name">Atelier</span>
-            <span className="sidebar-brand-meta">{currentUser.college} • CS • Sem {currentUser.semester}</span>
+            <span className="sidebar-brand-meta">{currentUser.college} • {getStreamShortCode((currentUser as any).stream || currentUser.department)} • Sem {currentUser.semester}</span>
           </div>
         </NavLink>
       </div>

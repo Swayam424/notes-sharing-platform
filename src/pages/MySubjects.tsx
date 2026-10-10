@@ -12,8 +12,10 @@ export default function MySubjects() {
   const [showAllCurriculum, setShowAllCurriculum] = useState(false);
 
   useEffect(() => {
-    api.getSubjects().then(setSubjectsList).catch(console.error);
-  }, [refreshKey]);
+    api.getSubjects({ stream: user?.stream, semester: user?.semester })
+      .then(setSubjectsList)
+      .catch(console.error);
+  }, [refreshKey, user?.stream, user?.semester]);
 
   const enrolledIds = user?.enrolledSubjects || [];
   const displayedSubjects = useMemo(() => {

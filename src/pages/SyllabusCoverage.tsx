@@ -7,7 +7,7 @@ import type { Subject, NoteResource } from '../data/mockData';
 
 export default function SyllabusCoverage() {
   const navigate = useNavigate();
-  const { refreshKey } = useApp();
+  const { user, refreshKey } = useApp();
 
   const [subjectsList, setSubjectsList] = useState<Subject[]>([]);
   const [notesList, setNotesList] = useState<NoteResource[]>([]);
@@ -16,16 +16,16 @@ export default function SyllabusCoverage() {
 
   useEffect(() => {
     Promise.all([
-      api.getSubjects(),
+      api.getSubjects({ stream: user?.stream, semester: user?.semester }),
       api.getNotes()
     ]).then(([subs, nts]) => {
       setSubjectsList(subs);
       setNotesList(nts);
-      if (subs.length > 0 && !selectedSubjectId) {
+      if (subs.length > 0 && (!selectedSubjectId || !subs.some(s => s.id === selectedSubjectId))) {
         setSelectedSubjectId(subs[0].id);
       }
     }).catch(console.error);
-  }, [refreshKey]);
+  }, [refreshKey, user?.stream, user?.semester]);
 
   const subject = subjectsList.find(s => s.id === selectedSubjectId) || subjectsList[0];
 

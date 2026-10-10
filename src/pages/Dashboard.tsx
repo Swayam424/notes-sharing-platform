@@ -78,7 +78,9 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    api.getSubjects().then(setSubjectsList).catch(() => setSubjectsList(fallbackSubjects));
+    api.getSubjects({ stream: user?.stream, semester: user?.semester })
+      .then(setSubjectsList)
+      .catch(() => setSubjectsList(fallbackSubjects));
     api.getNotes().then(liveNotes => {
       // Merge live notes with fallback notes to preserve rich metadata
       const mergedMap = new Map<string, NoteResource>();
@@ -97,7 +99,7 @@ export default function Dashboard() {
       .then(data => setLeaderboard(data))
       .catch(console.error)
       .finally(() => setLeaderboardLoading(false));
-  }, [refreshKey, leaderboardDept]);
+  }, [refreshKey, leaderboardDept, user?.stream, user?.semester]);
 
   // Last accessed note or priority note
   const lastNote = notesList.find(n => n.id === 'n3') || notesList[0];

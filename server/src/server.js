@@ -102,9 +102,38 @@ function isModerator(user) {
 // -------------------------------------------------------------
 // 1. Subjects & Syllabus API
 // -------------------------------------------------------------
-app.get('/api/subjects', (_req, res) => {
+app.get('/api/subjects', (req, res) => {
   try {
-    const subjects = db.prepare('SELECT * FROM subjects ORDER BY code ASC').all();
+    const { stream, department, semester } = req.query;
+    let query = 'SELECT * FROM subjects WHERE 1=1';
+    const params = [];
+
+    const effectiveStream = stream || department;
+    if (effectiveStream && effectiveStream.trim() && effectiveStream !== 'all') {
+      query += ' AND (LOWER(department) LIKE ? OR LOWER(?) LIKE LOWER(department))';
+      params.push(`%${effectiveStream.trim().toLowerCase()}%`, effectiveStream.trim().toLowerCase());
+    }
+
+    if (semester && semester !== 'all') {
+      const semNum = parseInt(semester, 10);
+      if (!isNaN(semNum)) {
+        query += ' AND semester = ?';
+        params.push(semNum);
+      }
+    }
+
+    query += ' ORDER BY code ASC';
+    let subjects = db.prepare(query).all(...params);
+
+    // If specific stream/semester returned 0 subjects, fall back smoothly
+    if (subjects.length === 0 && (effectiveStream || semester)) {
+      if (semester) {
+        subjects = db.prepare('SELECT * FROM subjects WHERE semester = ? ORDER BY code ASC').all(parseInt(semester, 10));
+      }
+      if (subjects.length === 0) {
+        subjects = db.prepare('SELECT * FROM subjects ORDER BY code ASC').all();
+      }
+    }
     
     // Attach units and topics to each subject
     for (const sub of subjects) {
@@ -1899,6 +1928,48 @@ app.post('/api/user/onboarding', (req, res) => {
     const safeUser = formatSafeUser(updatedRaw);
 
     res.json({ success: true, user: safeUser });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Update student academic profile anytime (Degree, Stream, Semester, Enrolled Subjects, College)
+app.put('/api/user/profile', (req, res) => {
+  try {
+    const user = getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Not authenticated' });
+    }
+    const { degree, stream, department, college, semester, enrolledSubjects } = req.body;
+    const finalStream = (stream || department || user.stream || user.department || '').trim();
+    const finalDegree = degree || user.degree || 'B.Tech / B.E.';
+    const finalCollege = (college && college.trim()) || user.college || 'Apex Institute of Technology';
+    const sem = semester !== undefined ? parseInt(semester, 10) : user.semester;
+    const enrolledArr = enrolledSubjects !== undefined ? (Array.isArray(enrolledSubjects) ? enrolledSubjects : []) : (user.enrolledSubjects || []);
+
+    db.prepare(`
+      UPDATE users
+      SET degree = ?,
+          stream = ?,
+          department = ?,
+          college = ?,
+          semester = ?,
+          enrolled_subjects = ?
+      WHERE id = ?
+    `).run(
+      finalDegree,
+      finalStream,
+      finalStream,
+      finalCollege,
+      sem,
+      JSON.stringify(enrolledArr),
+      user.id
+    );
+
+    const updatedRaw = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+    const safeUser = formatSafeUser(updatedRaw);
+
+    res.json({ success: true, user: safeUser, message: 'Academic profile updated successfully' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

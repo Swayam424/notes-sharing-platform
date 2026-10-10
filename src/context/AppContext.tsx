@@ -20,6 +20,8 @@ interface AppState {
   setUploadOpen: (open: boolean) => void;
   activeSemester: number;
   setActiveSemester: (sem: number) => void;
+  switchSemester: (sem: number) => Promise<void>;
+  updateAcademicProfile: (fields: Partial<UserSession>) => Promise<void>;
   refreshKey: number;
   triggerRefresh: () => void;
 }
@@ -99,6 +101,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const triggerRefresh = () => setRefreshKey((prev) => prev + 1);
 
+  const switchSemester = useCallback(async (newSem: number) => {
+    setActiveSemester(newSem);
+    if (user) {
+      const updated = { ...user, semester: newSem };
+      setUser(updated);
+      try {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
+      } catch { /* ignore */ }
+      try {
+        await api.updateProfile({ semester: newSem });
+      } catch (e) {
+        console.error('Failed to sync semester to server:', e);
+      }
+    }
+    triggerRefresh();
+  }, [user]);
+
+  const updateAcademicProfile = useCallback(async (fields: Partial<UserSession>) => {
+    if (user) {
+      const updated = { ...user, ...fields };
+      setUser(updated);
+      if (fields.semester !== undefined) {
+        setActiveSemester(fields.semester);
+      }
+      try {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
+      } catch { /* ignore */ }
+      try {
+        const res = await api.updateProfile(fields as any);
+        if (res.user) {
+          setUser(res.user);
+          localStorage.setItem(SESSION_KEY, JSON.stringify(res.user));
+        }
+      } catch (e) {
+        console.error('Failed to update academic profile on server:', e);
+        throw e;
+      }
+    }
+    triggerRefresh();
+  }, [user]);
+
   return (
     <AppContext.Provider
       value={{
@@ -113,6 +156,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setUploadOpen,
         activeSemester,
         setActiveSemester,
+        switchSemester,
+        updateAcademicProfile,
         refreshKey,
         triggerRefresh,
       }}

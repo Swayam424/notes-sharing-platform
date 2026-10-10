@@ -8,34 +8,8 @@ import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import type { Subject } from '../data/mockData';
 import './onboarding.css';
-
-export interface DegreeOption {
-  id: string;
-  name: string;
-  shortName: string;
-  durationLabel: string;
-  years: number;
-  totalSemesters: number;
-}
-
-export const DEGREE_OPTIONS: DegreeOption[] = [
-  { id: 'btech', name: 'B.Tech / B.E.', shortName: 'B.Tech', durationLabel: '4 Years • 8 Sems', years: 4, totalSemesters: 8 },
-  { id: 'bca', name: 'BCA', shortName: 'BCA', durationLabel: '3 Years • 6 Sems', years: 3, totalSemesters: 6 },
-  { id: 'mca', name: 'MCA', shortName: 'MCA', durationLabel: '2 Years • 4 Sems', years: 2, totalSemesters: 4 },
-  { id: 'bsc', name: 'B.Sc Computer Science / IT', shortName: 'B.Sc', durationLabel: '3 Years • 6 Sems', years: 3, totalSemesters: 6 },
-  { id: 'mtech', name: 'M.Tech / M.E.', shortName: 'M.Tech', durationLabel: '2 Years • 4 Sems', years: 2, totalSemesters: 4 },
-  { id: 'diploma', name: 'Diploma (Polytechnic)', shortName: 'Diploma', durationLabel: '3 Years • 6 Sems', years: 3, totalSemesters: 6 },
-  { id: 'dual', name: 'Integrated Dual Degree (B.Tech + M.Tech)', shortName: 'Dual Degree', durationLabel: '5 Years • 10 Sems', years: 5, totalSemesters: 10 }
-];
-
-const STREAM_PRESETS = [
-  { id: 'cse', name: 'Computer Science & Engineering', icon: '💻', desc: 'Algorithms, OS, DBMS, Networks, Architecture' },
-  { id: 'it', name: 'Information Technology', icon: '🌐', desc: 'Software engineering, Web, Cloud, Databases' },
-  { id: 'ai_ds', name: 'AI & Data Science', icon: '🤖', desc: 'Machine Learning, Neural Networks, Big Data' },
-  { id: 'ece', name: 'Electronics & Communication', icon: '⚡', desc: 'Signals, Microprocessors, VLSI, Embedded' },
-  { id: 'ee', name: 'Electrical Engineering', icon: '🔋', desc: 'Power Systems, Control Theory, Machines' },
-  { id: 'mech', name: 'Mechanical Engineering', icon: '⚙️', desc: 'Thermodynamics, Mechanics, CAD/CAM' },
-];
+import { DEGREE_OPTIONS, STREAM_PRESETS, type DegreeOption } from '../data/degrees';
+export { DEGREE_OPTIONS, type DegreeOption };
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -79,13 +53,12 @@ export default function Onboarding() {
   });
 
   useEffect(() => {
-    api.getSubjects().then(subs => {
+    const effectiveStream = stream === 'other' ? customStream.trim() : stream;
+    api.getSubjects({ stream: effectiveStream, semester }).then(subs => {
       setAvailableSubjects(subs);
-      if (!user?.enrolledSubjects || user.enrolledSubjects.length === 0) {
-        setSelectedSubjects(subs.map(s => s.id));
-      }
+      setSelectedSubjects(subs.map(s => s.id));
     }).catch(console.error);
-  }, [user]);
+  }, [stream, customStream, semester]);
 
   const toggleSubject = (id: string) => {
     setSelectedSubjects(prev =>
