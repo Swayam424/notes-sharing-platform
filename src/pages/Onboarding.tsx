@@ -31,21 +31,21 @@ const GOAL_OPTIONS = [
     title: 'High CGPA & End-Semester Topper',
     tagline: 'Comprehensive coverage of all units, lecture notes, formulas, and errata verification.',
     badge: 'Comprehensive Mode',
-    accent: '#2563eb'
+    accent: '#2F5233'
   },
   {
     id: 'exam_revision',
     title: 'Fast Exam Revision & PYQ Numerical Drills',
     tagline: 'Focus on 5-year frequent exam questions, high-weightage topics, and speed summaries.',
     badge: 'Exam-Oriented',
-    accent: '#c84b28'
+    accent: '#D95D39'
   },
   {
     id: 'concept_mastery',
     title: 'Concept Mastery & Daily Coursework',
     tagline: 'Clean unit-by-unit explanations, diagrams, and assignments review for deep understanding.',
     badge: 'Foundation First',
-    accent: '#059669'
+    accent: '#4A5568'
   }
 ];
 
@@ -77,7 +77,6 @@ export default function Onboarding() {
   useEffect(() => {
     api.getSubjects().then(subs => {
       setAvailableSubjects(subs);
-      // If user had no selection, preset all available
       if (!user?.enrolledSubjects || user.enrolledSubjects.length === 0) {
         setSelectedSubjects(subs.map(s => s.id));
       }
@@ -135,52 +134,64 @@ export default function Onboarding() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'radial-gradient(ellipse at 50% 20%, rgba(200, 75, 40, 0.08) 0%, #0e1117 65%)',
-      color: '#f8fafc',
-      fontFamily: 'var(--font-sans, system-ui, sans-serif)',
+      background: 'var(--color-base, #F9F8F6)',
+      color: 'var(--color-deep, #1F2421)',
+      fontFamily: 'var(--font-body, "Inter", sans-serif)',
       display: 'flex',
       flexDirection: 'column',
-      padding: '2rem 1.5rem',
+      padding: '2.5rem 1.5rem',
       position: 'relative'
     }}>
-      {/* Top Brand Bar */}
+      {/* Top Academic Brand Bar */}
       <header style={{
         maxWidth: '880px',
         width: '100%',
-        margin: '0 auto 2.5rem',
+        margin: '0 auto 2rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, #c84b28, #e06847)',
+            width: '38px',
+            height: '38px',
+            borderRadius: '8px',
+            background: 'var(--color-primary, #D95D39)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(200, 75, 40, 0.35)'
+            boxShadow: '2px 2px 0px rgba(31, 36, 33, 0.12)'
           }}>
-            <GraduationCap size={20} color="#fff" />
+            <GraduationCap size={20} color="#FFFFFF" strokeWidth={2} />
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '1.1rem', letterSpacing: '-0.01em' }}>
-              Atelier <span style={{ color: '#c84b28' }}>Notes</span>
+            <div style={{
+              fontFamily: 'var(--font-display, "Newsreader", Georgia, serif)',
+              fontWeight: 600,
+              fontSize: '1.25rem',
+              color: 'var(--color-deep, #1F2421)',
+              letterSpacing: '-0.01em'
+            }}>
+              Atelier <span style={{ color: 'var(--color-primary, #D95D39)' }}>Notes</span>
             </div>
-            <div style={{ fontSize: '0.72rem', color: '#94a3b8', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              Academic Workspace Setup
+            <div style={{
+              fontSize: '0.72rem',
+              color: 'var(--color-muted, #8C857B)',
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              fontWeight: 500
+            }}>
+              Academic Workspace Personalization
             </div>
           </div>
         </div>
 
-        {/* Step Indicators */}
+        {/* Tactile Step Indicators */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {[
-            { num: 1, label: 'Stream' },
-            { num: 2, label: 'Subjects' },
-            { num: 3, label: 'Target' }
+            { num: 1, label: 'Stream & Degree' },
+            { num: 2, label: 'Course Roster' },
+            { num: 3, label: 'Exam Target' }
           ].map(s => {
             const isCurrent = step === s.num;
             const isDone = step > s.num;
@@ -191,14 +202,26 @@ export default function Onboarding() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  padding: '6px 12px',
+                  padding: '6px 14px',
                   borderRadius: '20px',
                   fontSize: '0.75rem',
                   fontWeight: 600,
-                  background: isCurrent ? 'rgba(200, 75, 40, 0.2)' : isDone ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                  border: isCurrent ? '1px solid #c84b28' : isDone ? '1px solid rgba(34, 197, 94, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
-                  color: isCurrent ? '#f97316' : isDone ? '#4ade80' : '#64748b',
-                  transition: 'all 0.2s ease'
+                  background: isCurrent
+                    ? 'var(--color-primary-light, #FDF0EC)'
+                    : isDone
+                    ? 'var(--color-secondary-light, #EAF2EB)'
+                    : 'var(--color-surface-alt, #F2EFE9)',
+                  border: isCurrent
+                    ? '1px solid var(--color-primary, #D95D39)'
+                    : isDone
+                    ? '1px solid rgba(47, 82, 51, 0.35)'
+                    : '1px solid var(--color-border, #E8E5DF)',
+                  color: isCurrent
+                    ? 'var(--color-primary, #D95D39)'
+                    : isDone
+                    ? 'var(--color-secondary, #2F5233)'
+                    : 'var(--color-muted, #8C857B)',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 {isDone ? <Check size={12} strokeWidth={3} /> : <span>{s.num}</span>}
@@ -209,7 +232,7 @@ export default function Onboarding() {
         </div>
       </header>
 
-      {/* Main Container Card */}
+      {/* Main Crisp White Atelier Card */}
       <main style={{
         maxWidth: '880px',
         width: '100%',
@@ -219,23 +242,22 @@ export default function Onboarding() {
         flexDirection: 'column'
       }}>
         <div style={{
-          background: 'rgba(23, 27, 36, 0.85)',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '18px',
+          background: 'var(--color-surface, #FFFFFF)',
+          border: '1px solid var(--color-border, #E8E5DF)',
+          borderRadius: '16px',
           padding: '2.5rem',
-          boxShadow: '0 20px 45px rgba(0, 0, 0, 0.45)',
+          boxShadow: 'var(--shadow-elevated, 4px 4px 0px rgba(31, 36, 33, 0.06))',
           flex: 1,
           display: 'flex',
           flexDirection: 'column'
         }}>
           {error && (
             <div style={{
-              background: 'rgba(239, 68, 68, 0.15)',
-              border: '1px solid rgba(239, 68, 68, 0.4)',
-              color: '#fca5a5',
-              padding: '0.85rem 1rem',
-              borderRadius: '10px',
+              background: 'var(--color-danger-light, #FCEAEA)',
+              border: '1px solid rgba(196, 84, 84, 0.35)',
+              color: 'var(--color-danger, #C45454)',
+              padding: '0.85rem 1.1rem',
+              borderRadius: '8px',
               marginBottom: '1.5rem',
               fontSize: '0.875rem'
             }}>
@@ -251,26 +273,33 @@ export default function Onboarding() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
-                  fontSize: '0.75rem',
+                  fontSize: '0.72rem',
                   fontWeight: 600,
                   textTransform: 'uppercase',
                   letterSpacing: '0.08em',
-                  color: '#c84b28',
+                  color: 'var(--color-primary, #D95D39)',
                   marginBottom: '6px'
                 }}>
-                  <Sparkles size={13} /> Step 1 of 3: Academic Profile
+                  <Sparkles size={12} /> Step 1 of 3: Academic Profile
                 </span>
-                <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                <h1 style={{
+                  fontFamily: 'var(--font-display, "Newsreader", Georgia, serif)',
+                  fontSize: '2rem',
+                  fontWeight: 600,
+                  color: 'var(--color-deep, #1F2421)',
+                  margin: '0 0 6px 0',
+                  letterSpacing: '-0.02em'
+                }}>
                   What stream are you studying?
                 </h1>
-                <p style={{ color: '#94a3b8', fontSize: '0.92rem', margin: 0 }}>
-                  We tailor your notes feed, syllabus breakdown, and PYQ archive specifically to your academic branch.
+                <p style={{ color: 'var(--color-muted, #706B63)', fontSize: '0.92rem', margin: 0 }}>
+                  We curate your note feeds, topic syllabus coverage, and university PYQ papers specifically to your branch.
                 </p>
               </div>
 
               {/* Degree Selector */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '8px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, #1F2421)', marginBottom: '8px' }}>
                   Degree Program
                 </label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -280,13 +309,13 @@ export default function Onboarding() {
                       type="button"
                       onClick={() => setDegree(d)}
                       style={{
-                        padding: '8px 14px',
-                        borderRadius: '10px',
+                        padding: '8px 16px',
+                        borderRadius: '8px',
                         fontSize: '0.82rem',
                         fontWeight: degree === d ? 600 : 500,
-                        background: degree === d ? 'rgba(200, 75, 40, 0.25)' : 'rgba(255, 255, 255, 0.04)',
-                        border: degree === d ? '1px solid #c84b28' : '1px solid rgba(255, 255, 255, 0.08)',
-                        color: degree === d ? '#ffedd5' : '#94a3b8',
+                        background: degree === d ? 'var(--color-primary-light, #FDF0EC)' : 'var(--color-surface, #FFFFFF)',
+                        border: degree === d ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
+                        color: degree === d ? 'var(--color-primary, #D95D39)' : 'var(--color-deep, #1F2421)',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease'
                       }}
@@ -299,7 +328,7 @@ export default function Onboarding() {
 
               {/* Stream / Branch Cards */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '8px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, #1F2421)', marginBottom: '8px' }}>
                   Branch / Department
                 </label>
                 <div style={{
@@ -315,26 +344,42 @@ export default function Onboarding() {
                         onClick={() => { setStream(p.name); setCustomStream(''); }}
                         style={{
                           padding: '14px 16px',
-                          borderRadius: '12px',
-                          background: isSelected ? 'rgba(200, 75, 40, 0.18)' : 'rgba(255, 255, 255, 0.03)',
-                          border: isSelected ? '1.5px solid #c84b28' : '1px solid rgba(255, 255, 255, 0.08)',
+                          borderRadius: '10px',
+                          background: isSelected ? 'var(--color-primary-light, #FDF0EC)' : 'var(--color-surface, #FFFFFF)',
+                          border: isSelected ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
+                          boxShadow: isSelected ? '2px 2px 0px rgba(217, 93, 57, 0.15)' : 'var(--shadow-card, 2px 2px 0px rgba(31, 36, 33, 0.04))',
                           cursor: 'pointer',
-                          transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                          transition: 'all 0.15s ease',
                           display: 'flex',
                           alignItems: 'flex-start',
                           gap: '12px'
                         }}
                       >
-                        <span style={{ fontSize: '1.4rem' }}>{p.icon}</span>
+                        <span style={{
+                          fontSize: '1.25rem',
+                          background: isSelected ? '#FFFFFF' : 'var(--color-surface-alt, #F2EFE9)',
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          {p.icon}
+                        </span>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: isSelected ? '#ffedd5' : '#e2e8f0' }}>
+                          <div style={{
+                            fontWeight: 600,
+                            fontSize: '0.88rem',
+                            color: isSelected ? 'var(--color-primary, #D95D39)' : 'var(--color-deep, #1F2421)'
+                          }}>
                             {p.name}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px', lineHeight: 1.35 }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-muted, #706B63)', marginTop: '4px', lineHeight: 1.35 }}>
                             {p.desc}
                           </div>
                         </div>
-                        {isSelected && <CheckCircle2 size={18} color="#c84b28" style={{ marginTop: '2px' }} />}
+                        {isSelected && <CheckCircle2 size={18} color="var(--color-primary, #D95D39)" style={{ marginTop: '2px' }} />}
                       </div>
                     );
                   })}
@@ -348,11 +393,12 @@ export default function Onboarding() {
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: stream === 'other' ? '#f97316' : '#94a3b8',
+                      color: stream === 'other' ? 'var(--color-primary, #D95D39)' : 'var(--color-muted, #706B63)',
                       fontSize: '0.8rem',
                       cursor: 'pointer',
                       textDecoration: 'underline',
-                      padding: 0
+                      padding: 0,
+                      fontWeight: 500
                     }}
                   >
                     + Enter another branch or specialization
@@ -368,10 +414,11 @@ export default function Onboarding() {
                         marginTop: '8px',
                         padding: '10px 14px',
                         borderRadius: '8px',
-                        background: 'rgba(0,0,0,0.3)',
-                        border: '1px solid rgba(200, 75, 40, 0.6)',
-                        color: '#fff',
-                        fontSize: '0.88rem'
+                        background: '#FFFFFF',
+                        border: '1.5px solid var(--color-primary, #D95D39)',
+                        color: 'var(--color-deep, #1F2421)',
+                        fontSize: '0.88rem',
+                        outline: 'none'
                       }}
                       autoFocus
                     />
@@ -382,7 +429,7 @@ export default function Onboarding() {
               {/* Semester & College */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '8px' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, #1F2421)', marginBottom: '8px' }}>
                     Current Semester (1 – 8)
                   </label>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -392,14 +439,15 @@ export default function Onboarding() {
                         type="button"
                         onClick={() => setSemester(sem)}
                         style={{
-                          width: '40px',
-                          height: '40px',
+                          width: '42px',
+                          height: '42px',
                           borderRadius: '8px',
-                          fontWeight: 700,
+                          fontWeight: 600,
                           fontSize: '0.88rem',
-                          background: semester === sem ? '#c84b28' : 'rgba(255, 255, 255, 0.05)',
-                          border: semester === sem ? '1px solid #ff7b54' : '1px solid rgba(255, 255, 255, 0.08)',
-                          color: '#fff',
+                          background: semester === sem ? 'var(--color-primary, #D95D39)' : 'var(--color-surface, #FFFFFF)',
+                          border: semester === sem ? '1px solid var(--color-primary-hover, #C4502F)' : '1px solid var(--color-border, #E8E5DF)',
+                          color: semester === sem ? '#FFFFFF' : 'var(--color-deep, #1F2421)',
+                          boxShadow: semester === sem ? '2px 2px 0px rgba(31, 36, 33, 0.12)' : 'none',
                           cursor: 'pointer',
                           transition: 'all 0.15s ease'
                         }}
@@ -411,7 +459,7 @@ export default function Onboarding() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '8px' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, #1F2421)', marginBottom: '8px' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                       <School size={14} /> College / University
                     </span>
@@ -423,12 +471,13 @@ export default function Onboarding() {
                     placeholder="e.g. Apex Institute of Technology"
                     style={{
                       width: '100%',
-                      padding: '10px 14px',
+                      padding: '11px 14px',
                       borderRadius: '8px',
-                      background: 'rgba(0,0,0,0.25)',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                      color: '#fff',
-                      fontSize: '0.88rem'
+                      background: 'var(--color-surface, #FFFFFF)',
+                      border: '1px solid var(--color-border, #E8E5DF)',
+                      color: 'var(--color-deep, #1F2421)',
+                      fontSize: '0.88rem',
+                      outline: 'none'
                     }}
                   />
                 </div>
@@ -445,20 +494,27 @@ export default function Onboarding() {
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
-                    fontSize: '0.75rem',
+                    fontSize: '0.72rem',
                     fontWeight: 600,
                     textTransform: 'uppercase',
                     letterSpacing: '0.08em',
-                    color: '#c84b28',
+                    color: 'var(--color-primary, #D95D39)',
                     marginBottom: '6px'
                   }}>
-                    <BookOpen size={13} /> Step 2 of 3: Subject Selection
+                    <BookOpen size={12} /> Step 2 of 3: Subject Selection
                   </span>
-                  <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                  <h1 style={{
+                    fontFamily: 'var(--font-display, "Newsreader", Georgia, serif)',
+                    fontSize: '2rem',
+                    fontWeight: 600,
+                    color: 'var(--color-deep, #1F2421)',
+                    margin: '0 0 6px 0',
+                    letterSpacing: '-0.02em'
+                  }}>
                     Which subjects are on your roster?
                   </h1>
-                  <p style={{ color: '#94a3b8', fontSize: '0.92rem', margin: 0 }}>
-                    Select your active courses. Your dashboard will only display topics, notes, and pyqs for these subjects.
+                  <p style={{ color: 'var(--color-muted, #706B63)', fontSize: '0.92rem', margin: 0 }}>
+                    Select your active courses. Your workspace will prioritize topic outlines, notes, and pyqs for these subjects.
                   </p>
                 </div>
 
@@ -466,9 +522,9 @@ export default function Onboarding() {
                   type="button"
                   onClick={selectAllSubjects}
                   style={{
-                    background: 'rgba(200, 75, 40, 0.15)',
-                    border: '1px solid rgba(200, 75, 40, 0.4)',
-                    color: '#f97316',
+                    background: 'var(--color-primary-light, #FDF0EC)',
+                    border: '1px solid var(--color-primary, #D95D39)',
+                    color: 'var(--color-primary, #D95D39)',
                     fontSize: '0.78rem',
                     fontWeight: 600,
                     padding: '8px 14px',
@@ -499,11 +555,12 @@ export default function Onboarding() {
                       onClick={() => toggleSubject(sub.id)}
                       style={{
                         padding: '16px',
-                        borderRadius: '12px',
-                        background: isChecked ? 'rgba(200, 75, 40, 0.16)' : 'rgba(255, 255, 255, 0.03)',
-                        border: isChecked ? '1.5px solid #c84b28' : '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '10px',
+                        background: isChecked ? 'var(--color-primary-light, #FDF0EC)' : 'var(--color-surface, #FFFFFF)',
+                        border: isChecked ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
+                        boxShadow: isChecked ? '2px 2px 0px rgba(217, 93, 57, 0.12)' : 'var(--shadow-card, 2px 2px 0px rgba(31, 36, 33, 0.04))',
                         cursor: 'pointer',
-                        transition: 'all 0.18s ease',
+                        transition: 'all 0.15s ease',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'space-between',
@@ -514,18 +571,23 @@ export default function Onboarding() {
                         <div>
                           <span style={{
                             display: 'inline-block',
-                            background: 'rgba(255, 255, 255, 0.08)',
-                            padding: '2px 7px',
+                            background: 'var(--color-surface-alt, #F2EFE9)',
+                            padding: '3px 8px',
                             borderRadius: '4px',
                             fontSize: '0.7rem',
-                            fontWeight: 700,
+                            fontWeight: 600,
                             letterSpacing: '0.04em',
-                            color: '#e2e8f0',
-                            fontFamily: 'monospace'
+                            color: 'var(--color-deep, #1F2421)',
+                            fontFamily: 'var(--font-mono, monospace)'
                           }}>
                             {sub.code}
                           </span>
-                          <h3 style={{ margin: '8px 0 0', fontSize: '0.98rem', fontWeight: 600, color: isChecked ? '#ffedd5' : '#f8fafc' }}>
+                          <h3 style={{
+                            margin: '8px 0 0',
+                            fontSize: '0.96rem',
+                            fontWeight: 600,
+                            color: isChecked ? 'var(--color-primary, #D95D39)' : 'var(--color-deep, #1F2421)'
+                          }}>
                             {sub.name}
                           </h3>
                         </div>
@@ -533,19 +595,29 @@ export default function Onboarding() {
                           width: '22px',
                           height: '22px',
                           borderRadius: '6px',
-                          border: isChecked ? '2px solid #c84b28' : '2px solid rgba(255, 255, 255, 0.2)',
-                          background: isChecked ? '#c84b28' : 'transparent',
+                          border: isChecked ? '2px solid var(--color-primary, #D95D39)' : '2px solid var(--color-border, #E8E5DF)',
+                          background: isChecked ? 'var(--color-primary, #D95D39)' : '#FFFFFF',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center'
                         }}>
-                          {isChecked && <Check size={14} color="#fff" strokeWidth={3} />}
+                          {isChecked && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#94a3b8', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '8px' }}>
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: '0.75rem',
+                        color: 'var(--color-muted, #706B63)',
+                        borderTop: '1px solid var(--color-border-light, #F0EDE7)',
+                        paddingTop: '8px'
+                      }}>
                         <span>{sub.units.length} Units • {totalTopics} Topics</span>
-                        <span style={{ color: '#4ade80' }}>{sub.coverage}% Covered</span>
+                        <span style={{ color: 'var(--color-secondary, #2F5233)', fontWeight: 600 }}>
+                          {sub.coverage}% Covered
+                        </span>
                       </div>
                     </div>
                   );
@@ -553,19 +625,19 @@ export default function Onboarding() {
               </div>
 
               <div style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                borderRadius: '10px',
+                background: 'var(--color-surface-alt, #F2EFE9)',
+                borderRadius: '8px',
                 padding: '12px 16px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                border: '1px dashed rgba(255, 255, 255, 0.1)'
+                border: '1px solid var(--color-border, #E8E5DF)'
               }}>
-                <span style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-deep, #1F2421)' }}>
                   Selected <strong>{selectedSubjects.length} of {availableSubjects.length}</strong> subjects for Semester {semester}
                 </span>
-                <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                  You can modify enrolled subjects anytime in Settings
+                <span style={{ fontSize: '0.78rem', color: 'var(--color-muted, #706B63)' }}>
+                  Adjustable anytime in Settings
                 </span>
               </div>
             </div>
@@ -579,19 +651,26 @@ export default function Onboarding() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
-                  fontSize: '0.75rem',
+                  fontSize: '0.72rem',
                   fontWeight: 600,
                   textTransform: 'uppercase',
                   letterSpacing: '0.08em',
-                  color: '#c84b28',
+                  color: 'var(--color-primary, #D95D39)',
                   marginBottom: '6px'
                 }}>
-                  <Target size={13} /> Step 3 of 3: Study Objective
+                  <Target size={12} /> Step 3 of 3: Study Objective
                 </span>
-                <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                <h1 style={{
+                  fontFamily: 'var(--font-display, "Newsreader", Georgia, serif)',
+                  fontSize: '2rem',
+                  fontWeight: 600,
+                  color: 'var(--color-deep, #1F2421)',
+                  margin: '0 0 6px 0',
+                  letterSpacing: '-0.02em'
+                }}>
                   What is your primary study objective?
                 </h1>
-                <p style={{ color: '#94a3b8', fontSize: '0.92rem', margin: 0 }}>
+                <p style={{ color: 'var(--color-muted, #706B63)', fontSize: '0.92rem', margin: 0 }}>
                   This shapes which quick topics, frequent exam streaks, and peer notes take priority on your study desk.
                 </p>
               </div>
@@ -605,11 +684,12 @@ export default function Onboarding() {
                       onClick={() => setAcademicGoal(g.title)}
                       style={{
                         padding: '18px 20px',
-                        borderRadius: '14px',
-                        background: isSelected ? 'rgba(200, 75, 40, 0.16)' : 'rgba(255, 255, 255, 0.03)',
-                        border: isSelected ? '1.5px solid #c84b28' : '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '12px',
+                        background: isSelected ? 'var(--color-primary-light, #FDF0EC)' : 'var(--color-surface, #FFFFFF)',
+                        border: isSelected ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
+                        boxShadow: isSelected ? '2px 2px 0px rgba(217, 93, 57, 0.12)' : 'var(--shadow-card, 2px 2px 0px rgba(31, 36, 33, 0.04))',
                         cursor: 'pointer',
-                        transition: 'all 0.18s ease',
+                        transition: 'all 0.15s ease',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
@@ -620,19 +700,24 @@ export default function Onboarding() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
                           <span style={{
                             fontSize: '0.72rem',
-                            fontWeight: 700,
+                            fontWeight: 600,
                             padding: '3px 8px',
                             borderRadius: '4px',
-                            background: isSelected ? 'rgba(200, 75, 40, 0.3)' : 'rgba(255, 255, 255, 0.08)',
-                            color: isSelected ? '#ffedd5' : '#94a3b8'
+                            background: isSelected ? 'rgba(217, 93, 57, 0.15)' : 'var(--color-surface-alt, #F2EFE9)',
+                            color: isSelected ? 'var(--color-primary, #D95D39)' : 'var(--color-deep, #1F2421)'
                           }}>
                             {g.badge}
                           </span>
-                          <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 600, color: isSelected ? '#ffedd5' : '#f8fafc' }}>
+                          <h3 style={{
+                            margin: 0,
+                            fontSize: '1rem',
+                            fontWeight: 600,
+                            color: isSelected ? 'var(--color-primary, #D95D39)' : 'var(--color-deep, #1F2421)'
+                          }}>
                             {g.title}
                           </h3>
                         </div>
-                        <p style={{ margin: 0, fontSize: '0.84rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                        <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--color-muted, #706B63)', lineHeight: 1.4 }}>
                           {g.tagline}
                         </p>
                       </div>
@@ -641,31 +726,45 @@ export default function Onboarding() {
                         width: '24px',
                         height: '24px',
                         borderRadius: '50%',
-                        border: isSelected ? '2px solid #c84b28' : '2px solid rgba(255, 255, 255, 0.2)',
-                        background: isSelected ? '#c84b28' : 'transparent',
+                        border: isSelected ? '2px solid var(--color-primary, #D95D39)' : '2px solid var(--color-border, #E8E5DF)',
+                        background: isSelected ? 'var(--color-primary, #D95D39)' : 'transparent',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}>
-                        {isSelected && <Check size={14} color="#fff" strokeWidth={3} />}
+                        {isSelected && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Summary Pill Preview */}
+              {/* Summary Paper Box */}
               <div style={{
-                background: 'rgba(200, 75, 40, 0.08)',
-                borderRadius: '12px',
-                border: '1px solid rgba(200, 75, 40, 0.2)',
+                background: 'var(--color-surface-alt, #F2EFE9)',
+                borderRadius: '10px',
+                border: '1px solid var(--color-border, #E8E5DF)',
                 padding: '16px 20px',
                 marginTop: 'auto'
               }}>
-                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#c84b28', fontWeight: 700, marginBottom: '6px' }}>
-                  Ready to Personalize Study Workspace:
+                <div style={{
+                  fontSize: '0.72rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  color: 'var(--color-primary, #D95D39)',
+                  fontWeight: 600,
+                  marginBottom: '6px'
+                }}>
+                  Configured Study Space:
                 </div>
-                <div style={{ fontSize: '0.9rem', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{
+                  fontSize: '0.9rem',
+                  color: 'var(--color-deep, #1F2421)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  flexWrap: 'wrap'
+                }}>
                   <span><strong>{degree}</strong></span>
                   <span>•</span>
                   <span><strong>{stream === 'other' ? (customStream || 'Custom Branch') : stream}</strong></span>
@@ -683,7 +782,7 @@ export default function Onboarding() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            borderTop: '1px solid var(--color-border-light, #F0EDE7)',
             paddingTop: '1.5rem',
             marginTop: '2rem'
           }}>
@@ -696,14 +795,15 @@ export default function Onboarding() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  background: 'transparent',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: '#cbd5e1',
+                  background: 'var(--color-surface, #FFFFFF)',
+                  border: '1px solid var(--color-border, #E8E5DF)',
+                  color: 'var(--color-deep, #1F2421)',
                   padding: '10px 18px',
-                  borderRadius: '10px',
+                  borderRadius: '8px',
                   fontWeight: 600,
                   fontSize: '0.88rem',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  boxShadow: 'var(--shadow-card, 2px 2px 0px rgba(31, 36, 33, 0.04))'
                 }}
               >
                 <ArrowLeft size={16} /> Back
@@ -730,15 +830,15 @@ export default function Onboarding() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  background: 'linear-gradient(135deg, #c84b28, #e06847)',
+                  background: 'var(--color-primary, #D95D39)',
                   border: 'none',
-                  color: '#fff',
+                  color: '#FFFFFF',
                   padding: '12px 24px',
-                  borderRadius: '10px',
+                  borderRadius: '8px',
                   fontWeight: 600,
                   fontSize: '0.92rem',
                   cursor: 'pointer',
-                  boxShadow: '0 4px 15px rgba(200, 75, 40, 0.35)'
+                  boxShadow: '2px 2px 0px rgba(31, 36, 33, 0.12)'
                 }}
               >
                 Continue to {step === 1 ? 'Subjects' : 'Study Target'} <ArrowRight size={16} />
@@ -752,15 +852,15 @@ export default function Onboarding() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '10px',
-                  background: 'linear-gradient(135deg, #16a34a, #22c55e)',
+                  background: 'var(--color-secondary, #2F5233)',
                   border: 'none',
-                  color: '#fff',
+                  color: '#FFFFFF',
                   padding: '12px 28px',
-                  borderRadius: '10px',
-                  fontWeight: 700,
+                  borderRadius: '8px',
+                  fontWeight: 600,
                   fontSize: '0.96rem',
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 18px rgba(34, 197, 94, 0.35)'
+                  boxShadow: '2px 2px 0px rgba(31, 36, 33, 0.12)'
                 }}
               >
                 {loading ? 'Setting up Workspace…' : 'Launch My Study Space'} <ArrowRight size={18} />

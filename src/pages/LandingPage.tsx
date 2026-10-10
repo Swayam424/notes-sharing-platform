@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
+import { GraduationCap } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import './landing.css';
@@ -831,6 +832,36 @@ export default function LandingPage() {
             &times;
           </button>
 
+          {/* Atelier Brand Emblem */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '6px',
+              background: 'var(--color-primary, #D95D39)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '1.5px 1.5px 0px rgba(31, 36, 33, 0.12)'
+            }}>
+              <GraduationCap size={18} color="#FFFFFF" strokeWidth={2} />
+            </div>
+            <div>
+              <div style={{
+                fontFamily: 'var(--font-display, "Newsreader", Georgia, serif)',
+                fontWeight: 600,
+                fontSize: '1.15rem',
+                color: 'var(--color-deep, #1F2421)',
+                lineHeight: 1.1
+              }}>
+                Atelier Notes
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--color-muted, #706B63)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                Academic Study Space
+              </div>
+            </div>
+          </div>
+
           {/* Tab Switcher for Sign In / Sign Up */}
           <div className="auth-tabs" id="auth-tabs">
             <button
@@ -866,6 +897,57 @@ export default function LandingPage() {
             <div className="auth-view active" id="view-signin">
               <h3 className="auth-title" id="modal-title">Sign in to your account</h3>
               <p className="auth-sub">Enter your student credentials to access your Study Space workspace.</p>
+
+              {/* Quick Demo Fill Buttons */}
+              <div style={{
+                background: 'var(--color-surface-alt, #F2EFE9)',
+                border: '1px solid var(--color-border, #E8E5DF)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px'
+              }}>
+                <span style={{ fontSize: '11px', color: 'var(--color-muted, #706B63)', fontWeight: 600 }}>
+                  Demo Accounts:
+                </span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setAuthForm({ name: 'Nishant Verma', email: 'student@atelier.edu', password: 'password123' })}
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E8E5DF',
+                      borderRadius: '4px',
+                      padding: '3px 8px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: 'var(--color-deep, #1F2421)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Student
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuthForm({ name: 'Priya Sharma', email: 'moderator@atelier.edu', password: 'password123' })}
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E8E5DF',
+                      borderRadius: '4px',
+                      padding: '3px 8px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: 'var(--color-deep, #1F2421)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Moderator
+                  </button>
+                </div>
+              </div>
 
               <form className="auth-form" onSubmit={handleAuthSubmit}>
                 <div className="form-group">

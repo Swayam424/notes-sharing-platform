@@ -33,20 +33,22 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
         alignItems: 'center',
         justifyContent: 'center',
         height: '100vh',
-        background: '#0e1117',
-        color: '#94a3b8',
-        fontFamily: 'Inter, system-ui, sans-serif',
+        background: 'var(--color-base, #F9F8F6)',
+        color: 'var(--color-deep, #1F2421)',
+        fontFamily: 'var(--font-body, Inter, sans-serif)',
         gap: '14px'
       }}>
         <div style={{
-          width: '28px',
-          height: '28px',
-          border: '2px solid rgba(255, 255, 255, 0.1)',
-          borderTopColor: '#c84b28',
+          width: '32px',
+          height: '32px',
+          border: '2.5px solid rgba(217, 93, 57, 0.2)',
+          borderTopColor: 'var(--color-primary, #D95D39)',
           borderRadius: '50%',
           animation: 'spin 0.8s linear infinite'
         }} />
-        <span style={{ fontSize: '13px', letterSpacing: '0.02em' }}>Restoring workspace session…</span>
+        <span style={{ fontSize: '13px', letterSpacing: '0.02em', color: 'var(--color-muted, #706B63)' }}>
+          Restoring academic studio session…
+        </span>
       </div>
     );
   }
