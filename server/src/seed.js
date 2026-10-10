@@ -466,10 +466,17 @@ export function seedExtendedSubjects() {
     const existing = db.prepare('SELECT id FROM subjects WHERE id = ?').get(sub.id);
     if (!existing) {
       insertSubject.run(sub.id, sub.name, sub.code, sub.semester, sub.scheme, sub.coverage, sub.department);
-      for (let uIdx = 0; uIdx < sub.units.length; uIdx++) {
-        const u = sub.units[uIdx];
+    }
+
+    for (let uIdx = 0; uIdx < sub.units.length; uIdx++) {
+      const u = sub.units[uIdx];
+      const existingUnit = db.prepare('SELECT id FROM units WHERE id = ?').get(u.id);
+      if (!existingUnit) {
         insertUnit.run(u.id, sub.id, u.name, uIdx);
-        for (const t of u.topics) {
+      }
+      for (const t of u.topics) {
+        const existingTopic = db.prepare('SELECT id FROM topics WHERE id = ?').get(t.id);
+        if (!existingTopic) {
           insertTopic.run(
             t.id, u.id, t.name, t.status, t.noteCount, t.pyqCount,
             JSON.stringify(t.pyqYears || []),
@@ -477,8 +484,11 @@ export function seedExtendedSubjects() {
           );
         }
       }
+    }
 
-      // Add a starter verified note for each subject
+    // Ensure at least one starter note exists for this subject
+    const existingNote = db.prepare('SELECT id FROM notes WHERE subject_id = ?').get(sub.id);
+    if (!existingNote) {
       const firstUnit = sub.units[0];
       const firstTopic = firstUnit?.topics[0];
       if (firstUnit && firstTopic) {

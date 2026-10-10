@@ -62,7 +62,14 @@ This document tracks all completed features, active work, and planned next steps
 - Multi-stream academic curriculum catalog covering CSE, IT, AI & Data Science, ECE, Mechanical, EE, BCA, and MCA.
 - TopBar quick Semester Switcher pill (`[CSE • Sem 5 ▾]`) allowing 1-click semester changes anywhere across the platform.
 - Interactive Academic Profile & Roster Editor in Settings with live course checklist, instant save, and degree customization.
-- Cleaned up obsolete study target references across Settings and Profile.
+### 12. 100% Dynamic Multi-Branch & Course Dashboard Adaptation
+- Replaced all hardcoded CSE topics (`Deadlock`, `Normalization`, `TCP`) with dynamic topics derived directly from the student's branch and active enrolled courses (`displaySubjects`).
+- **Dynamic Popular Topic Chips:** Automatically extracts high-yield topics from the student's enrolled syllabus (e.g. ECE: AM/FM Modulation, 8086 Architecture, CMOS Curves; Mech: Bernoulli Equation, Failure Theories; AI/DS: Self-Attention, K-Means).
+- **Branch-Aware Search Placeholder:** Dynamically prompts with the student's actual curriculum topics and provides branch-relevant "no notes match" suggestions.
+- **Dynamic Exam Radar:** Calculates top PYQ frequency topics directly from the student's courses with year streaks.
+- **Dynamic Midterm Topic Gap Card:** Automatically pinpoints the lowest-coverage course and unit in the student's roster with 1-click note discovery.
+- **Adaptive Hall of Scribes:** Department toggle adapts from "All Depts" to the student's specific branch (e.g. "Electronics & Communication", "Mechanical", "AI & Data Science").
+- **Multi-Branch Catalog Expansion:** Enriched backend database with courses and starter verified notes for ECE, Mechanical, Electrical, AI/DS, BCA, and MCA.
 
 ---
 
@@ -78,3 +85,4 @@ This document tracks all completed features, active work, and planned next steps
 ---
 
 *Last Updated: 2026-10-11*
+

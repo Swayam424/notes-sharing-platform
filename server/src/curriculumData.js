@@ -463,5 +463,289 @@ export const extendedCurricula = [
         ]
       }
     ]
+  },
+  {
+    id: 'bca-dbms',
+    name: 'Database Management & SQL',
+    code: 'BCA302',
+    semester: 3,
+    department: 'BCA',
+    scheme: '2023 Scheme',
+    coverage: 75,
+    units: [
+      {
+        id: 'bcad-u1',
+        name: 'Unit 1: Relational Concepts & SQL',
+        topics: [
+          { id: 'bcad-t1', name: 'Relational Data Model & Primary/Foreign Keys', status: 'covered', noteCount: 5, pyqCount: 3, pyqYears: [2023, 2024], pyqQuestions: ['Explain relational schema and integrity constraints.'] },
+          { id: 'bcad-t2', name: 'SQL SELECT Queries, GROUP BY & Joins', status: 'covered', noteCount: 6, pyqCount: 4, pyqYears: [2023, 2024, 2025], pyqQuestions: ['Write SQL query to find employees with second highest salary using subquery.'] },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'bca-python',
+    name: 'Python Application Programming',
+    code: 'BCA501',
+    semester: 5,
+    department: 'BCA',
+    scheme: '2023 Scheme',
+    coverage: 82,
+    units: [
+      {
+        id: 'bcap-u1',
+        name: 'Unit 1: Python Data Structures & OOP',
+        topics: [
+          { id: 'bcap-t1', name: 'Lists, Tuples, Dictionaries & Comprehensions', status: 'covered', noteCount: 6, pyqCount: 3, pyqYears: [2023, 2024], pyqQuestions: ['Demonstrate list and dictionary comprehensions with code samples.'] },
+          { id: 'bcap-t2', name: 'Class Definition, Constructors & Inheritance', status: 'covered', noteCount: 5, pyqCount: 4, pyqYears: [2024, 2025], pyqQuestions: ['Write Python class modeling a BankAccount with deposit and withdraw methods.'] },
+        ]
+      }
+    ]
+  },
+
+  // --------------------------------------------------------------------------
+  // 8. Electronics & Communication Additional Subjects (Semesters 3 & 5)
+  // --------------------------------------------------------------------------
+  {
+    id: 'digital-electronics',
+    name: 'Digital System Design & K-Maps',
+    code: 'EC301',
+    semester: 3,
+    department: 'Electronics & Communication',
+    scheme: '2022–2026 Scheme',
+    coverage: 74,
+    units: [
+      {
+        id: 'de-u1',
+        name: 'Unit 1: Combinational Logic & Minimization',
+        topics: [
+          { id: 'de-t1', name: 'Boolean Minimization & Karnaugh Maps (4-Variable)', status: 'covered', noteCount: 6, pyqCount: 5, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['Minimize F(A,B,C,D) = sum(0,2,5,7,8,10,13,15) using 4-variable K-map.', 'Explain don\'t care conditions in K-map minimization.'] },
+          { id: 'de-t2', name: 'Multiplexers, Decoders & Priority Encoders', status: 'covered', noteCount: 5, pyqCount: 4, pyqYears: [2023, 2024, 2025], pyqQuestions: ['Implement full adder using 8:1 multiplexer.', 'Design a 3:8 decoder with active-low enable.'] },
+        ]
+      },
+      {
+        id: 'de-u2',
+        name: 'Unit 2: Sequential Circuits & Flip-Flops',
+        topics: [
+          { id: 'de-t3', name: 'JK, D, T Flip-Flops & Master-Slave Configuration', status: 'covered', noteCount: 4, pyqCount: 4, pyqYears: [2023, 2024], pyqQuestions: ['Explain race-around condition in JK flip-flop and how Master-Slave JK resolves it.'] },
+          { id: 'de-t4', name: 'Synchronous Counters & Modulo-N FSM Design', status: 'partial', noteCount: 3, pyqCount: 3, pyqYears: [2024, 2025], pyqQuestions: ['Design a synchronous Mod-6 counter using T flip-flops.'] },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'microprocessors',
+    name: 'Microprocessors & Microcontrollers',
+    code: 'EC502',
+    semester: 5,
+    department: 'Electronics & Communication',
+    scheme: '2022–2026 Scheme',
+    coverage: 68,
+    units: [
+      {
+        id: 'mp-u1',
+        name: 'Unit 1: 8086 Architecture & Assembly',
+        topics: [
+          { id: 'mp-t1', name: '8086 Internal Architecture (BIU vs EU)', status: 'covered', noteCount: 6, pyqCount: 5, pyqYears: [2021, 2022, 2023, 2024, 2025], pyqQuestions: ['Draw architectural block diagram of 8086 and explain BIU and EU pipelining.', 'Explain segmented memory model and physical address calculation in 8086.'] },
+          { id: 'mp-t2', name: '8086 Addressing Modes & Instruction Set', status: 'covered', noteCount: 4, pyqCount: 4, pyqYears: [2023, 2024], pyqQuestions: ['List and explain addressing modes of 8086 with examples.'] },
+        ]
+      },
+      {
+        id: 'mp-u2',
+        name: 'Unit 2: 8051 Microcontroller & Interfacing',
+        topics: [
+          { id: 'mp-t3', name: '8051 Architecture, Timers & Serial Ports', status: 'covered', noteCount: 4, pyqCount: 3, pyqYears: [2023, 2025], pyqQuestions: ['Explain Timer modes in 8051 with TMOD and TCON registers.'] },
+          { id: 'mp-t4', name: 'Interfacing ADC0808 & Stepper Motor', status: 'partial', noteCount: 2, pyqCount: 3, pyqYears: [2024, 2025], pyqQuestions: ['Draw interfacing schematic of 8051 with stepper motor and write rotation routine.'] },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'vlsi-design',
+    name: 'VLSI Design & CMOS Circuits',
+    code: 'EC503',
+    semester: 5,
+    department: 'Electronics & Communication',
+    scheme: '2022–2026 Scheme',
+    coverage: 70,
+    units: [
+      {
+        id: 'vlsi-u1',
+        name: 'Unit 1: CMOS Inverter & Layout Rules',
+        topics: [
+          { id: 'vlsi-t1', name: 'CMOS Inverter DC Transfer Curve & Noise Margins', status: 'covered', noteCount: 5, pyqCount: 4, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['Derive switching threshold voltage Vth for symmetric CMOS inverter.'] },
+          { id: 'vlsi-t2', name: 'Stick Diagrams, Euler Path & Lambda Rules', status: 'covered', noteCount: 4, pyqCount: 3, pyqYears: [2023, 2024], pyqQuestions: ['Draw stick diagram for 2-input CMOS NAND gate using Euler path.'] },
+        ]
+      }
+    ]
+  },
+
+  // --------------------------------------------------------------------------
+  // 9. Mechanical Engineering Additional Subjects (Semesters 3 & 5)
+  // --------------------------------------------------------------------------
+  {
+    id: 'fluid-mechanics',
+    name: 'Fluid Mechanics & Machinery',
+    code: 'ME301',
+    semester: 3,
+    department: 'Mechanical Engineering',
+    scheme: '2022–2026 Scheme',
+    coverage: 71,
+    units: [
+      {
+        id: 'fm-u1',
+        name: 'Unit 1: Fluid Statics & Bernoulli Equation',
+        topics: [
+          { id: 'fm-t1', name: 'Bernoulli’s Equation & Energy Conservation', status: 'covered', noteCount: 5, pyqCount: 4, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['State assumptions and derive Bernoulli’s equation from Euler\'s equation of motion.'] },
+          { id: 'fm-t2', name: 'Venturimeter, Orifice Meter & Flow Measurement', status: 'covered', noteCount: 4, pyqCount: 3, pyqYears: [2023, 2024], pyqQuestions: ['Derive expression for discharge through a horizontal venturimeter.'] },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'machine-design',
+    name: 'Design of Machine Elements',
+    code: 'ME502',
+    semester: 5,
+    department: 'Mechanical Engineering',
+    scheme: '2022–2026 Scheme',
+    coverage: 66,
+    units: [
+      {
+        id: 'md-u1',
+        name: 'Unit 1: Theories of Failure & Fatigue',
+        topics: [
+          { id: 'md-t1', name: 'Theories of Elastic Failure (Tresca & von Mises)', status: 'covered', noteCount: 5, pyqCount: 4, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['Compare Maximum Shear Stress (Tresca) and Distortion Energy (von Mises) theories.'] },
+          { id: 'md-t2', name: 'S-N Curve & Goodman / Soderberg Fatigue Design', status: 'covered', noteCount: 4, pyqCount: 3, pyqYears: [2023, 2025], pyqQuestions: ['Solve machine member subject to fluctuating axial load using modified Goodman line.'] },
+        ]
+      }
+    ]
+  },
+
+  // --------------------------------------------------------------------------
+  // 10. Electrical Engineering Subjects (Semesters 3 & 5)
+  // --------------------------------------------------------------------------
+  {
+    id: 'circuit-theory',
+    name: 'Network Analysis & Circuit Theory',
+    code: 'EE301',
+    semester: 3,
+    department: 'Electrical Engineering',
+    scheme: '2022–2026 Scheme',
+    coverage: 73,
+    units: [
+      {
+        id: 'ee-u1',
+        name: 'Unit 1: Network Theorems in AC Circuits',
+        topics: [
+          { id: 'ee-t1', name: 'Thevenin & Norton Theorems in AC Networks', status: 'covered', noteCount: 5, pyqCount: 4, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['Find Thevenin equivalent across load terminals in steady-state AC circuit.'] },
+          { id: 'ee-t2', name: 'Series & Parallel Resonance & Bandwidth', status: 'covered', noteCount: 4, pyqCount: 3, pyqYears: [2023, 2024], pyqQuestions: ['Derive resonant frequency, half-power frequencies and Quality factor Q for series RLC circuit.'] },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'power-systems',
+    name: 'Power Systems Transmission & Distribution',
+    code: 'EE501',
+    semester: 5,
+    department: 'Electrical Engineering',
+    scheme: '2022–2026 Scheme',
+    coverage: 69,
+    units: [
+      {
+        id: 'ps-u1',
+        name: 'Unit 1: Line Modeling & Ferranti Effect',
+        topics: [
+          { id: 'ps-t1', name: 'ABCD Parameters of Medium & Long Lines', status: 'covered', noteCount: 5, pyqCount: 4, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['Derive ABCD parameters using Nominal-Pi and Nominal-T models.'] },
+          { id: 'ps-t2', name: 'Ferranti Effect & Surge Impedance Loading (SIL)', status: 'covered', noteCount: 4, pyqCount: 3, pyqYears: [2023, 2025], pyqQuestions: ['Explain Ferranti effect in unloaded long transmission lines with phasor diagram.'] },
+        ]
+      }
+    ]
+  },
+
+  // --------------------------------------------------------------------------
+  // 11. AI & Data Science Additional Subjects (Semester 5)
+  // --------------------------------------------------------------------------
+  {
+    id: 'data-mining',
+    name: 'Data Warehousing & Data Mining',
+    code: 'AI502',
+    semester: 5,
+    department: 'AI & Data Science',
+    scheme: '2022–2026 Scheme',
+    coverage: 75,
+    units: [
+      {
+        id: 'dm-u1',
+        name: 'Unit 1: Association Rules & Clustering',
+        topics: [
+          { id: 'dm-t1', name: 'Apriori Algorithm & Frequent Itemset Mining', status: 'covered', noteCount: 5, pyqCount: 4, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['Apply Apriori algorithm on given transaction database with min_support = 2.'] },
+          { id: 'dm-t2', name: 'K-Means & Hierarchical Agglomerative Clustering', status: 'covered', noteCount: 5, pyqCount: 3, pyqYears: [2023, 2024], pyqQuestions: ['Perform 2 iterations of K-Means clustering for given 1D points with centroids C1 and C2.'] },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'nlp-core',
+    name: 'Natural Language Processing & Transformers',
+    code: 'AI504',
+    semester: 5,
+    department: 'AI & Data Science',
+    scheme: '2022–2026 Scheme',
+    coverage: 70,
+    units: [
+      {
+        id: 'nlp-u1',
+        name: 'Unit 1: Text Preprocessing & Language Models',
+        topics: [
+          { id: 'nlp-t1', name: 'TF-IDF, Word2Vec & CBOW Embeddings', status: 'covered', noteCount: 5, pyqCount: 4, pyqYears: [2023, 2024, 2025], pyqQuestions: ['Compare Skip-gram and CBOW architectures in Word2Vec embeddings.'] },
+          { id: 'nlp-t2', name: 'Self-Attention Mechanism & Transformer Encoder', status: 'covered', noteCount: 4, pyqCount: 3, pyqYears: [2024, 2025], pyqQuestions: ['Explain Scaled Dot-Product Attention equation with Query, Key, Value matrices.'] },
+        ]
+      }
+    ]
+  },
+
+  // --------------------------------------------------------------------------
+  // 12. MCA Post-Graduate Subjects (Semesters 1 & 3)
+  // --------------------------------------------------------------------------
+  {
+    id: 'mca-advanced-dsa',
+    name: 'Advanced Algorithms & Complexity',
+    code: 'MCA101',
+    semester: 1,
+    department: 'MCA',
+    scheme: '2023 Scheme',
+    coverage: 76,
+    units: [
+      {
+        id: 'mcadsa-u1',
+        name: 'Unit 1: Dynamic Programming & Amortized Analysis',
+        topics: [
+          { id: 'mcadsa-t1', name: 'Matrix Chain Multiplication & Bellman-Ford', status: 'covered', noteCount: 5, pyqCount: 4, pyqYears: [2023, 2024, 2025], pyqQuestions: ['Determine optimal parenthesization for matrices of dimensions 10x20, 20x30, 30x40.'] },
+          { id: 'mcadsa-t2', name: 'NP-Completeness, Circuit SAT & Reductions', status: 'covered', noteCount: 4, pyqCount: 3, pyqYears: [2024, 2025], pyqQuestions: ['Prove that 3-SAT is NP-complete via polynomial-time reduction from SAT.'] },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'mca-fullstack',
+    name: 'Enterprise Full-Stack Cloud Engineering',
+    code: 'MCA301',
+    semester: 3,
+    department: 'MCA',
+    scheme: '2023 Scheme',
+    coverage: 84,
+    units: [
+      {
+        id: 'mcafs-u1',
+        name: 'Unit 1: Microservices, Docker & CI/CD',
+        topics: [
+          { id: 'mcafs-t1', name: 'Microservices Architecture & API Gateway Pattern', status: 'covered', noteCount: 6, pyqCount: 4, pyqYears: [2023, 2024, 2025], pyqQuestions: ['Explain service discovery, circuit breaker pattern and API Gateway routing.'] },
+          { id: 'mcafs-t2', name: 'Docker Multi-stage Builds & Kubernetes Pods', status: 'covered', noteCount: 5, pyqCount: 3, pyqYears: [2024, 2025], pyqQuestions: ['Write Dockerfile for production React build using multi-stage Nginx container.'] },
+        ]
+      }
+    ]
   }
 ];
+

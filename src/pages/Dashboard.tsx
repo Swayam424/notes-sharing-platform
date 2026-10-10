@@ -31,17 +31,6 @@ function CoverageRing({ value, size = 40 }: { value: number; size?: number }) {
   );
 }
 
-// Curated popular topics for instant discovery right on the landing page
-const QUICK_TOPICS = [
-  'Deadlock',
-  'Normalization',
-  'TCP Congestion Control',
-  'Paging & Segmentation',
-  'Scheduling Algorithms',
-  'SQL Joins',
-  'DFA & NFA'
-];
-
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, refreshKey, setUploadOpen } = useApp();
@@ -60,12 +49,30 @@ export default function Dashboard() {
     return filtered.length > 0 ? filtered : subjectsList;
   }, [subjectsList, enrolledSubjectIds]);
 
+  // Dynamic quick topics derived from student's enrolled courses and syllabus
+  const quickTopics = useMemo(() => {
+    const names: string[] = [];
+    for (const subj of displaySubjects) {
+      for (const u of subj.units || []) {
+        for (const t of u.topics || []) {
+          if (t.name && !names.includes(t.name)) {
+            names.push(t.name);
+          }
+        }
+      }
+    }
+    if (names.length > 0) {
+      return names.slice(0, 7);
+    }
+    return ['Core Concepts', 'Unit 1 Overview', 'Formula Sheet', 'Exam Derivations'];
+  }, [displaySubjects]);
+
   // Contributor Leaderboard State
   const [leaderboard, setLeaderboard] = useState<LeaderboardContributor[]>([]);
-  const [leaderboardDept, setLeaderboardDept] = useState<'all' | 'Computer Science'>('all');
+  const [leaderboardDept, setLeaderboardDept] = useState<string>('all');
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
 
-  // In-page Topic Discovery State (Connecting Landing Page with Notes Discovery)
+  // In-page Topic Discovery State
   const [topicSearch, setTopicSearch] = useState('');
   const [activeTopicChip, setActiveTopicChip] = useState<string | null>(null);
   const [savedNoteIds, setSavedNoteIds] = useState<string[]>(() => savedNotesService.getSavedIds());
@@ -81,8 +88,8 @@ export default function Dashboard() {
     api.getSubjects({ stream: user?.stream, semester: user?.semester })
       .then(setSubjectsList)
       .catch(() => setSubjectsList(fallbackSubjects));
+
     api.getNotes().then(liveNotes => {
-      // Merge live notes with fallback notes to preserve rich metadata
       const mergedMap = new Map<string, NoteResource>();
       fallbackNotes.forEach(n => mergedMap.set(n.id, n));
       liveNotes.forEach(n => {
@@ -92,7 +99,9 @@ export default function Dashboard() {
       setNotesList(Array.from(mergedMap.values()));
     }).catch(() => setNotesList(fallbackNotes));
 
-    api.getDashboardData().then(setDashboardStats).catch(console.error);
+    api.getDashboardData({ stream: user?.stream, semester: user?.semester })
+      .then(setDashboardStats)
+      .catch(console.error);
 
     setLeaderboardLoading(true);
     api.getContributorLeaderboard(leaderboardDept)
@@ -101,23 +110,79 @@ export default function Dashboard() {
       .finally(() => setLeaderboardLoading(false));
   }, [refreshKey, leaderboardDept, user?.stream, user?.semester]);
 
-  // Last accessed note or priority note
-  const lastNote = notesList.find(n => n.id === 'n3') || notesList[0];
+  // Stream-specific notes filtered by student's active enrolled subjects
+  const enrolledSubjectIdSet = useMemo(() => new Set(displaySubjects.map(s => s.id)), [displaySubjects]);
+  const streamNotes = useMemo(() => {
+    const filtered = notesList.filter(n => enrolledSubjectIdSet.has(n.subjectId));
+    return filtered.length > 0 ? filtered : notesList;
+  }, [notesList, enrolledSubjectIdSet]);
 
-  const frequentTopics = dashboardStats?.frequentExamTopics || [
-    { topicName: 'Deadlock Detection & Prevention', subjectName: 'Operating Systems', appearances: 5, streak: 'Appeared 5 yrs running' },
-    { topicName: 'Scheduling Algorithms (FCFS, SJF, RR)', subjectName: 'Operating Systems', appearances: 5, streak: 'Appeared 5 yrs running' },
-    { topicName: 'Normal Forms (1NF–BCNF)', subjectName: 'Database Management Systems', appearances: 4, streak: 'Appeared 4 yrs running' },
-    { topicName: 'TCP Congestion Control (AIMD)', subjectName: 'Computer Networks', appearances: 4, streak: 'Appeared 4 yrs running' },
-    { topicName: 'Paging & Segmentation', subjectName: 'Operating Systems', appearances: 3, streak: 'Appeared 3 yrs running' },
-  ];
+  // Last accessed note or priority note for this stream
+  const lastNote = streamNotes[0] || notesList[0];
 
-  const recentUploadsList = dashboardStats?.recentUploads || [
-    { id: 'n13', title: 'Deadlock Handling: Banker’s Algorithm & RAG', author: 'Priya Sharma', subject: 'Operating Systems', unit: 'Unit 3', format: 'Handwritten PDF', timeAgo: 'Recently' },
-    { id: 'n14', title: 'Relational Schema Normalization Cheatsheet', author: 'Sneha Iyer', subject: 'Database Management Systems', unit: 'Unit 3', format: 'Cheatsheet', timeAgo: 'Recently' },
-    { id: 'n15', title: 'TCP Congestion Control — Tahoe & Reno', author: 'Ananya Roy', subject: 'Computer Networks', unit: 'Unit 3', format: 'Typed Notes', timeAgo: 'Recently' },
-    { id: 'n4', title: 'Memory Management — Paging & Segmentation', author: 'Rohan Das', subject: 'Operating Systems', unit: 'Unit 4', format: 'Handwritten PDF', timeAgo: 'Recently' },
-  ];
+  // Dynamic frequent exam topics calculated from the student's actual enrolled subjects
+  const dynamicFrequentTopics = useMemo(() => {
+    const list: { topicName: string; subjectName: string; appearances: number; streak: string }[] = [];
+    for (const subj of displaySubjects) {
+      for (const u of subj.units || []) {
+        for (const t of u.topics || []) {
+          const app = t.pyqCount || (t.pyqYears ? t.pyqYears.length : 0) || 3;
+          list.push({
+            topicName: t.name,
+            subjectName: subj.name,
+            appearances: app,
+            streak: `Appeared ${app} yrs running`
+          });
+        }
+      }
+    }
+    list.sort((a, b) => b.appearances - a.appearances);
+    return list.slice(0, 5);
+  }, [displaySubjects]);
+
+  const frequentTopics = dynamicFrequentTopics.length > 0
+    ? dynamicFrequentTopics
+    : (dashboardStats?.frequentExamTopics || [
+        { topicName: 'Key Exam Derivations', subjectName: displaySubjects[0]?.name || 'Core Subject', appearances: 5, streak: 'Appeared 5 yrs running' }
+      ]);
+
+  // Recent peer uploads adapted to stream notes
+  const recentUploadsList = useMemo(() => {
+    if (streamNotes.length > 0) {
+      return streamNotes.slice(0, 4).map(n => ({
+        id: n.id,
+        title: n.title,
+        author: n.author,
+        format: n.format,
+        subject: n.subjectName || displaySubjects.find(s => s.id === n.subjectId)?.name || 'Course Note',
+        unit: n.unitName || 'Unit 1',
+        timeAgo: 'Recently'
+      }));
+    }
+    return dashboardStats?.recentUploads || [];
+  }, [streamNotes, displaySubjects, dashboardStats]);
+
+  // Lowest coverage subject in active roster for the Midterm Gap Alert
+  const lowestCoverageSubject = useMemo(() => {
+    if (displaySubjects.length === 0) return null;
+    return [...displaySubjects].sort((a, b) => (a.coverage || 0) - (b.coverage || 0))[0];
+  }, [displaySubjects]);
+
+  const gapUnitAndTopic = useMemo(() => {
+    if (!lowestCoverageSubject) return null;
+    for (const u of lowestCoverageSubject.units || []) {
+      const gapTopic = u.topics?.find(t => t.status === 'missing' || t.status === 'partial');
+      if (gapTopic) {
+        return { unitName: u.name, topicName: gapTopic.name };
+      }
+    }
+    const firstUnit = lowestCoverageSubject.units?.[0];
+    const firstTopic = firstUnit?.topics?.[0];
+    return {
+      unitName: firstUnit?.name || 'Unit 1',
+      topicName: firstTopic?.name || lowestCoverageSubject.name
+    };
+  }, [lowestCoverageSubject]);
 
   // Save / Bookmark Toggle
   const toggleSave = async (noteId: string) => {
@@ -128,10 +193,10 @@ export default function Dashboard() {
   const matchingNotes = useMemo(() => {
     const q = (topicSearch || activeTopicChip || '').trim().toLowerCase();
     if (!q) {
-      // Default: show top 4 high-yield study resources
-      return notesList.slice(0, 4);
+      return streamNotes.slice(0, 4);
     }
-    return notesList.filter(n => {
+    const pool = streamNotes.length > 0 ? streamNotes : notesList;
+    const matched = pool.filter(n => {
       const titleMatch = n.title.toLowerCase().includes(q);
       const topicMatch = n.primaryTopic?.toLowerCase().includes(q) || false;
       const topicsListMatch = n.topicNames?.some(t => t.toLowerCase().includes(q)) || false;
@@ -139,7 +204,19 @@ export default function Dashboard() {
       const subjMatch = n.subjectName?.toLowerCase().includes(q) || n.subjectId?.toLowerCase().includes(q);
       return titleMatch || topicMatch || topicsListMatch || descMatch || subjMatch;
     });
-  }, [notesList, topicSearch, activeTopicChip]);
+    if (matched.length === 0 && pool !== notesList) {
+      // Fallback search across all notes
+      return notesList.filter(n => {
+        const titleMatch = n.title.toLowerCase().includes(q);
+        const topicMatch = n.primaryTopic?.toLowerCase().includes(q) || false;
+        const topicsListMatch = n.topicNames?.some(t => t.toLowerCase().includes(q)) || false;
+        const descMatch = n.description?.toLowerCase().includes(q) || false;
+        const subjMatch = n.subjectName?.toLowerCase().includes(q) || n.subjectId?.toLowerCase().includes(q);
+        return titleMatch || topicMatch || topicsListMatch || descMatch || subjMatch;
+      });
+    }
+    return matched;
+  }, [streamNotes, notesList, topicSearch, activeTopicChip]);
 
   return (
     <div className="landing-study-space" id="study-space-landing">
@@ -207,7 +284,7 @@ export default function Dashboard() {
               <input
                 type="text"
                 className="search-input"
-                placeholder="Search topics like Deadlock, Normalization, TCP Congestion Control, Paging..."
+                placeholder={quickTopics.length > 0 ? `Search topics like ${quickTopics.slice(0, 3).join(', ')}...` : 'Search study topics...'}
                 value={topicSearch}
                 onChange={e => {
                   setTopicSearch(e.target.value);
@@ -232,7 +309,7 @@ export default function Dashboard() {
               <span className="mono text-muted" style={{ fontSize: '11px', alignSelf: 'center', marginRight: '4px' }}>
                 POPULAR TOPICS:
               </span>
-              {QUICK_TOPICS.map(topic => {
+              {quickTopics.map(topic => {
                 const isActive = activeTopicChip === topic || topicSearch.toLowerCase() === topic.toLowerCase();
                 return (
                   <button
@@ -376,7 +453,14 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="landing-no-match">
-                <p>No notes found matching “{topicSearch}”. Try searching for <strong>Deadlock</strong>, <strong>Normalization</strong>, or <strong>TCP</strong>.</p>
+                <p>
+                  No notes found matching “{topicSearch}”. Try searching for{' '}
+                  {quickTopics.slice(0, 3).map((t, idx) => (
+                    <strong key={t}>
+                      {t}{idx < Math.min(quickTopics.length, 3) - 1 ? ', ' : ''}
+                    </strong>
+                  ))} or browse all notes.
+                </p>
                 <button
                   className="btn btn-secondary btn-sm"
                   onClick={() => { setTopicSearch(''); setActiveTopicChip(null); }}
@@ -557,25 +641,33 @@ export default function Dashboard() {
                   Upcoming Midterm Topic Gap
                 </div>
                 <p className="text-sm" style={{ color: 'var(--color-muted)', marginBottom: 'var(--space-3)' }}>
-                  DBMS Unit 3 (Normalization & Functional Dependencies) has only 42% verified coverage in your library.
+                  {lowestCoverageSubject ? (
+                    `${lowestCoverageSubject.name} ${gapUnitAndTopic?.unitName ? `(${gapUnitAndTopic.unitName}: ${gapUnitAndTopic.topicName})` : ''} has only ${lowestCoverageSubject.coverage || 42}% verified coverage in your library.`
+                  ) : (
+                    'Review your syllabus units to identify gap topics before the upcoming exam.'
+                  )}
                 </p>
                 <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
                   <button
                     className="btn btn-sm"
                     style={{ color: 'var(--color-primary)', borderColor: 'var(--color-primary-muted)' }}
                     onClick={() => {
-                      setTopicSearch('Normalization');
-                      window.scrollTo({ top: 120, behavior: 'smooth' });
+                      if (gapUnitAndTopic?.topicName) {
+                        setTopicSearch(gapUnitAndTopic.topicName);
+                        window.scrollTo({ top: 120, behavior: 'smooth' });
+                      }
                     }}
                   >
-                    <Search size={13} /> Discover Normalization Notes
+                    <Search size={13} /> Discover {gapUnitAndTopic?.topicName || 'Gap Topic'} Notes
                   </button>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => navigate('/subjects/dbms')}
-                  >
-                    View DBMS Syllabus <ChevronRight size={13} />
-                  </button>
+                  {lowestCoverageSubject && (
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => navigate(`/subjects/${lowestCoverageSubject.id}`)}
+                    >
+                      View {lowestCoverageSubject.code || lowestCoverageSubject.name} Syllabus <ChevronRight size={13} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -705,7 +797,7 @@ export default function Dashboard() {
                 SYLLABUS GAP RECOMMENDATION
               </div>
               <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-deep-soft)', lineHeight: '1.5' }}>
-                Explore 16 verified student notes across Operating Systems, Networks, DBMS, and Theory of Computation.
+                Explore verified student notes across {displaySubjects.length > 0 ? displaySubjects.slice(0, 4).map(s => s.name).join(', ') : 'your active courses'}.
               </p>
               <button
                 className="btn btn-sm"
@@ -748,10 +840,10 @@ export default function Dashboard() {
                 </button>
                 <button
                   type="button"
-                  className={`leaderboard-toggle-btn ${leaderboardDept === 'Computer Science' ? 'active' : ''}`}
-                  onClick={() => setLeaderboardDept('Computer Science')}
+                  className={`leaderboard-toggle-btn ${leaderboardDept !== 'all' ? 'active' : ''}`}
+                  onClick={() => setLeaderboardDept(user?.department || user?.stream || 'Computer Science')}
                 >
-                  Computer Science
+                  {user?.department || (user?.stream ? user.stream.split(' ')[0] : 'My Branch')}
                 </button>
               </div>
 

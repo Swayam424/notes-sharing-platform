@@ -1712,35 +1712,84 @@ app.post('/api/moderation', (req, res) => {
 // -------------------------------------------------------------
 // 5. Dashboard Aggregation & Stats API
 // -------------------------------------------------------------
-app.get('/api/stats/dashboard', (_req, res) => {
+app.get('/api/stats/dashboard', (req, res) => {
   try {
+    const { stream, department, semester } = req.query;
+    const effectiveStream = (stream || department || '').trim();
+
     // 1. Frequent Exam Topics (aggregated from topics table)
-    const topicsWithPyqs = db.prepare(`
+    let topicWhere = 'WHERE t.pyq_count > 0';
+    const topicParams = [];
+
+    if (effectiveStream && effectiveStream !== 'all') {
+      topicWhere += ' AND (LOWER(s.department) LIKE ? OR LOWER(?) LIKE LOWER(s.department))';
+      topicParams.push(`%${effectiveStream.toLowerCase()}%`, effectiveStream.toLowerCase());
+    }
+    if (semester && semester !== 'all') {
+      const semNum = parseInt(semester, 10);
+      if (!isNaN(semNum)) {
+        topicWhere += ' AND s.semester = ?';
+        topicParams.push(semNum);
+      }
+    }
+
+    let topicsWithPyqs = db.prepare(`
       SELECT t.name as topicName, s.name as subjectName, t.pyq_count as appearances
       FROM topics t
       JOIN units u ON t.unit_id = u.id
       JOIN subjects s ON u.subject_id = s.id
-      WHERE t.pyq_count > 0
+      ${topicWhere}
       ORDER BY t.pyq_count DESC
       LIMIT 8
-    `).all();
+    `).all(...topicParams);
+
+    // Fallback if specific stream/semester has fewer topics
+    if (topicsWithPyqs.length === 0) {
+      topicsWithPyqs = db.prepare(`
+        SELECT t.name as topicName, s.name as subjectName, COALESCE(t.pyq_count, 3) as appearances
+        FROM topics t
+        JOIN units u ON t.unit_id = u.id
+        JOIN subjects s ON u.subject_id = s.id
+        ORDER BY t.pyq_count DESC
+        LIMIT 8
+      `).all();
+    }
 
     const frequentExamTopics = topicsWithPyqs.map(t => ({
       topicName: t.topicName,
       subjectName: t.subjectName,
-      appearances: t.appearances,
-      streak: `Appeared ${t.appearances} yrs running`
+      appearances: t.appearances || 3,
+      streak: `Appeared ${t.appearances || 3} yrs running`
     }));
 
-    // 2. Recent Uploads
-    const latestNotes = db.prepare(`
+    // 2. Recent Uploads filtered by stream if available
+    let noteWhere = '';
+    const noteParams = [];
+    if (effectiveStream && effectiveStream !== 'all') {
+      noteWhere = 'WHERE (LOWER(s.department) LIKE ? OR LOWER(?) LIKE LOWER(s.department) OR LOWER(n.department) LIKE ?)';
+      noteParams.push(`%${effectiveStream.toLowerCase()}%`, effectiveStream.toLowerCase(), `%${effectiveStream.toLowerCase()}%`);
+    }
+
+    let latestNotes = db.prepare(`
       SELECT n.id, n.title, n.author, n.format, s.name as subject, u.name as unit, n.upload_date
       FROM notes n
       JOIN subjects s ON n.subject_id = s.id
       JOIN units u ON n.unit_id = u.id
+      ${noteWhere}
       ORDER BY n.upload_date DESC
       LIMIT 5
-    `).all();
+    `).all(...noteParams);
+
+    if (latestNotes.length === 0) {
+      latestNotes = db.prepare(`
+        SELECT n.id, n.title, n.author, n.format, s.name as subject, u.name as unit, n.upload_date
+        FROM notes n
+        JOIN subjects s ON n.subject_id = s.id
+        JOIN units u ON n.unit_id = u.id
+        ORDER BY n.upload_date DESC
+        LIMIT 5
+      `).all();
+    }
 
     const recentUploads = latestNotes.map(n => ({
       id: n.id,

@@ -645,8 +645,12 @@ export const api = {
   },
 
   // -------------------- Dashboard --------------------
-  async getDashboardData(): Promise<DashboardData> {
-    const res = await authFetch('/api/stats/dashboard');
+  async getDashboardData(params?: { stream?: string; semester?: number }): Promise<DashboardData> {
+    const query = new URLSearchParams();
+    if (params?.stream) query.set('stream', params.stream);
+    if (params?.semester) query.set('semester', String(params.semester));
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    const res = await authFetch(`/api/stats/dashboard${qs}`);
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Failed to fetch dashboard stats');
     return data;
