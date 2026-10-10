@@ -82,6 +82,23 @@ This document tracks all completed features, active work, and planned next steps
   - *"Syllabus Gap Recommendation"* $\rightarrow$ *"Community Notes Spotlight"*
   - Note discussion categories realigned from test tips to collaborative note study (`Study Tip`, `Errata / Clarification`, `Question`, `Key Takeaway`).
 
+### 14. Production Readiness Hardening & Comprehensive Security Audit
+- **Security HTTP Headers (OWASP Hardening):** Injected `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, `Cross-Origin-Opener-Policy: same-origin`, and stripped `X-Powered-By`.
+- **CORS Lockdown:** Replaced wildcard access with dynamic origin whitelisting (`CLIENT_ORIGINS`) with credential support.
+- **Payload & Memory DoS Defense:** Added 2MB body parser limits (`express.json({ limit: '2mb' })`) and 50MB upload boundaries to prevent memory-exhaustion attacks.
+- **Multi-Tier Rate Limiting:** Implemented sliding-window rate limiters across key attack vectors:
+  - Global API rate limiter (1000 req/15min).
+  - Auth brute-force protection on `/api/auth/login`, `/signup`, `/register` (25 attempts/15min with HTTP 429 and `Retry-After`).
+  - File upload throttling on notes & PYQs (40 uploads/hr).
+- **Strict File Upload Validation:** Enforced explicit MIME types (`application/pdf`, `image/jpeg`, `image/png`, `image/webp`, `docx`) and extension whitelisting in Multer `fileFilter`, rejecting executables and script payloads.
+- **Path Traversal Protection:** Enforced `getSafeUploadPath` with `path.basename` and resolved boundary verification on all file downloads and deletions.
+- **Database Performance & WAL Concurrency:**
+  - Configured SQLite `PRAGMA journal_mode = WAL;` and `PRAGMA synchronous = NORMAL;` for high-throughput concurrent reads and writes.
+  - Created 15 database indexes on foreign keys, tokens, timestamps, and search columns (`idx_notes_subject`, `idx_notes_upload_date`, `idx_sessions_token`, `idx_users_email`, etc.).
+- **Operational Health Monitoring (`/api/health`):** Built structured healthcheck probe reporting database live ping, server uptime, heap/RSS memory usage, and environment status.
+- **Centralized Error Handling & Graceful Shutdown:** Centralized error-handling middleware preventing stack trace leakage, paired with `SIGTERM`/`SIGINT` traps for clean SQLite handle termination.
+- **Environment & Secrets Template:** Generated `.env.example` production configuration template and protected secrets in `.gitignore`.
+
 ---
 
 ## Planned Next Steps (Candidate Options)

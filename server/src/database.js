@@ -18,6 +18,8 @@ export const db = new DatabaseSync(dbPath);
 
 export function initDatabase() {
   db.exec(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA synchronous = NORMAL;
     PRAGMA foreign_keys = ON;
 
     CREATE TABLE IF NOT EXISTS subjects (
@@ -184,6 +186,23 @@ export function initDatabase() {
       created_at TEXT NOT NULL,
       PRIMARY KEY (user_id, comment_id)
     );
+
+    -- High-Performance Production Query Indexes
+    CREATE INDEX IF NOT EXISTS idx_notes_subject ON notes(subject_id);
+    CREATE INDEX IF NOT EXISTS idx_notes_unit ON notes(unit_id);
+    CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
+    CREATE INDEX IF NOT EXISTS idx_notes_upload_date ON notes(upload_date DESC);
+    CREATE INDEX IF NOT EXISTS idx_notes_status ON notes(status);
+    CREATE INDEX IF NOT EXISTS idx_units_subject ON units(subject_id);
+    CREATE INDEX IF NOT EXISTS idx_topics_unit ON topics(unit_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
+    CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+    CREATE INDEX IF NOT EXISTS idx_saved_notes_user ON saved_notes(user_id);
+    CREATE INDEX IF NOT EXISTS idx_note_upvotes_user ON note_upvotes(user_id);
+    CREATE INDEX IF NOT EXISTS idx_note_upvotes_note ON note_upvotes(note_id);
+    CREATE INDEX IF NOT EXISTS idx_note_comments_note ON note_comments(note_id);
+    CREATE INDEX IF NOT EXISTS idx_pyqs_subject ON pyqs(subject_id);
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   `);
 
   // Ensure saved_notes allows both notes and pyqs
@@ -495,6 +514,15 @@ export function initDatabase() {
     for (const c of seedComments) {
       insertComment.run(c.id, c.note_id, c.user_id, c.user_name, c.user_initials, c.user_role, c.category, c.content, c.created_at, c.upvotes);
     }
+  }
+}
+
+export function closeDatabase() {
+  try {
+    db.close();
+    console.log('[DATABASE] SQLite database handle closed cleanly.');
+  } catch (err) {
+    console.error('[DATABASE] Error closing SQLite handle:', err);
   }
 }
 

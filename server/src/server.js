@@ -3,7 +3,7 @@ import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
 import multer from 'multer';
-import { db, initDatabase, uploadsDir } from './database.js';
+import { db, initDatabase, closeDatabase, uploadsDir } from './database.js';
 import { seedDatabase } from './seed.js';
 import { hashPassword, verifyPassword, generateToken } from './auth.js';
 
@@ -14,27 +14,189 @@ const PORT = process.env.PORT || 3001;
 initDatabase();
 seedDatabase();
 
-app.use(cors());
-app.use(express.json());
+// -------------------------------------------------------------
+// Security Hardening: HTTP Response Headers (OWASP Recommendations)
+// -------------------------------------------------------------
+app.disable('x-powered-by');
+
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  next();
+});
+
+// -------------------------------------------------------------
+// Security Hardening: Origin-Restricted CORS
+// -------------------------------------------------------------
+const allowedOrigins = (process.env.CLIENT_ORIGINS || 'http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow non-browser requests (Postman, curl, internal jobs)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked request from origin: ${origin}`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
+// Body parser with payload caps (prevents memory exhaustion DoS)
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+
+// -------------------------------------------------------------
+// In-Memory Rate Limiting (OWASP Brute-Force & Abuse Protection)
+// -------------------------------------------------------------
+function createRateLimiter({ windowMs, maxRequests, message }) {
+  const hits = new Map();
+  // Cleanup expired entries periodically
+  setInterval(() => {
+    const now = Date.now();
+    for (const [ip, record] of hits.entries()) {
+      if (now > record.resetTime) {
+        hits.delete(ip);
+      }
+    }
+  }, 5 * 60 * 1000).unref();
+
+  return (req, res, next) => {
+    const rawIp = req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
+    const now = Date.now();
+    const record = hits.get(rawIp);
+
+    if (!record || now > record.resetTime) {
+      hits.set(rawIp, { count: 1, resetTime: now + windowMs });
+      return next();
+    }
+
+    record.count += 1;
+    if (record.count > maxRequests) {
+      const retryAfterSec = Math.ceil((record.resetTime - now) / 1000);
+      res.setHeader('Retry-After', retryAfterSec);
+      return res.status(429).json({
+        success: false,
+        error: message || 'Too many requests. Please try again later.'
+      });
+    }
+
+    next();
+  };
+}
+
+const apiGeneralLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 1000,
+  message: 'API rate limit exceeded. Please try again in 15 minutes.'
+});
+
+const authBruteForceLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 25,
+  message: 'Too many authentication attempts. Please wait 15 minutes before retrying.'
+});
+
+const uploadRateLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  maxRequests: 40,
+  message: 'Upload rate limit reached for this hour. Please try again later.'
+});
+
+app.use('/api/', apiGeneralLimiter);
+
+// -------------------------------------------------------------
+// Operational Observability: Health Check & System Status Endpoint
+// -------------------------------------------------------------
+app.get('/api/health', (_req, res) => {
+  try {
+    const dbPing = db.prepare('SELECT 1 as ping').get();
+    const isDbAlive = dbPing && dbPing.ping === 1;
+    const memory = process.memoryUsage();
+
+    res.json({
+      status: isDbAlive ? 'healthy' : 'degraded',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: Math.floor(process.uptime()),
+      database: isDbAlive ? 'connected' : 'unreachable',
+      environment: process.env.NODE_ENV || 'development',
+      memory: {
+        rssMb: Math.round(memory.rss / 1024 / 1024),
+        heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
+        heapTotalMb: Math.round(memory.heapTotal / 1024 / 1024)
+      }
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: 'Health check probe failed'
+    });
+  }
+});
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(uploadsDir));
 
-// Multer storage configuration for real file uploads
+// -------------------------------------------------------------
+// Security Hardening: Strict Multer File Upload Filter
+// -------------------------------------------------------------
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword'
+]);
+const ALLOWED_EXTENSIONS = new Set(['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.docx', '.doc']);
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     cb(null, uploadsDir);
   },
   filename: (_req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname) || '.pdf';
+    const rawExt = path.extname(file.originalname).toLowerCase();
+    const ext = ALLOWED_EXTENSIONS.has(rawExt) ? rawExt : '.pdf';
     cb(null, `${uniqueSuffix}${ext}`);
   }
 });
+
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      return cb(new Error(`File format rejected. Only PDF, DOCX, and images are permitted.`));
+    }
+    if (file.mimetype && !ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return cb(new Error(`Invalid MIME type: ${file.mimetype}`));
+    }
+    cb(null, true);
+  }
 });
+
+// Helper: Path Traversal Protection for File Resolution
+function getSafeUploadPath(userFilename) {
+  if (!userFilename || typeof userFilename !== 'string') return null;
+  const safeBase = path.basename(userFilename);
+  const resolvedPath = path.resolve(uploadsDir, safeBase);
+  const resolvedUploadsDir = path.resolve(uploadsDir);
+  if (!resolvedPath.startsWith(resolvedUploadsDir)) {
+    return null;
+  }
+  return resolvedPath;
+}
 
 // Helper: Calculate subject coverage dynamically based on topic statuses
 function calculateCoverage(subjectId) {
@@ -342,7 +504,7 @@ app.get('/api/notes/:id', (req, res) => {
 });
 
 // Upload a real resource
-app.post('/api/notes', upload.single('file'), (req, res) => {
+app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
   try {
     const {
       title,
@@ -607,10 +769,10 @@ app.delete('/api/notes/:id', (req, res) => {
 
     db.prepare('DELETE FROM notes WHERE id = ?').run(req.params.id);
 
-    // If there is an uploaded file on disk, remove it unless it's the sample file
+    // If there is an uploaded file on disk, remove it safely unless it's the sample file
     if (note.file_path && note.file_path !== 'sample_lecture_notes.pdf') {
-      const fullPath = path.join(uploadsDir, note.file_path);
-      if (fs.existsSync(fullPath)) {
+      const fullPath = getSafeUploadPath(note.file_path);
+      if (fullPath && fs.existsSync(fullPath)) {
         try { fs.unlinkSync(fullPath); } catch (e) { /* ignore */ }
       }
     }
@@ -636,16 +798,19 @@ app.get('/api/notes/:id/download', (req, res) => {
     // Increment download count
     db.prepare('UPDATE notes SET downloads = downloads + 1 WHERE id = ?').run(note.id);
 
-    const filePath = path.join(uploadsDir, note.file_path || 'sample_lecture_notes.pdf');
+    const safeFilePath = getSafeUploadPath(note.file_path);
+    const sampleFilePath = getSafeUploadPath('sample_lecture_notes.pdf');
     const safeTitle = (note.title || 'note').replace(/[^a-zA-Z0-9_-]/g, '_');
-    if (fs.existsSync(filePath)) {
-      res.download(filePath, `${safeTitle}.pdf`);
+
+    if (safeFilePath && fs.existsSync(safeFilePath)) {
+      res.download(safeFilePath, `${safeTitle}.pdf`);
+    } else if (sampleFilePath && fs.existsSync(sampleFilePath)) {
+      res.download(sampleFilePath, `${safeTitle}.pdf`);
     } else {
-      const samplePath = path.join(uploadsDir, 'sample_lecture_notes.pdf');
-      res.download(samplePath, `${safeTitle}.pdf`);
+      res.status(404).send('Requested file not found');
     }
   } catch (err) {
-    res.status(500).send(err.message);
+    res.status(500).send('Error downloading file');
   }
 });
 
@@ -1175,7 +1340,7 @@ app.get('/api/pyqs/:id', (req, res) => {
   }
 });
 
-app.post('/api/pyqs', upload.single('file'), (req, res) => {
+app.post('/api/pyqs', uploadRateLimiter, upload.single('file'), (req, res) => {
   try {
     const user = getUserFromRequest(req);
     const {
@@ -1846,6 +2011,13 @@ const handleSignup = (req, res) => {
       return res.status(400).json({ success: false, error: 'Name, email, and password are required' });
     }
     const cleanEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return res.status(400).json({ success: false, error: 'Please provide a valid email address' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long' });
+    }
     const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail);
     if (existing) {
       return res.status(400).json({ success: false, error: 'An account with this email already exists' });
@@ -1891,10 +2063,10 @@ const handleSignup = (req, res) => {
   }
 };
 
-app.post('/api/auth/signup', handleSignup);
-app.post('/api/auth/register', handleSignup);
+app.post('/api/auth/signup', authBruteForceLimiter, handleSignup);
+app.post('/api/auth/register', authBruteForceLimiter, handleSignup);
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', authBruteForceLimiter, (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -2037,6 +2209,58 @@ app.post('/api/auth/logout', (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Live Notes API Server running on http://localhost:${PORT}`);
+// -------------------------------------------------------------
+// Centralized Express Error Handling Middleware
+// -------------------------------------------------------------
+app.use((err, req, res, _next) => {
+  console.error(`[ERROR] ${req.method} ${req.url}:`, err.message);
+
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ success: false, error: 'File size exceeds maximum 50MB limit.' });
+    }
+    return res.status(400).json({ success: false, error: `Upload error: ${err.message}` });
+  }
+
+  // Handle fileFilter rejection
+  if (err.message && (err.message.includes('File format rejected') || err.message.includes('Invalid MIME type'))) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+
+  // Handle CORS rejection
+  if (err.message && err.message.includes('CORS blocked')) {
+    return res.status(403).json({ success: false, error: 'Cross-Origin Request Blocked.' });
+  }
+
+  const isProd = process.env.NODE_ENV === 'production';
+  const statusCode = err.status || 500;
+  res.status(statusCode).json({
+    success: false,
+    error: isProd ? 'Internal Server Error' : (err.message || 'An unexpected error occurred')
+  });
 });
+
+// -------------------------------------------------------------
+// Server Lifecycle & Graceful Shutdown
+// -------------------------------------------------------------
+const server = app.listen(PORT, () => {
+  console.log(`[ATELIER API] Production-hardened server running on http://localhost:${PORT}`);
+});
+
+function handleGracefulShutdown(signal) {
+  console.log(`[ATELIER API] Received ${signal}. Initiating graceful shutdown...`);
+  server.close(() => {
+    console.log('[ATELIER API] HTTP connections closed.');
+    closeDatabase();
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    console.error('[ATELIER API] Forced shutdown due to timeout.');
+    process.exit(1);
+  }, 10000).unref();
+}
+
+process.on('SIGTERM', () => handleGracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => handleGracefulShutdown('SIGINT'));
+

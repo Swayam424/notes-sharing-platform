@@ -28,3 +28,9 @@ dist-ssr
 *.sqlite3
 *.db
 server/data/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+

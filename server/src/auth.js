@@ -7,8 +7,16 @@ export function hashPassword(password) {
 }
 
 export function verifyPassword(password, salt, storedHash) {
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(storedHash, 'hex'));
+  if (!password || !salt || !storedHash) return false;
+  try {
+    const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+    const bufA = Buffer.from(hash, 'hex');
+    const bufB = Buffer.from(storedHash, 'hex');
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
 }
 
 export function generateToken() {
