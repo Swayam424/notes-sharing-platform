@@ -1134,6 +1134,265 @@ app.get('/api/contributors/leaderboard', (req, res) => {
 });
 
 // -------------------------------------------------------------
+// 2.5b Community Note Requests (Crowdsourced Notes Sharing) API
+// -------------------------------------------------------------
+
+// List note requests with filters and user upvote status
+app.get('/api/note-requests', (req, res) => {
+  try {
+    const user = getUserFromRequest(req);
+    const { subjectId, status, search, stream, department } = req.query;
+
+    let query = `
+      SELECT nr.*,
+             s.name as subject_name,
+             s.code as subject_code,
+             s.department as subject_department,
+             u.name as unit_name,
+             n.title as fulfilled_note_title
+      FROM note_requests nr
+      JOIN subjects s ON nr.subject_id = s.id
+      LEFT JOIN units u ON nr.unit_id = u.id
+      LEFT JOIN notes n ON nr.fulfilled_note_id = n.id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (subjectId && subjectId !== 'all') {
+      query += ' AND nr.subject_id = ?';
+      params.push(subjectId);
+    }
+
+    if (status && status !== 'all') {
+      query += ' AND nr.status = ?';
+      params.push(status);
+    }
+
+    const effectiveStream = stream || department;
+    if (effectiveStream && effectiveStream !== 'all') {
+      query += ' AND (LOWER(s.department) LIKE ? OR LOWER(?) LIKE LOWER(s.department))';
+      params.push(`%${effectiveStream.toLowerCase()}%`, effectiveStream);
+    }
+
+    if (search && search.trim()) {
+      const term = `%${search.trim().toLowerCase()}%`;
+      query += ' AND (LOWER(nr.topic_name) LIKE ? OR LOWER(nr.description) LIKE ? OR LOWER(s.name) LIKE ?)';
+      params.push(term, term, term);
+    }
+
+    query += ' ORDER BY CASE nr.status WHEN \'open\' THEN 0 ELSE 1 END, nr.upvotes DESC, nr.created_at DESC';
+
+    const rows = db.prepare(query).all(...params);
+
+    // Check which requests this user has upvoted
+    let userUpvotes = new Set();
+    if (user) {
+      const upvotedRows = db.prepare('SELECT request_id FROM note_request_upvotes WHERE user_id = ?').all(user.id);
+      userUpvotes = new Set(upvotedRows.map(r => r.request_id));
+    }
+
+    const requests = rows.map(r => ({
+      id: r.id,
+      userId: r.user_id,
+      requesterName: r.requester_name,
+      requesterInitials: r.requester_initials,
+      subjectId: r.subject_id,
+      subjectName: r.subject_name,
+      subjectCode: r.subject_code,
+      subjectDepartment: r.subject_department,
+      unitId: r.unit_id,
+      unitName: r.unit_name || null,
+      topicName: r.topic_name,
+      description: r.description,
+      status: r.status,
+      upvotes: r.upvotes,
+      hasUpvoted: userUpvotes.has(r.id),
+      fulfilledNoteId: r.fulfilled_note_id,
+      fulfilledNoteTitle: r.fulfilled_note_title,
+      fulfilledByName: r.fulfilled_by_name,
+      fulfilledById: r.fulfilled_by_id,
+      fulfilledAt: r.fulfilled_at,
+      createdAt: r.created_at
+    }));
+
+    res.json({ success: true, requests });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Create a new note request
+app.post('/api/note-requests', (req, res) => {
+  try {
+    const user = getUserFromRequest(req) || {
+      id: 'user-student',
+      name: 'Nishant Verma',
+      initials: 'NV'
+    };
+
+    const { subjectId, unitId, topicName, description } = req.body;
+    if (!subjectId || !topicName || !topicName.trim()) {
+      return res.status(400).json({ success: false, error: 'Subject and Topic / Lecture Name are required.' });
+    }
+
+    const safeTopic = sanitizeString(topicName);
+    const safeDesc = description ? sanitizeString(description) : '';
+    const requestId = 'req-' + Date.now();
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
+
+    db.prepare(`
+      INSERT INTO note_requests (
+        id, user_id, requester_name, requester_initials, subject_id, unit_id,
+        topic_name, description, status, upvotes, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', 1, ?)
+    `).run(
+      requestId,
+      user.id,
+      user.name,
+      user.initials || 'ST',
+      subjectId,
+      unitId || null,
+      safeTopic,
+      safeDesc,
+      now
+    );
+
+    // Initial requester upvote recorded
+    try {
+      db.prepare('INSERT INTO note_request_upvotes (request_id, user_id, created_at) VALUES (?, ?, ?)').run(requestId, user.id, now);
+    } catch { /* ignore */ }
+
+    // Fetch subject for enriched response
+    const sub = db.prepare('SELECT name, code FROM subjects WHERE id = ?').get(subjectId);
+
+    const created = {
+      id: requestId,
+      userId: user.id,
+      requesterName: user.name,
+      requesterInitials: user.initials || 'ST',
+      subjectId,
+      subjectName: sub?.name || '',
+      subjectCode: sub?.code || '',
+      unitId: unitId || null,
+      topicName: safeTopic,
+      description: safeDesc,
+      status: 'open',
+      upvotes: 1,
+      hasUpvoted: true,
+      createdAt: now
+    };
+
+    res.status(201).json({ success: true, request: created, message: 'Note request posted to the community!' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Upvote / "Me too" toggle on a note request
+app.post('/api/note-requests/:id/upvote', (req, res) => {
+  try {
+    const user = getUserFromRequest(req) || { id: 'user-student' };
+    const request = db.prepare('SELECT id, upvotes FROM note_requests WHERE id = ?').get(req.params.id);
+    if (!request) {
+      return res.status(404).json({ success: false, error: 'Note request not found' });
+    }
+
+    const existing = db.prepare('SELECT 1 FROM note_request_upvotes WHERE request_id = ? AND user_id = ?').get(request.id, user.id);
+    let hasUpvoted = false;
+    let newCount = request.upvotes || 1;
+
+    if (existing) {
+      db.prepare('DELETE FROM note_request_upvotes WHERE request_id = ? AND user_id = ?').run(request.id, user.id);
+      newCount = Math.max(1, newCount - 1);
+      db.prepare('UPDATE note_requests SET upvotes = ? WHERE id = ?').run(newCount, request.id);
+      hasUpvoted = false;
+    } else {
+      const now = new Date().toISOString();
+      db.prepare('INSERT INTO note_request_upvotes (request_id, user_id, created_at) VALUES (?, ?, ?)').run(request.id, user.id, now);
+      newCount = newCount + 1;
+      db.prepare('UPDATE note_requests SET upvotes = ? WHERE id = ?').run(newCount, request.id);
+      hasUpvoted = true;
+    }
+
+    res.json({ success: true, hasUpvoted, upvotes: newCount });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Fulfill a note request with an existing or freshly uploaded note
+app.post('/api/note-requests/:id/fulfill', (req, res) => {
+  try {
+    const user = getUserFromRequest(req) || {
+      id: 'user-student',
+      name: 'Nishant Verma'
+    };
+
+    const { noteId } = req.body;
+    if (!noteId) {
+      return res.status(400).json({ success: false, error: 'Note ID is required to fulfill this request.' });
+    }
+
+    const request = db.prepare('SELECT * FROM note_requests WHERE id = ?').get(req.params.id);
+    if (!request) {
+      return res.status(404).json({ success: false, error: 'Note request not found' });
+    }
+
+    const note = db.prepare('SELECT id, title FROM notes WHERE id = ?').get(noteId);
+    if (!note) {
+      return res.status(404).json({ success: false, error: 'Linked note was not found in library.' });
+    }
+
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
+
+    db.prepare(`
+      UPDATE note_requests
+      SET status = 'fulfilled',
+          fulfilled_note_id = ?,
+          fulfilled_by_name = ?,
+          fulfilled_by_id = ?,
+          fulfilled_at = ?
+      WHERE id = ?
+    `).run(note.id, user.name, user.id, now, request.id);
+
+    res.json({
+      success: true,
+      message: 'Request fulfilled! Thank you for sharing notes with your classmates.',
+      fulfilledNoteId: note.id,
+      fulfilledNoteTitle: note.title
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Delete a note request (BOLA check: owner or moderator)
+app.delete('/api/note-requests/:id', (req, res) => {
+  try {
+    const user = getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    const request = db.prepare('SELECT * FROM note_requests WHERE id = ?').get(req.params.id);
+    if (!request) {
+      return res.status(404).json({ success: false, error: 'Note request not found' });
+    }
+
+    if (request.user_id !== user.id && !isModerator(user)) {
+      return res.status(403).json({ success: false, error: 'Permission denied. Only the requester or moderator can delete this request.' });
+    }
+
+    db.prepare('DELETE FROM note_request_upvotes WHERE request_id = ?').run(request.id);
+    db.prepare('DELETE FROM note_requests WHERE id = ?').run(request.id);
+
+    res.json({ success: true, message: 'Note request removed.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
 // 2.6 Saved Notes API (My Library Synchronization)
 // -------------------------------------------------------------
 app.get('/api/user/saved-notes', (req, res) => {

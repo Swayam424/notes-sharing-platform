@@ -3,12 +3,15 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router';
 import {
   Search, X, Bookmark, ArrowRight, Sparkles, Filter, RotateCcw,
   FileText, Download, Check, Calendar, ChevronDown, Layers,
-  ThumbsUp, MessageSquare
+  ThumbsUp, MessageSquare, Plus, Clock, CheckCircle2, Users, BookOpen
 } from 'lucide-react';
-import { api } from '../services/api';
+import { api, type NoteRequest } from '../services/api';
 import { useApp } from '../context/AppContext';
 import { savedNotesService } from '../services/savedNotes';
 import { notes as fallbackNotes, subjects as fallbackSubjects, type NoteResource, type Subject } from '../data/mockData';
+import RequestNoteModal from '../components/RequestNoteModal';
+import FulfillRequestModal from '../components/FulfillRequestModal';
+
 
 // Curated popular topics for quick 1-click discovery
 const POPULAR_TOPICS = [
@@ -45,7 +48,22 @@ export default function NotesLibrary() {
   const location = useLocation();
   const navState = (location.state as any) || {};
   const [searchParams, setSearchParams] = useSearchParams();
-  const { refreshKey } = useApp();
+  const { refreshKey, setUploadOpen } = useApp();
+  const tabParam = searchParams.get('tab');
+  const initialTab = (tabParam === 'requests' || navState.initialTab === 'requests') ? 'requests' : 'browse';
+  const [activeView, setActiveView] = useState<'browse' | 'requests'>(initialTab);
+  const [noteRequests, setNoteRequests] = useState<NoteRequest[]>([]);
+  const [requestStatusFilter, setRequestStatusFilter] = useState<'all' | 'open' | 'fulfilled'>('all');
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(!!navState.openRequestModal || searchParams.get('newRequest') === 'true');
+  const [fulfillTargetRequest, setFulfillTargetRequest] = useState<NoteRequest | null>(null);
+
+  useEffect(() => {
+    if (tabParam === 'requests') {
+      setActiveView('requests');
+    } else if (tabParam === 'browse') {
+      setActiveView('browse');
+    }
+  }, [tabParam]);
 
   // Search & Filter States (synced with URL params or navigation state)
   const initialTopicQuery = searchParams.get('q') || navState.searchQuery || '';
@@ -86,6 +104,33 @@ export default function NotesLibrary() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Fetch live note requests
+  useEffect(() => {
+    api.getNoteRequests()
+      .then(reqs => setNoteRequests(reqs))
+      .catch(() => {});
+  }, [refreshKey]);
+
+  const handleUpvoteRequest = async (requestId: string) => {
+    try {
+      const res = await api.upvoteNoteRequest(requestId);
+      setNoteRequests(prev => prev.map(r => r.id === requestId ? { ...r, upvotes: res.upvotes, hasUpvoted: res.hasUpvoted } : r));
+    } catch (err) {
+      console.error('Failed to upvote request:', err);
+    }
+  };
+
+  const handleRequestFulfilled = (requestId: string, noteId: string, noteTitle: string) => {
+    setToastMessage(`Fulfilled request! Linked to “${noteTitle}”`);
+    setTimeout(() => setToastMessage(null), 3000);
+    setNoteRequests(prev => prev.map(r => r.id === requestId ? {
+      ...r,
+      status: 'fulfilled',
+      fulfilledNoteId: noteId,
+      fulfilledNoteTitle: noteTitle
+    } : r));
+  };
 
   // Fetch live subjects and notes if API is reachable
   useEffect(() => {
@@ -232,6 +277,25 @@ export default function NotesLibrary() {
     });
   }, [notesList, subjectsList, searchQuery, selectedDept, selectedSem, selectedSubject, selectedUnit, selectedFormat, showSavedOnly, sortBy, savedNoteIds]);
 
+  const filteredRequests = useMemo(() => {
+    return noteRequests.filter(req => {
+      if (requestStatusFilter !== 'all' && req.status !== requestStatusFilter) {
+        return false;
+      }
+      if (selectedSubject !== 'all' && req.subjectId !== selectedSubject) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchTopic = req.topicName.toLowerCase().includes(q);
+        const matchDesc = req.description?.toLowerCase().includes(q) || false;
+        const matchSubj = req.subjectName.toLowerCase().includes(q) || req.subjectCode.toLowerCase().includes(q);
+        if (!matchTopic && !matchDesc && !matchSubj) return false;
+      }
+      return true;
+    });
+  }, [noteRequests, requestStatusFilter, selectedSubject, searchQuery]);
+
   // Helper to format indicator class
   const getFormatClass = (format: string) => {
     const f = format.toLowerCase();
@@ -281,11 +345,79 @@ export default function NotesLibrary() {
 
       {/* 1. Prominent Topic Search Area */}
       <div className="discovery-search-card" id="discovery-search-card">
-        <div className="discovery-header-titles">
-          <h1 className="discovery-title">Notes Discovery</h1>
-          <p className="discovery-subtitle">
-            Search peer-reviewed notes, cheat sheets, and solved problems primarily by academic concept or topic
-          </p>
+        <div className="discovery-header-titles" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <h1 className="discovery-title">Notes Discovery & Exchange</h1>
+            <p className="discovery-subtitle">
+              Browse shared peer lecture notes or crowdsource missing lecture derivations from classmates
+            </p>
+          </div>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => setIsRequestModalOpen(true)}
+            id="btn-open-request-note-modal"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, padding: '7px 14px' }}
+          >
+            <Plus size={14} /> Request a Note
+          </button>
+        </div>
+
+        {/* View Switcher Tabs */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', marginBottom: '8px' }}>
+          <button
+            onClick={() => setActiveView('browse')}
+            id="tab-browse-notes"
+            style={{
+              padding: '7px 14px',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              background: activeView === 'browse' ? 'var(--color-primary)' : 'var(--color-surface-dim)',
+              color: activeView === 'browse' ? 'white' : 'var(--color-deep)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 150ms ease'
+            }}
+          >
+            <BookOpen size={13} /> Browse Notes ({filteredNotes.length})
+          </button>
+
+          <button
+            onClick={() => setActiveView('requests')}
+            id="tab-requested-notes"
+            style={{
+              padding: '7px 14px',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              background: activeView === 'requests' ? 'var(--color-primary)' : 'var(--color-surface-dim)',
+              color: activeView === 'requests' ? 'white' : 'var(--color-deep)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              position: 'relative',
+              transition: 'all 150ms ease'
+            }}
+          >
+            <Users size={13} /> Classmate Requests ({noteRequests.filter(r => r.status === 'open').length} Open)
+            {noteRequests.filter(r => r.status === 'open').length > 0 && activeView !== 'requests' && (
+              <span style={{
+                position: 'absolute',
+                top: '-3px',
+                right: '-3px',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--color-primary)',
+                boxShadow: '0 0 0 2px var(--color-surface)'
+              }} />
+            )}
+          </button>
         </div>
 
         {/* Big Search Input */}
@@ -332,8 +464,10 @@ export default function NotesLibrary() {
         </div>
       </div>
 
-      {/* 2. Compact Filter Area for Secondary Context */}
-      <div className="discovery-filter-bar" id="discovery-filter-bar">
+      {activeView === 'browse' ? (
+        <>
+          {/* 2. Compact Filter Area for Secondary Context */}
+          <div className="discovery-filter-bar" id="discovery-filter-bar">
         <div className="discovery-filter-controls">
           <span className="discovery-filter-label">
             <Filter size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
@@ -734,6 +868,303 @@ export default function NotesLibrary() {
           </button>
         </div>
       )}
+        </>
+      ) : (
+        /* ================================================================
+            COMMUNITY NOTE REQUESTS BOARD
+           ================================================================ */
+        <div className="discovery-requests-container" style={{ marginTop: 'var(--space-4)' }} id="community-requests-board">
+          {/* Sub-Filter Bar */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            marginBottom: 'var(--space-4)',
+            padding: '12px 16px',
+            background: 'var(--color-surface)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--shadow-subtle)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-muted)' }}>Status:</span>
+              <button
+                className={`btn btn-sm ${requestStatusFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setRequestStatusFilter('all')}
+                style={{ fontSize: '11px', padding: '4px 10px' }}
+              >
+                All Requests ({noteRequests.length})
+              </button>
+              <button
+                className={`btn btn-sm ${requestStatusFilter === 'open' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setRequestStatusFilter('open')}
+                style={{ fontSize: '11px', padding: '4px 10px' }}
+              >
+                Waiting for Notes ({noteRequests.filter(r => r.status === 'open').length})
+              </button>
+              <button
+                className={`btn btn-sm ${requestStatusFilter === 'fulfilled' ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setRequestStatusFilter('fulfilled')}
+                style={{ fontSize: '11px', padding: '4px 10px' }}
+              >
+                Fulfilled ({noteRequests.filter(r => r.status === 'fulfilled').length})
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {/* Subject quick filter */}
+              <div className="discovery-select-wrapper" style={{ margin: 0 }}>
+                <select
+                  className="discovery-select"
+                  value={selectedSubject}
+                  onChange={e => setSelectedSubject(e.target.value)}
+                  style={{ fontSize: '12px', height: '32px', padding: '0 24px 0 10px' }}
+                >
+                  <option value="all">All Subjects</option>
+                  {subjectsList.map(s => (
+                    <option key={s.id} value={s.id}>{s.code ? `${s.code} • ` : ''}{s.name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={12} className="discovery-select-arrow" />
+              </div>
+              <span className="mono text-muted" style={{ fontSize: '11px' }}>
+                {filteredRequests.length} REQUESTS
+              </span>
+            </div>
+          </div>
+
+          {/* Request Cards Grid */}
+          {filteredRequests.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '16px' }}>
+              {filteredRequests.map(req => {
+                const isOpen = req.status === 'open';
+                return (
+                  <div
+                    key={req.id}
+                    className="card"
+                    id={`note-request-card-${req.id}`}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      borderRadius: 'var(--radius-lg)',
+                      border: isOpen ? '1px solid var(--color-border)' : '1px solid rgba(46, 125, 50, 0.35)',
+                      background: isOpen ? 'var(--color-surface)' : 'rgba(232, 245, 233, 0.2)',
+                      boxShadow: 'var(--shadow-subtle)',
+                      transition: 'transform 150ms ease, box-shadow 150ms ease'
+                    }}
+                  >
+                    <div className="card-body" style={{ padding: '16px' }}>
+                      {/* Top Badges */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span className="badge badge-primary" style={{ fontSize: '10px', textTransform: 'uppercase' }}>
+                            {req.subjectCode || req.subjectName}
+                          </span>
+                          {req.unitName && (
+                            <span className="chip" style={{ fontSize: '10px' }}>
+                              {req.unitName}
+                            </span>
+                          )}
+                        </div>
+
+                        {isOpen ? (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: '#C85A32',
+                            background: 'rgba(200, 90, 50, 0.1)',
+                            padding: '3px 8px',
+                            borderRadius: '12px'
+                          }}>
+                            <Clock size={11} /> Open
+                          </span>
+                        ) : (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: '#2E7D32',
+                            background: 'rgba(46, 125, 50, 0.12)',
+                            padding: '3px 8px',
+                            borderRadius: '12px'
+                          }}>
+                            <CheckCircle2 size={11} /> Fulfilled
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Topic Title */}
+                      <h4 style={{
+                        fontFamily: 'var(--font-display)',
+                        fontSize: '15px',
+                        fontWeight: 600,
+                        lineHeight: 1.35,
+                        color: 'var(--color-deep)',
+                        marginBottom: '6px'
+                      }}>
+                        {req.topicName}
+                      </h4>
+
+                      {/* Description */}
+                      {req.description && (
+                        <p style={{
+                          fontSize: '12px',
+                          color: 'var(--color-muted)',
+                          lineHeight: 1.45,
+                          marginBottom: '12px'
+                        }}>
+                          "{req.description}"
+                        </p>
+                      )}
+
+                      {/* Requester Info */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }}>
+                        <div style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          background: 'var(--color-primary-light)',
+                          color: 'var(--color-primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '10px',
+                          fontWeight: 700
+                        }}>
+                          {req.requesterInitials}
+                        </div>
+                        <span style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
+                          Requested by <strong style={{ color: 'var(--color-deep)' }}>{req.requesterName}</strong> • {req.createdAt}
+                        </span>
+                      </div>
+
+                      {/* Fulfilled acknowledgment */}
+                      {!isOpen && req.fulfilledByName && (
+                        <div style={{
+                          marginTop: '10px',
+                          padding: '8px 10px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'rgba(46, 125, 50, 0.08)',
+                          fontSize: '11px',
+                          color: '#2E7D32',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}>
+                          <Sparkles size={12} />
+                          <span>Fulfilled by <strong>{req.fulfilledByName}</strong> with <em>"{req.fulfilledNoteTitle || 'Lecture Notes'}"</em></span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card Footer Actions */}
+                    <div className="card-footer" style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 16px',
+                      background: 'var(--color-surface-dim)',
+                      borderTop: '1px solid var(--color-border)'
+                    }}>
+                      {/* Upvote / I need this too */}
+                      <button
+                        onClick={() => handleUpvoteRequest(req.id)}
+                        title="Click if you also need notes for this topic"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '5px 10px',
+                          borderRadius: 'var(--radius-md)',
+                          border: req.hasUpvoted ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+                          background: req.hasUpvoted ? 'var(--color-primary-light)' : 'var(--color-surface)',
+                          color: req.hasUpvoted ? 'var(--color-primary)' : 'var(--color-muted)',
+                          fontSize: '11px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          transition: 'all 120ms ease'
+                        }}
+                      >
+                        <ThumbsUp size={12} />
+                        <span>{req.upvotes} {req.upvotes === 1 ? 'student needs this' : 'students need this'}</span>
+                      </button>
+
+                      {/* Action Button */}
+                      {isOpen ? (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => setFulfillTargetRequest(req)}
+                          style={{ fontSize: '11px', padding: '5px 12px' }}
+                        >
+                          <Sparkles size={12} /> I Have These Notes
+                        </button>
+                      ) : req.fulfilledNoteId ? (
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => navigate(`/notes/${req.fulfilledNoteId}`)}
+                          style={{ fontSize: '11px', padding: '5px 12px', color: 'var(--color-primary)' }}
+                        >
+                          View Shared Notes <ArrowRight size={12} />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="discovery-no-results" style={{ padding: '40px 20px', textAlign: 'center' }}>
+              <div className="discovery-no-results-icon" style={{ margin: '0 auto 12px' }}>
+                <Users size={24} />
+              </div>
+              <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '6px' }}>
+                No note requests match this filter
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--color-muted)', maxWidth: '400px', margin: '0 auto 16px' }}>
+                Missing notes from a recent lecture or need derivations? Be the first to ask your classmates!
+              </p>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => setIsRequestModalOpen(true)}
+              >
+                <Plus size={13} /> Post a Note Request
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Request Note Modal */}
+      <RequestNoteModal
+        isOpen={isRequestModalOpen}
+        onClose={() => setIsRequestModalOpen(false)}
+        subjects={subjectsList}
+        initialSubjectId={selectedSubject !== 'all' ? selectedSubject : undefined}
+        onRequestCreated={newReq => {
+          setNoteRequests(prev => [newReq, ...prev]);
+          setToastMessage(`Request for “${newReq.topicName}” posted to classmates!`);
+          setTimeout(() => setToastMessage(null), 3000);
+        }}
+      />
+
+      {/* Fulfill Request Modal */}
+      <FulfillRequestModal
+        isOpen={!!fulfillTargetRequest}
+        onClose={() => setFulfillTargetRequest(null)}
+        request={fulfillTargetRequest}
+        availableNotes={notesList}
+        onFulfilled={handleRequestFulfilled}
+        onOpenUploadModal={() => setUploadOpen(true)}
+      />
     </div>
   );
 }
+

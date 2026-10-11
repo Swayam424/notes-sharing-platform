@@ -115,19 +115,43 @@ This document tracks all completed features, active work, and planned next steps
 - **Automated Expired Session Garbage Collection:**
   - Built automatic background cleanup routine (`DELETE FROM sessions WHERE datetime(expires_at) < datetime('now')`) sweeping on startup and recurring every 6 hours.
 
+### 16. Crowdsourced Peer Note Request Board (Community Lecture Note Exchange)
+- **Database Schema & Relational Modeling (`server/src/database.js`):**
+  - Created `note_requests` table with foreign key relations to `subjects(id)` (ON DELETE CASCADE), storing topic names, descriptions, requester details, status (`open`, `fulfilled`, `closed`), and fulfilled note references.
+  - Created `note_request_upvotes` table with composite primary key (`request_id`, `user_id`) to track peer demand without duplicate votes.
+  - Added SQLite indexes `idx_note_requests_subject` and `idx_note_requests_status`.
+  - Seeded realistic lecture note requests across CSE and ECE streams (e.g., *8-Point Radix-2 DIT-FFT Butterfly Diagrams*, *Banker's Algorithm 4-Resource Example*, *QPSK & 16-QAM Constellations*).
+- **Backend REST API Endpoints (`server/src/server.js`):**
+  - `GET /api/note-requests`: Filterable by `subjectId`, `status`, `search`, and `stream`/`department`, returning requests enriched with per-user `hasUpvoted` status and fulfilled note details.
+  - `POST /api/note-requests`: Input-sanitized creation endpoint with automatic initial requester upvote.
+  - `POST /api/note-requests/:id/upvote`: Atomic upvote toggling with counter synchronisation.
+  - `POST /api/note-requests/:id/fulfill`: Request fulfillment endpoint linking matching uploaded notes, recording fulfilling scribe identity, and marking status `fulfilled`.
+  - `DELETE /api/note-requests/:id`: BOLA-protected deletion restricting removal to the original requester or platform moderators.
+- **Frontend Modals & Workflows:**
+  - `RequestNoteModal.tsx`: Interactive modal allowing students to request missing lecture topics, select subjects and units, specify formatting needs (handwritten derivations, worked numericals), and review community tips.
+  - `FulfillRequestModal.tsx`: Interactive fulfillment modal allowing peers to link existing notes from their course library or upload new notes directly.
+- **Community Requests UI in Discovery (`src/pages/NotesLibrary.tsx`):**
+  - Tabbed discovery view: `Browse Notes` vs `Classmate Requests` with active request count badges.
+  - Status filters (`All Requests`, `Waiting for Notes`, `Fulfilled`) and subject filter dropdown.
+  - Upvote demand counters with real-time optimistic toggle and "I Have These Notes" fulfillment triggers.
+- **Dashboard Integration (`src/pages/Dashboard.tsx`):**
+  - Added **Classmate Note Requests** card displaying high-demand lecture topics in the student's enrolled courses.
+  - Direct 1-click jump from dashboard to note sharing and request creation workflows.
+
 ---
 
 ## Planned Next Steps (Candidate Options)
 
 | Option | Focus Area | Description |
 | :--- | :--- | :--- |
-| **Option A** | **Interactive Document Annotations** | Allow students to highlight text in terracotta/amber/sage, attach sticky margin notes, and toggle distraction-free sepia/dark reading modes. |
+| **Option A** | **Interactive Document Annotations & Highlighting** | Allow students to highlight text in terracotta/amber/sage, attach sticky margin notes, and toggle distraction-free sepia/dark reading modes. |
 | **Option B** | **Student Author Profiles & Batch Collections** | Create dedicated `/authors/:name` profile pages with custom student study lists and bundle sharing ("Unit 1-5 Complete Pack"). |
-| **Option C** | **Peer Study Rooms & Class Notes Discussion** | Dedicated course channels where students in the same class batch can post note requests and share private notes. |
-| **Option D** | **Smart Note Search & Handwriting OCR Indexing** | Deep search that searches text inside handwritten note scans, formulas, and topic diagrams. |
+| **Option C** | **Smart Note Search & Handwriting OCR Indexing** | Deep search that searches text inside handwritten note scans, formulas, and topic diagrams. |
+| **Option D** | **Scribe Recognition Badges & Note Quality Endorsements** | Professor/TA verification seals, top contributor badges, and peer-endorsed clarity ratings on notes. |
 
 ---
 
 *Last Updated: 2026-10-11*
+
 
 

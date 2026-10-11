@@ -187,6 +187,33 @@ export function initDatabase() {
       PRIMARY KEY (user_id, comment_id)
     );
 
+    CREATE TABLE IF NOT EXISTS note_requests (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      requester_name TEXT NOT NULL,
+      requester_initials TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
+      unit_id TEXT,
+      topic_name TEXT NOT NULL,
+      description TEXT,
+      status TEXT CHECK(status IN ('open', 'fulfilled', 'closed')) DEFAULT 'open',
+      upvotes INTEGER DEFAULT 1,
+      fulfilled_note_id TEXT,
+      fulfilled_by_name TEXT,
+      fulfilled_by_id TEXT,
+      fulfilled_at TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS note_request_upvotes (
+      request_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (request_id, user_id),
+      FOREIGN KEY (request_id) REFERENCES note_requests(id) ON DELETE CASCADE
+    );
+
     -- High-Performance Production Query Indexes
     CREATE INDEX IF NOT EXISTS idx_notes_subject ON notes(subject_id);
     CREATE INDEX IF NOT EXISTS idx_notes_unit ON notes(unit_id);
@@ -203,6 +230,8 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_note_comments_note ON note_comments(note_id);
     CREATE INDEX IF NOT EXISTS idx_pyqs_subject ON pyqs(subject_id);
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_note_requests_subject ON note_requests(subject_id);
+    CREATE INDEX IF NOT EXISTS idx_note_requests_status ON note_requests(status);
   `);
 
   // Ensure saved_notes allows both notes and pyqs
@@ -513,6 +542,97 @@ export function initDatabase() {
 
     for (const c of seedComments) {
       insertComment.run(c.id, c.note_id, c.user_id, c.user_name, c.user_initials, c.user_role, c.category, c.content, c.created_at, c.upvotes);
+    }
+  }
+
+  // Seed sample note requests if empty
+  const requestCount = db.prepare('SELECT COUNT(*) as count FROM note_requests').get()?.count || 0;
+  if (requestCount === 0) {
+    const seedRequests = [
+      {
+        id: 'req-1',
+        user_id: 'user-am',
+        requester_name: 'Arjun Mehta',
+        requester_initials: 'AM',
+        subject_id: 'os',
+        unit_id: null,
+        topic_name: "Banker's Algorithm 4-Resource Numerical Example",
+        description: 'Need step-by-step matrix derivation for allocation, max, and need matrices like the numerical asked in mid-terms.',
+        status: 'open',
+        upvotes: 7,
+        fulfilled_note_id: null,
+        fulfilled_by_name: null,
+        fulfilled_by_id: null,
+        fulfilled_at: null,
+        created_at: '2025-09-18 10:15'
+      },
+      {
+        id: 'req-2',
+        user_id: 'user-kn',
+        requester_name: 'Kavya Nair',
+        requester_initials: 'KN',
+        subject_id: 'dbms',
+        unit_id: null,
+        topic_name: 'B+ Tree Node Overflow & Splitting Diagrams',
+        description: 'Looking for neat visual sketches showing leaf node splitting and root elevation for Order 4 B+ Trees.',
+        status: 'fulfilled',
+        upvotes: 11,
+        fulfilled_note_id: 'n6',
+        fulfilled_by_name: 'Rohan Das',
+        fulfilled_by_id: 'user-rd',
+        fulfilled_at: '2025-09-19 16:20',
+        created_at: '2025-09-17 11:30'
+      },
+      {
+        id: 'req-3',
+        user_id: 'user-mp',
+        requester_name: 'Meera Patel',
+        requester_initials: 'MP',
+        subject_id: 'signals-systems',
+        unit_id: null,
+        topic_name: '8-Point Radix-2 DIT-FFT Butterfly Diagrams',
+        description: 'Need clear handwritten flow diagrams showing bit reversal order and twiddle factor phase multipliers.',
+        status: 'open',
+        upvotes: 9,
+        fulfilled_note_id: null,
+        fulfilled_by_name: null,
+        fulfilled_by_id: null,
+        fulfilled_at: null,
+        created_at: '2025-09-19 14:00'
+      },
+      {
+        id: 'req-4',
+        user_id: 'user-sv',
+        requester_name: 'Sneha Verma',
+        requester_initials: 'SV',
+        subject_id: 'communication-sys',
+        unit_id: null,
+        topic_name: 'QPSK & 16-QAM Constellation Derivations',
+        description: 'Distance metrics, Gray coding mapping, and Euclidean distance math for digital modulation.',
+        status: 'open',
+        upvotes: 5,
+        fulfilled_note_id: null,
+        fulfilled_by_name: null,
+        fulfilled_by_id: null,
+        fulfilled_at: null,
+        created_at: '2025-09-20 09:45'
+      }
+    ];
+
+    const insertRequest = db.prepare(`
+      INSERT INTO note_requests (
+        id, user_id, requester_name, requester_initials, subject_id, unit_id,
+        topic_name, description, status, upvotes, fulfilled_note_id, fulfilled_by_name,
+        fulfilled_by_id, fulfilled_at, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const r of seedRequests) {
+      insertRequest.run(
+        r.id, r.user_id, r.requester_name, r.requester_initials, r.subject_id, r.unit_id,
+        r.topic_name, r.description, r.status, r.upvotes, r.fulfilled_note_id, r.fulfilled_by_name,
+        r.fulfilled_by_id, r.fulfilled_at, r.created_at
+      );
     }
   }
 }

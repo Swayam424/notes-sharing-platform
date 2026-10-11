@@ -656,6 +656,77 @@ export const api = {
     return data;
   },
 
+  // -------------------- Community Note Requests (Crowdsourced Notes Sharing) --------------------
+  async getNoteRequests(params?: {
+    subjectId?: string;
+    status?: string;
+    search?: string;
+    stream?: string;
+    department?: string;
+  }): Promise<NoteRequest[]> {
+    const query = new URLSearchParams();
+    if (params?.subjectId && params.subjectId !== 'all') query.set('subjectId', params.subjectId);
+    if (params?.status && params.status !== 'all') query.set('status', params.status);
+    if (params?.search) query.set('search', params.search);
+    if (params?.stream) query.set('stream', params.stream);
+    if (params?.department) query.set('department', params.department);
+
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    const res = await authFetch(`/api/note-requests${qs}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to fetch note requests');
+    return data.requests;
+  },
+
+  async createNoteRequest(request: {
+    subjectId: string;
+    unitId?: string;
+    topicName: string;
+    description?: string;
+  }): Promise<NoteRequest> {
+    const res = await authFetch('/api/note-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request)
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to submit note request');
+    return data.request;
+  },
+
+  async upvoteNoteRequest(id: string): Promise<{ hasUpvoted: boolean; upvotes: number }> {
+    const res = await authFetch(`/api/note-requests/${id}/upvote`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to upvote note request');
+    return { hasUpvoted: data.hasUpvoted, upvotes: data.upvotes };
+  },
+
+  async fulfillNoteRequest(id: string, noteId: string): Promise<{
+    success: boolean;
+    message: string;
+    fulfilledNoteId: string;
+    fulfilledNoteTitle: string;
+  }> {
+    const res = await authFetch(`/api/note-requests/${id}/fulfill`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ noteId })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to fulfill note request');
+    return data;
+  },
+
+  async deleteNoteRequest(id: string): Promise<void> {
+    const res = await authFetch(`/api/note-requests/${id}`, {
+      method: 'DELETE'
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to delete note request');
+  },
+
   // -------------------- User Profile --------------------
   async getUserProfile(): Promise<AuthUser | null> {
     try {
@@ -673,3 +744,28 @@ export const api = {
     }
   }
 };
+
+export interface NoteRequest {
+  id: string;
+  userId: string;
+  requesterName: string;
+  requesterInitials: string;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  subjectDepartment?: string;
+  unitId?: string | null;
+  unitName?: string | null;
+  topicName: string;
+  description?: string;
+  status: 'open' | 'fulfilled' | 'closed';
+  upvotes: number;
+  hasUpvoted?: boolean;
+  fulfilledNoteId?: string | null;
+  fulfilledNoteTitle?: string | null;
+  fulfilledByName?: string | null;
+  fulfilledById?: string | null;
+  fulfilledAt?: string | null;
+  createdAt: string;
+}
+

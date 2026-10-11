@@ -4,9 +4,9 @@ import {
   ArrowRight, AlertTriangle, TrendingUp, Clock, FileText, Search,
   Sparkles, Bookmark, Layers, X, ChevronRight,
   Trophy, Crown, ThumbsUp, MessageSquare, Upload,
-  Target, GraduationCap, SlidersHorizontal
+  Target, GraduationCap, SlidersHorizontal, Users
 } from 'lucide-react';
-import { api, type DashboardData } from '../services/api';
+import { api, type DashboardData, type NoteRequest } from '../services/api';
 import { useApp } from '../context/AppContext';
 import { savedNotesService } from '../services/savedNotes';
 import { notes as fallbackNotes, subjects as fallbackSubjects, type Subject, type NoteResource, type LeaderboardContributor } from '../data/mockData';
@@ -38,6 +38,7 @@ export default function Dashboard() {
   const [subjectsList, setSubjectsList] = useState<Subject[]>(fallbackSubjects);
   const [notesList, setNotesList] = useState<NoteResource[]>(fallbackNotes);
   const [dashboardStats, setDashboardStats] = useState<DashboardData | null>(null);
+  const [peerRequests, setPeerRequests] = useState<NoteRequest[]>([]);
 
   // Enrolled subjects filter
   const enrolledSubjectIds = user?.enrolledSubjects || [];
@@ -108,6 +109,10 @@ export default function Dashboard() {
       .then(data => setLeaderboard(data))
       .catch(console.error)
       .finally(() => setLeaderboardLoading(false));
+
+    api.getNoteRequests({ status: 'open', stream: user?.stream })
+      .then(reqs => setPeerRequests(reqs.slice(0, 3)))
+      .catch(() => {});
   }, [refreshKey, leaderboardDept, user?.stream, user?.semester]);
 
   // Stream-specific notes filtered by student's active enrolled subjects
@@ -787,6 +792,84 @@ export default function Dashboard() {
                   <ArrowRight size={13} style={{ color: 'var(--color-muted)' }} />
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Classmate Notes Exchange (Crowdsourced Note Requests) */}
+          <div className="card" id="classmate-requests-card" style={{ borderColor: 'var(--color-primary-muted)' }}>
+            <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                <Users size={16} style={{ color: 'var(--color-primary)' }} />
+                <h3 style={{ fontSize: 'var(--text-md)' }}>Classmate Note Requests</h3>
+              </div>
+              <span className="badge badge-primary" style={{ fontSize: '10px' }}>
+                {peerRequests.length > 0 ? `${peerRequests.length} Open` : 'Peer Board'}
+              </span>
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {peerRequests.length > 0 ? (
+                peerRequests.map(req => (
+                  <div
+                    key={req.id}
+                    className="topic-row"
+                    style={{ padding: 'var(--space-3) var(--space-4)', display: 'flex', alignItems: 'center', gap: '10px' }}
+                  >
+                    <div style={{
+                      minWidth: '34px',
+                      padding: '3px 6px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'var(--color-primary-light)',
+                      color: 'var(--color-primary)',
+                      textAlign: 'center',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      fontSize: '11px',
+                      fontWeight: 'var(--weight-semibold)',
+                      flexShrink: 0
+                    }}>
+                      <ThumbsUp size={11} style={{ marginBottom: '2px' }} />
+                      {req.upvotes}
+                    </div>
+                    <div className="topic-row-content" style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {req.topicName}
+                      </div>
+                      <div className="mono text-muted" style={{ fontSize: '10px' }}>
+                        {req.subjectCode || req.subjectName} • Asked by {req.requesterName}
+                      </div>
+                    </div>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '11px', padding: '3px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                      onClick={() => navigate('/notes?tab=requests')}
+                      title="Help a classmate by fulfilling this request"
+                    >
+                      Share Note
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div style={{ padding: 'var(--space-4)', textAlign: 'center', color: 'var(--color-muted)', fontSize: 'var(--text-xs)' }}>
+                  No open requests right now in your stream.
+                </div>
+              )}
+            </div>
+            <div className="card-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--space-3) var(--space-4)' }}>
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: '11px', padding: 0, color: 'var(--color-primary)' }}
+                onClick={() => navigate('/notes?tab=requests')}
+              >
+                View Community Board →
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                style={{ fontSize: '11px', padding: '4px 10px' }}
+                onClick={() => navigate('/notes?tab=requests&newRequest=true')}
+              >
+                + Request a Note
+              </button>
             </div>
           </div>
 
