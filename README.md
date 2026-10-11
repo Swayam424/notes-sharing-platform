@@ -38,7 +38,7 @@
 
 ## 🛠️ Technology Stack
 
-- **Frontend:** React 19, TypeScript, Vite, React Router 7, Lucide Icons, Vanilla CSS Design System.
+- **Frontend:** React 19, TypeScript, Vite, React Router 8, Lucide Icons, Vanilla CSS Design System.
 - **Backend:** Node.js, Express 5, `node:sqlite` (SQLite DatabaseSync), Multer (file uploads), Node `crypto`.
 - **Typography:** Newsreader (editorial serif), Inter (UI sans), JetBrains Mono (metadata).
 
@@ -67,7 +67,7 @@
    ```bash
    npm run server
    ```
-   *Runs on `http://localhost:3001` and initializes SQLite database with sample records and demo users.*
+   *Runs on `http://localhost:3001` and initializes SQLite database with sample records and development starter data.*
 
 4. **Start the Vite Frontend Development Server:**
    ```bash
@@ -82,14 +82,13 @@
 
 ---
 
-## 👥 Demo Credentials
+## 👥 Development & Testing Accounts
 
-| Role | Email | Password |
-|---|---|---|
-| **Student** | `student@atelier.edu` | `password123` |
-| **Moderator** | `moderator@atelier.edu` | `password123` |
+> **Security Note:** In development environments, initial test accounts are automatically provisioned during startup. For production deployments, always configure unique administrator credentials and disable automatic default seeds.
 
-*(You can also register any new student account directly from the Landing Page.)*
+- **Student Account:** `student@atelier.edu` (configure in `server/src/seed.js` or via registration)
+- **Moderator Account:** `moderator@atelier.edu` (configure in `server/src/seed.js`)
+- You can register new student accounts directly via the Sign Up modal on the landing page.
 
 ---
 

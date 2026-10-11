@@ -66,6 +66,7 @@ export default function NoteDetail() {
   const [zoom, setZoom] = useState(100);
   const [rotation, setRotation] = useState(0);
   const [viewMode, setViewMode] = useState<'paper' | 'sepia' | 'dark'>('paper');
+  const [readerType, setReaderType] = useState<'canvas' | 'pdf'>('canvas');
   const [focusMode, setFocusMode] = useState(false);
   const [showThumbnails, setShowThumbnails] = useState(false);
 
@@ -569,7 +570,7 @@ export default function NoteDetail() {
   };
 
   return (
-    <div className={`note-viewer-page ${focusMode ? 'focus-mode-active' : ''}`} id="note-viewer-root">
+    <div className={`note-viewer-page ${viewMode} ${focusMode ? 'focus-mode-active' : ''}`} id="note-viewer-root">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="note-viewer-toast" role="status">
@@ -968,6 +969,31 @@ export default function NoteDetail() {
 
             <div className="toolbar-divider" />
 
+            {/* Reader Presentation Mode: Reading Canvas vs Original PDF */}
+            <div className="toolbar-viewmode-group" role="radiogroup" aria-label="Reading presentation format">
+              <button
+                className={`viewmode-btn ${readerType === 'canvas' ? 'active' : ''}`}
+                onClick={() => setReaderType('canvas')}
+                title="Curated lecture reading canvas with clear typography and syllabus breakdown"
+                id="btn-format-canvas"
+              >
+                <BookOpen size={12} />
+                Canvas
+              </button>
+
+              <button
+                className={`viewmode-btn ${readerType === 'pdf' ? 'active' : ''}`}
+                onClick={() => setReaderType('pdf')}
+                title="Read the original uploaded PDF document directly"
+                id="btn-format-pdf"
+              >
+                <FileText size={12} />
+                Original PDF
+              </button>
+            </div>
+
+            <div className="toolbar-divider" />
+
             {/* View Modes */}
             <div className="toolbar-viewmode-group" role="radiogroup" aria-label="Reading surface tone">
               <button
@@ -1069,15 +1095,65 @@ export default function NoteDetail() {
         )}
 
         {/* Central Document Reader Canvas Container */}
-        <div className={`note-viewer-canvas-scroll ${viewMode}`} id="canvas-scroll-viewport">
+        {readerType === 'pdf' ? (
           <div
-            className="note-viewer-page-viewport"
+            className={`note-viewer-pdf-container ${viewMode}`}
+            id="pdf-scroll-viewport"
             style={{
-              transform: `scale(${zoom / 100})`,
-              transformOrigin: 'top center',
-              transition: 'transform 120ms ease-out'
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              height: 'calc(100vh - 220px)',
+              minHeight: '660px',
+              borderRadius: 'var(--radius-md)',
+              overflow: 'hidden',
+              border: '1px solid var(--color-border)',
+              background: viewMode === 'dark' ? '#121513' : viewMode === 'sepia' ? '#FDF6E3' : '#FFFFFF',
+              position: 'relative'
             }}
           >
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '8px 16px',
+              background: viewMode === 'dark' ? '#181D1A' : viewMode === 'sepia' ? '#F4ECD8' : '#F9F8F5',
+              borderBottom: '1px solid var(--color-border)',
+              fontSize: '12px'
+            }}>
+              <span className="mono" style={{ color: 'var(--color-deep-soft)' }}>
+                ORIGINAL UPLOADED DOCUMENT: <strong>{note.filePath || 'sample_lecture_notes.pdf'}</strong>
+              </span>
+              <a
+                href={api.getDownloadUrl(note.id)}
+                download
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '11px', padding: '3px 8px' }}
+              >
+                <Download size={12} /> Direct Download
+              </a>
+            </div>
+            <iframe
+              src={`/uploads/${note.filePath || 'sample_lecture_notes.pdf'}#page=${currentPage}&toolbar=1&navpanes=0`}
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                filter: viewMode === 'dark' ? 'invert(0.88) hue-rotate(180deg)' : viewMode === 'sepia' ? 'sepia(0.22) contrast(0.96)' : 'none'
+              }}
+              title={note.title}
+            />
+          </div>
+        ) : (
+          <div className={`note-viewer-canvas-scroll ${viewMode}`} id="canvas-scroll-viewport">
+            <div
+              className="note-viewer-page-viewport"
+              style={{
+                transform: `scale(${zoom / 100})`,
+                transformOrigin: 'top center',
+                transition: 'transform 120ms ease-out'
+              }}
+            >
             {/* The Document Paper Sheet */}
             <article
               className={`academic-paper-sheet ${viewMode}`}
@@ -1262,6 +1338,7 @@ export default function NoteDetail() {
             </div>
           </div>
         </div>
+        )}
 
         {/* Optional Community Discussion & Errata Rail (Collapsible Right Rail) */}
         {showDiscussion && (

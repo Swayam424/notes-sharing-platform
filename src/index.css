@@ -2275,6 +2275,40 @@ ul, ol {
   transition: all var(--transition-base);
 }
 
+/* Reading Surface Tone Overrides */
+.note-viewer-page.sepia {
+  --color-base: #F4ECD8;
+  --color-surface: #FCF8EE;
+  --color-border: #E5DAC0;
+}
+
+.note-viewer-page.dark {
+  --color-base: #0E1110;
+  --color-surface: #181D1A;
+  --color-border: #2A332E;
+  --color-deep: #F0F3F1;
+  --color-deep-soft: #C8D1CC;
+  --color-muted: #8E9B93;
+  --color-muted-bg: #222925;
+}
+
+.note-viewer-page.dark .note-viewer-header,
+.note-viewer-page.dark .note-viewer-toolbar-wrapper {
+  background: #181D1A;
+  border-color: #2A332E;
+}
+
+.note-viewer-page.dark .toolbar-btn:hover:not(:disabled) {
+  background: #242B27;
+  color: #FFFFFF;
+}
+
+.note-viewer-page.sepia .note-viewer-header,
+.note-viewer-page.sepia .note-viewer-toolbar-wrapper {
+  background: #FCF8EE;
+  border-color: #E2D7BE;
+}
+
 /* Distraction-Free Focus Mode: Fullscreen Overlay */
 .note-viewer-page.focus-mode-active {
   position: fixed;

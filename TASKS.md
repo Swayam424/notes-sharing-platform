@@ -14,7 +14,7 @@ This document tracks all completed features, active work, and planned next steps
 
 ### 2. User Authentication & Session Persistence
 - Multi-role authentication supporting Students, Peer Contributors, and Moderators/Admins.
-- Secure registration and sign-in with password hashing (PBKDF2/SHA-256) and token-based sessions.
+- Secure registration and sign-in with password hashing (scrypt with 16-byte cryptographically secure salt and constant-time verification via crypto.timingSafeEqual) and token-based sessions.
 - Automatic session hydration on page refresh with persistent local storage sync.
 
 ### 3. Scroll-Animated Landing Page
@@ -138,16 +138,32 @@ This document tracks all completed features, active work, and planned next steps
   - Added **Classmate Note Requests** card displaying high-demand lecture topics in the student's enrolled courses.
   - Direct 1-click jump from dashboard to note sharing and request creation workflows.
 
+### 17. Real Uploaded Document PDF Viewer & Eye-Care Surface Tone Engine
+- **Dual Presentation Mode in Document Reader (`NoteDetail.tsx`):**
+  - Integrated `Canvas` vs `Original PDF` switcher in reader toolbar.
+  - In `Original PDF` mode: embeds the authentic uploaded PDF file (`/uploads/:filePath`) with browser zoom, page indexing, and direct download CTA.
+  - In `Canvas` mode: renders the curated lecture notes with typographic headings, mathematical formulas, and study callouts.
+- **Eye-Care Reading Surface Tones:**
+  - Implemented interactive tone switcher with three distinct modes:
+    - **Paper**: Warm alabaster card surface for standard daylight study.
+    - **Eye-Care Sepia**: Warm amber tone (`#F4ECD8` base, `#FCF8EE` surface, `#E5DAC0` border) reducing ocular fatigue during extended night reading.
+    - **Dark**: High-contrast OLED dark mode (`#0E1110` base, `#181D1A` cards, inverted PDF contrast) for late-night exam prep.
+  - Dynamically propagates theme classes across the entire reader stage, header, and toolbar.
+- **Documentation & Claims Verification:**
+  - Corrected [TASKS.md](file:///d:/notessharingplatform/TASKS.md) password hashing specification to `crypto.scryptSync` with 16-byte salt and constant-time comparison.
+  - Corrected [README.md](file:///d:/notessharingplatform/README.md) dependencies to `React Router 8`.
+  - Sanitized public test account credentials disclosure in [README.md](file:///d:/notessharingplatform/README.md) with security guidelines.
+
 ---
 
 ## Planned Next Steps (Candidate Options)
 
 | Option | Focus Area | Description |
 | :--- | :--- | :--- |
-| **Option A** | **Interactive Document Annotations & Highlighting** | Allow students to highlight text in terracotta/amber/sage, attach sticky margin notes, and toggle distraction-free sepia/dark reading modes. |
-| **Option B** | **Student Author Profiles & Batch Collections** | Create dedicated `/authors/:name` profile pages with custom student study lists and bundle sharing ("Unit 1-5 Complete Pack"). |
-| **Option C** | **Smart Note Search & Handwriting OCR Indexing** | Deep search that searches text inside handwritten note scans, formulas, and topic diagrams. |
-| **Option D** | **Scribe Recognition Badges & Note Quality Endorsements** | Professor/TA verification seals, top contributor badges, and peer-endorsed clarity ratings on notes. |
+| **Option A** | **Production Deployment & Config Hardening** | Connect `DATABASE_PATH` and `UPLOADS_DIR` env variables, add Dockerfile and unified production static build serving. |
+| **Option B** | **Session Security Hardening** | Transition from `localStorage` tokens to `httpOnly; SameSite=Lax` cookies to prevent XSS exfiltration risks. |
+| **Option C** | **Automated Tests & GitHub Actions CI** | Setup Vitest + Supertest backend test suite and `.github/workflows/ci.yml` pipeline. |
+| **Option D** | **Interactive Document Annotations** | Allow students to highlight text in terracotta/amber/sage and attach sticky margin notes to document pages. |
 
 ---
 
