@@ -261,6 +261,34 @@ function isModerator(user) {
   return role === 'moderator' || role === 'admin';
 }
 
+// Helper: Anti-Stored-XSS Sanitizer for user-supplied strings
+function sanitizeString(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Strip script tags & content
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')   // Strip style tags & content
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '') // Strip iframe tags
+    .replace(/javascript:[^"'\s]*/gi, '')                              // Strip javascript: pseudo-protocols
+    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')                       // Strip inline event handlers
+    .replace(/[<>]/g, tag => (tag === '<' ? '&lt;' : '&gt;'))          // Encode remaining angle brackets
+    .trim();
+}
+
+// Routine: Periodically sweep expired sessions to keep DB lean and prevent token hoarding
+function purgeExpiredSessions() {
+  try {
+    const result = db.prepare("DELETE FROM sessions WHERE datetime(expires_at) < datetime('now')").run();
+    if (result.changes > 0) {
+      console.log(`[AUTH CLEANUP] Purged ${result.changes} expired session tokens from database.`);
+    }
+  } catch (err) {
+    console.error('[AUTH CLEANUP] Error purging expired sessions:', err.message);
+  }
+}
+purgeExpiredSessions();
+setInterval(purgeExpiredSessions, 6 * 60 * 60 * 1000).unref();
+
+
 // -------------------------------------------------------------
 // 1. Subjects & Syllabus API
 // -------------------------------------------------------------
@@ -581,14 +609,14 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       noteId,
-      noteTitle,
-      finalAuthor,
+      sanitizeString(noteTitle),
+      sanitizeString(finalAuthor),
       authorInitials,
       subjectId,
       unitId,
       JSON.stringify(parsedTopicIds),
-      resolvedPrimaryTopic,
-      description || '',
+      sanitizeString(resolvedPrimaryTopic),
+      sanitizeString(description || ''),
       JSON.stringify(parsedTags),
       department || currentUser?.department || '',
       semester ? parseInt(semester) : (currentUser?.semester || null),
@@ -759,15 +787,31 @@ app.put('/api/notes/:id', (req, res) => {
   }
 });
 
-// Delete note
+// Delete note (with BOLA / IDOR ownership authorization)
 app.delete('/api/notes/:id', (req, res) => {
   try {
+    const user = getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Authentication required to delete notes' });
+    }
+
     const note = db.prepare('SELECT * FROM notes WHERE id = ?').get(req.params.id);
     if (!note) {
       return res.status(404).json({ success: false, error: 'Note not found' });
     }
 
+    // Enforce ownership: user must be the original author or a moderator/admin
+    const isOwner = (note.user_id && note.user_id === user.id) ||
+                    (note.author && note.author.toLowerCase() === user.name.toLowerCase());
+    if (!isOwner && !isModerator(user)) {
+      return res.status(403).json({ success: false, error: 'Permission denied. Only the author or a moderator can delete this note.' });
+    }
+
+    // Cascade delete associated interactions
     db.prepare('DELETE FROM notes WHERE id = ?').run(req.params.id);
+    db.prepare('DELETE FROM note_upvotes WHERE note_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM note_comments WHERE note_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM saved_notes WHERE note_id = ?').run(req.params.id);
 
     // If there is an uploaded file on disk, remove it safely unless it's the sample file
     if (note.file_path && note.file_path !== 'sample_lecture_notes.pdf') {
@@ -908,7 +952,8 @@ app.post('/api/notes/:id/comments', (req, res) => {
     };
 
     const { content, category } = req.body;
-    if (!content || !content.trim()) {
+    const safeContent = sanitizeString(content);
+    if (!safeContent) {
       return res.status(400).json({ success: false, error: 'Comment content cannot be empty' });
     }
 
@@ -929,7 +974,7 @@ app.post('/api/notes/:id/comments', (req, res) => {
       user.initials || 'ST',
       user.role || 'Student',
       validCategory,
-      content.trim(),
+      safeContent,
       now
     );
 
@@ -941,7 +986,7 @@ app.post('/api/notes/:id/comments', (req, res) => {
       userInitials: user.initials || 'ST',
       userRole: user.role || 'Student',
       category: validCategory,
-      content: content.trim(),
+      content: safeContent,
       createdAt: now,
       upvotes: 0,
       isUpvoted: false
@@ -987,12 +1032,16 @@ app.post('/api/comments/:id/upvote', (req, res) => {
 app.delete('/api/comments/:id', (req, res) => {
   try {
     const user = getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Authentication required to delete comments' });
+    }
+
     const comment = db.prepare('SELECT * FROM note_comments WHERE id = ?').get(req.params.id);
     if (!comment) {
       return res.status(404).json({ success: false, error: 'Comment not found' });
     }
 
-    if (user && comment.user_id !== user.id && !isModerator(user)) {
+    if (comment.user_id !== user.id && !isModerator(user)) {
       return res.status(403).json({ success: false, error: 'Permission denied to delete this comment' });
     }
 
@@ -1495,6 +1544,10 @@ app.get('/api/pyqs/:id/download', (req, res) => {
 app.get('/api/moderation', (req, res) => {
   try {
     const user = getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
     let query = `
       SELECT m.*, 
              COALESCE(n.title, p.title) as note_title, 
@@ -1505,10 +1558,13 @@ app.get('/api/moderation', (req, res) => {
       LEFT JOIN pyqs p ON m.note_id = p.id
     `;
     const params = [];
-    if (req.query.mine === 'true' && user) {
+
+    // Restrict regular students to only their own filed reports
+    if (!isModerator(user) || req.query.mine === 'true') {
       query += ' WHERE m.user_id = ?';
       params.push(user.id);
     }
+
     query += ' ORDER BY m.timestamp DESC';
     const items = db.prepare(query).all(...params);
     const moderationItems = items.map(m => ({
@@ -1524,7 +1580,8 @@ app.get('/api/moderation', (req, res) => {
       details: m.details,
       timestamp: m.timestamp,
       status: m.status,
-      adminNotes: m.admin_notes,
+      // Protect internal admin deliberations from regular users
+      adminNotes: isModerator(user) ? m.admin_notes : null,
       reviewedBy: m.reviewed_by,
       reviewedAt: m.reviewed_at,
       actionTaken: m.action_taken
@@ -1846,7 +1903,8 @@ app.post('/api/moderation', (req, res) => {
 
     const id = 'm-' + Date.now();
     const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 16);
-    const detailsText = details ? String(details).trim().slice(0, 500) : null;
+    const safeReason = sanitizeString(reason);
+    const safeDetails = detailsText ? sanitizeString(detailsText) : null;
 
     db.prepare(`
       INSERT INTO moderation (id, note_id, user_id, resource_name, reporter, category, reason, details, timestamp, status)
@@ -1855,11 +1913,11 @@ app.post('/api/moderation', (req, res) => {
       id,
       noteId || null,
       userId,
-      targetName,
+      sanitizeString(targetName),
       reporterName,
       category || null,
-      reason.trim(),
-      detailsText,
+      safeReason,
+      safeDetails,
       timestamp
     );
 
@@ -2191,6 +2249,50 @@ app.put('/api/user/profile', (req, res) => {
     const safeUser = formatSafeUser(updatedRaw);
 
     res.json({ success: true, user: safeUser, message: 'Academic profile updated successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Change Password API (requires current password verification, enforces complexity, terminates other active sessions)
+app.post('/api/user/change-password', authBruteForceLimiter, (req, res) => {
+  try {
+    const authUser = getUserFromRequest(req);
+    if (!authUser) {
+      return res.status(401).json({ success: false, error: 'Authentication required.' });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Current password and new password are required.' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters long.' });
+    }
+
+    const userRecord = db.prepare('SELECT * FROM users WHERE id = ?').get(authUser.id);
+    if (!userRecord || !userRecord.password_hash || !userRecord.salt) {
+      return res.status(400).json({ success: false, error: 'User credential record not found.' });
+    }
+
+    const isMatch = verifyPassword(currentPassword, userRecord.salt, userRecord.password_hash);
+    if (!isMatch) {
+      return res.status(403).json({ success: false, error: 'Current password is incorrect.' });
+    }
+
+    // Hash new password with cryptographically secure random salt
+    const { salt, hash } = hashPassword(newPassword);
+    db.prepare('UPDATE users SET password_hash = ?, salt = ? WHERE id = ?').run(hash, salt, authUser.id);
+
+    // Invalidate all other session tokens except current one (defends against compromised sessions)
+    const authHeader = req.headers.authorization;
+    const currentToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (currentToken) {
+      db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(authUser.id, currentToken);
+    }
+
+    res.json({ success: true, message: 'Password changed successfully. All other active sessions have been terminated.' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

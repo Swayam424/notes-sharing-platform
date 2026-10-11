@@ -99,6 +99,22 @@ This document tracks all completed features, active work, and planned next steps
 - **Centralized Error Handling & Graceful Shutdown:** Centralized error-handling middleware preventing stack trace leakage, paired with `SIGTERM`/`SIGINT` traps for clean SQLite handle termination.
 - **Environment & Secrets Template:** Generated `.env.example` production configuration template and protected secrets in `.gitignore`.
 
+### 15. Authorization Hardening (BOLA/IDOR Defense), Session Lifecycle Management & Anti-XSS Sanitization
+- **BOLA / IDOR Defense on Resource Deletions:**
+  - `DELETE /api/notes/:id`: Enforced strict author ownership checks (`note.user_id === user.id` or matching author name) and moderator override permissions. Cascaded cleanup of orphaned note upvotes, comments, and saved bookmarks.
+  - `DELETE /api/comments/:id`: Enforced mandatory user authentication, closing the unauthenticated deletion bypass.
+- **Moderation Queue Access Isolation (BFLA Defense):**
+  - Restricted `GET /api/moderation` so regular students can only inspect their own filed reports, preventing unauthorized queue scraping.
+  - Masked internal administrative deliberation notes (`adminNotes`) from non-staff members.
+- **Server-Side Anti-Stored-XSS Sanitization:**
+  - Built `sanitizeString` sanitizer that strips `<script>`, `<iframe>`, `javascript:` protocols, and inline event handlers (`onload=`, `onerror=`) while safely encoding angle brackets.
+  - Sanitized all user-generated content across note titles, descriptions, comments, and moderation reasons before persisting to SQLite.
+- **Account Security & Password Change API:**
+  - Implemented `POST /api/user/change-password` requiring verification of current password, 6+ character complexity, and fresh scrypt cryptographic salt hashing.
+  - Terminated all other active session tokens for the account upon password reset to mitigate session hijacking.
+- **Automated Expired Session Garbage Collection:**
+  - Built automatic background cleanup routine (`DELETE FROM sessions WHERE datetime(expires_at) < datetime('now')`) sweeping on startup and recurring every 6 hours.
+
 ---
 
 ## Planned Next Steps (Candidate Options)
