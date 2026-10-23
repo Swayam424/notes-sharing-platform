@@ -742,8 +742,38 @@ export const api = {
     } catch {
       return this.getCurrentUser();
     }
+  },
+
+  // -------------------- Study Assistant AI Chatbot --------------------
+  async sendChatMessage(
+    message: string,
+    history: { role: 'user' | 'assistant'; content: string }[] = []
+  ): Promise<ChatResponseData> {
+    const res = await authFetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, history }),
+    });
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to get AI response');
+    }
+    return data.data;
   }
 };
+
+export interface ChatAction {
+  label: string;
+  to: string;
+}
+
+export interface ChatResponseData {
+  reply: string;
+  guardrailTriggered?: boolean;
+  suggestions?: string[];
+  actions?: ChatAction[];
+  error?: string;
+}
 
 export interface NoteRequest {
   id: string;

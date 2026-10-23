@@ -154,6 +154,28 @@ This document tracks all completed features, active work, and planned next steps
   - Corrected [README.md](file:///d:/notessharingplatform/README.md) dependencies to `React Router 8`.
   - Sanitized public test account credentials disclosure in [README.md](file:///d:/notessharingplatform/README.md) with security guidelines.
 
+### 18. Academic AI Study Assistant Chatbot (Guardrails + RAG Context Grounding)
+- **Backend AI Engine & Guardrail Filter (`server/src/aiService.js`):**
+  - Multi-tier safety guardrails: blocks prompt injection attempts, system prompt exfiltration, profanity, and off-topic queries with educational redirect notices.
+  - RAG-lite Context Grounding: retrieves matching subjects, notes, and syllabus topics dynamically from SQLite to ground AI answers in authentic campus resources.
+  - Model candidate fallbacks (`gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-flash-latest`, `gemini-3.8-flash`) with error handling.
+  - User profile injection: tailors responses to the student's active department/stream and semester.
+  - Quick action link extraction (`/pyq`, `/notes/:id`, `/library`, `/syllabus`, `/uploads`, `/requests`).
+- **Red-Teaming Evaluation & Anti-Hallucination Hardening:**
+  - Evaluated against 7 attack vectors: roleplay jailbreaks, PII exfiltration, fake paper/citation hallucination, non-existent platform notes, verbatim prompt leaking, Base64 obfuscation, and leading false-premise traps.
+  - Eliminated "Action Pill Hallucination" where unrelated notes (e.g. OS notes) were attached to non-matching topics or refused queries.
+  - Implemented strict stop-word filtering and relevance thresholding in RAG context search to prevent noisy database injection.
+  - Added False Premise Clarification: model immediately debunks fictional claims before explaining real academic principles.
+  - Added Non-Existent Note Redirection: when requested notes do not exist on Atelier, the bot cleanly declines and offers direct 1-click jump to the Community Note Request Board (`/requests`).
+- **API Integration (`server/src/server.js` & `src/services/api.ts`):**
+  - Added authenticated `POST /api/chat` route with session token verification and conversational history support.
+  - Frontend client service `api.sendChatMessage()` with TypeScript interfaces `ChatResponseData` and `ChatAction`.
+- **Frontend Experience (`src/pages/StudyAssistant.tsx` & `src/components/Sidebar.tsx`):**
+  - Dedicated **Study Assistant** section in left navigation with AI sparkles badge.
+  - Warm paper aesthetic chat interface with prompt suggestion chips (Academic Doubts vs Platform Navigation).
+  - Rich markdown rendering with headers, lists, code blocks, and clickable Atelier internal route links.
+  - Interactive follow-up suggestion pills, action buttons, and animated thinking state.
+
 ---
 
 ## Planned Next Steps (Candidate Options)
@@ -167,7 +189,7 @@ This document tracks all completed features, active work, and planned next steps
 
 ---
 
-*Last Updated: 2026-10-11*
+*Last Updated: 2026-10-24*
 
 
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import {
   BookOpen, FolderOpen, FileText, Clock, Compass,
-  Upload, Flag, Settings, LayoutDashboard, Sparkles, LogOut, Bookmark, ShieldAlert
+  Upload, Flag, Settings, LayoutDashboard, Sparkles, LogOut, Bookmark, ShieldAlert, Bot
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
@@ -99,6 +99,19 @@ export default function Sidebar() {
               {item.label}
             </NavLink>
           ))}
+        </div>
+
+        <div className="sidebar-section">
+          <div className="sidebar-section-label">AI Companion</div>
+          <NavLink
+            to="/assistant"
+            className={`sidebar-nav-item ${isActive('/assistant') ? 'active' : ''}`}
+            id="nav-study-assistant"
+          >
+            <Bot className="sidebar-nav-icon" size={20} strokeWidth={1.5} style={{ color: 'var(--color-primary, #D95D39)' }} />
+            Study Assistant
+            <span className="sidebar-badge-ai">AI</span>
+          </NavLink>
         </div>
 
         <div className="sidebar-section">

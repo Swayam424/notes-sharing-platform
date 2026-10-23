@@ -19,6 +19,7 @@ import ModerationQueue from './pages/ModerationQueue';
 import AdminModeration from './pages/AdminModeration';
 import SettingsPage from './pages/Settings';
 import Onboarding from './pages/Onboarding';
+import StudyAssistant from './pages/StudyAssistant';
 
 import { useApp } from './context/AppContext';
 
@@ -129,6 +130,7 @@ export default function App() {
             }
           >
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="assistant" element={<StudyAssistant />} />
             <Route path="workspace" element={<Navigate to="/dashboard" replace />} />
             <Route path="subjects" element={<MySubjects />} />
             <Route path="subjects/:subjectId" element={<SubjectOverview />} />

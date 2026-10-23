@@ -6,6 +6,11 @@ import multer from 'multer';
 import { db, initDatabase, closeDatabase, uploadsDir } from './database.js';
 import { seedDatabase } from './seed.js';
 import { hashPassword, verifyPassword, generateToken } from './auth.js';
+import { generateChatResponse } from './aiService.js';
+
+try {
+  process.loadEnvFile();
+} catch {}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -2567,6 +2572,39 @@ app.post('/api/auth/logout', (req, res) => {
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// AI Study Assistant Chatbot Endpoint (Guardrails + Gemini RAG)
+// -------------------------------------------------------------
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message, history } = req.body || {};
+    const authHeader = req.headers.authorization;
+    let authUser = null;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      const session = db.prepare('SELECT user_id FROM sessions WHERE token = ?').get(token);
+      if (session) {
+        authUser = db.prepare('SELECT id, name, email, role, department, semester FROM users WHERE id = ?').get(session.user_id);
+      }
+    }
+
+    const response = await generateChatResponse({
+      message: message || '',
+      history: Array.isArray(history) ? history : [],
+      user: authUser
+    });
+
+    res.json({ success: true, data: response });
+  } catch (err) {
+    console.error('[AI CHAT ERROR]', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process study assistance query'
+    });
   }
 });
 
