@@ -74,8 +74,8 @@ export default function Contributions() {
         return false;
       });
 
-      // If user has specific uploads, show them; otherwise fallback to sample uploads for demo
-      setMyUploads(userNotes.length > 0 ? userNotes : allNotes.slice(0, 4));
+      // Newly registered users start cleanly at zero uploads
+      setMyUploads(userNotes);
     }).catch(console.error)
       .finally(() => setLoading(false));
   }, [refreshKey]);

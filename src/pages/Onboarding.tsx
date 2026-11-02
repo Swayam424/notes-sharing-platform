@@ -24,8 +24,8 @@ export default function Onboarding() {
   const [degree, setDegree] = useState(user?.degree || 'B.Tech / B.E.');
   const [stream, setStream] = useState(user?.stream || 'Computer Science & Engineering');
   const [customStream, setCustomStream] = useState('');
-  const [semester, setSemester] = useState<number>(user?.semester || 5);
-  const [college, setCollege] = useState(user?.college || 'Apex Institute of Technology');
+  const [semester, setSemester] = useState<number>(user?.semester && user.semester !== 5 ? user.semester : 1);
+  const [college, setCollege] = useState(user?.college && user.college !== 'Apex Institute of Technology' ? user.college : '');
 
   const selectedDegreeObj = useMemo(() => {
     return DEGREE_OPTIONS.find(d => d.name === degree || d.id === degree || d.shortName === degree) || DEGREE_OPTIONS[0];
@@ -112,7 +112,7 @@ export default function Onboarding() {
       const res = await api.completeOnboarding({
         degree,
         stream: effectiveStream,
-        college: college.trim() || 'Apex Institute of Technology',
+        college: college.trim(),
         semester,
         enrolledSubjects: selectedSubjects,
         academicGoal: user?.academicGoal || ''
@@ -359,7 +359,8 @@ export default function Onboarding() {
                     type="text"
                     value={college}
                     onChange={e => setCollege(e.target.value)}
-                    placeholder="e.g. Apex Institute of Technology"
+                    placeholder="Enter your college or university"
+                    autoComplete="off"
                     style={{
                       width: '100%',
                       padding: '11px 14px',

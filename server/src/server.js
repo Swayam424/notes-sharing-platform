@@ -2427,9 +2427,9 @@ const handleSignup = (req, res) => {
       salt,
       name.trim(),
       initials,
-      college || 'Apex Institute of Technology',
-      department || 'Computer Science',
-      stream || '',
+      college ? college.trim() : '',
+      department ? department.trim() : '',
+      stream ? stream.trim() : '',
       degree || 'B.Tech / B.E.',
       parseInt(semester) || 1,
       now

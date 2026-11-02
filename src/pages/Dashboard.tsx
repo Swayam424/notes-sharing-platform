@@ -4,7 +4,7 @@ import {
   ArrowRight, AlertTriangle, TrendingUp, Clock, FileText, Search,
   Sparkles, Bookmark, Layers, X, ChevronRight,
   Trophy, Crown, ThumbsUp, MessageSquare, Upload,
-  Target, GraduationCap, SlidersHorizontal, Users
+  Target, GraduationCap, SlidersHorizontal, Users, BookOpen
 } from 'lucide-react';
 import { api, type DashboardData, type NoteRequest } from '../services/api';
 import { useApp } from '../context/AppContext';
@@ -122,8 +122,9 @@ export default function Dashboard() {
     return filtered.length > 0 ? filtered : notesList;
   }, [notesList, enrolledSubjectIdSet]);
 
-  // Last accessed note or priority note for this stream
-  const lastNote = streamNotes[0] || notesList[0];
+  // Only display a note in "Continue Note Reading" if the student has actually opened one
+  const lastReadId = savedNotesService.getLastReadNoteId();
+  const lastNote = lastReadId ? (notesList.find(n => n.id === lastReadId) || null) : null;
 
   // Dynamic frequent exam topics calculated from the student's actual enrolled subjects
   const dynamicFrequentTopics = useMemo(() => {
@@ -549,8 +550,33 @@ export default function Dashboard() {
       <div className="dashboard-split" id="study-desk">
         {/* Left Column (65%) — Continue Reading & Course Status */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-          {/* Resume Deck (Direct Connection to Note Viewer) */}
-          {lastNote && (
+          {/* Resume Deck (Direct Connection to Note Viewer or Study Starter for New Students) */}
+          {!lastNote ? (
+            <div className="card" id="resume-deck" style={{ borderColor: 'var(--color-primary-muted)' }}>
+              <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <BookOpen size={16} style={{ color: 'var(--color-primary)' }} />
+                  <h3 style={{ fontSize: 'var(--text-lg)' }}>Start Your Study Session</h3>
+                </div>
+                <span className="chip chip-secondary">
+                  Ready to Learn
+                </span>
+              </div>
+              <div className="card-body">
+                <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-muted)', margin: '0 0 16px', lineHeight: 1.6 }}>
+                  Welcome to your study space! You haven't opened any notes yet. Search for a topic from your syllabus or browse the notes library to begin reading.
+                </p>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <button className="btn btn-primary btn-sm" onClick={() => navigate('/notes')}>
+                    <Layers size={14} /> Browse Course Notes
+                  </button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setUploadOpen(true)}>
+                    <Upload size={14} /> Upload Your Notes
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
             <div className="card" id="resume-deck" style={{ borderColor: 'var(--color-primary-muted)' }}>
               <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

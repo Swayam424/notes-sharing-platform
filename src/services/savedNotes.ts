@@ -126,6 +126,9 @@ export const savedNotesService = {
 
   async recordNoteAccess(noteId: string): Promise<void> {
     if (!noteId) return;
+    try {
+      localStorage.setItem('atelier_last_read_note', noteId);
+    } catch {}
     const meta = readStoredMeta();
     const now = new Date().toISOString();
 
@@ -142,31 +145,44 @@ export const savedNotesService = {
     }
   },
 
+  /** Clears local saved notes cache (called on logout and account switch) */
+  clear(): void {
+    try {
+      localStorage.removeItem('atelier_last_read_note');
+    } catch {}
+    writeStoredIds([]);
+    writeStoredMeta({});
+    notifyChange();
+  },
+
+  getLastReadNoteId(): string | null {
+    try {
+      return localStorage.getItem('atelier_last_read_note');
+    } catch {
+      return null;
+    }
+  },
+
   /** Synchronizes server-stored saved notes with local storage */
   async syncFromServer(): Promise<{ ids: string[]; meta: Record<string, SavedNoteMeta> }> {
     try {
       const res = await api.getSavedNotes();
       if (res.success && Array.isArray(res.savedNotes)) {
-        const localIds = readStoredIds();
-        const localMeta = readStoredMeta();
+        // Server is the definitive source of truth for the authenticated user
+        const serverIds = res.savedNotes.map((item: any) => item.id);
+        const serverMeta: Record<string, SavedNoteMeta> = {};
 
-        // Merge server notes into local storage
         for (const item of res.savedNotes) {
-          if (!localIds.includes(item.id)) {
-            localIds.push(item.id);
-          }
-          if (!localMeta[item.id] || new Date(item.savedAt) > new Date(localMeta[item.id].savedAt)) {
-            localMeta[item.id] = {
-              savedAt: item.savedAt || new Date().toISOString(),
-              lastAccessedAt: item.lastAccessedAt
-            };
-          }
+          serverMeta[item.id] = {
+            savedAt: item.savedAt || new Date().toISOString(),
+            lastAccessedAt: item.lastAccessedAt
+          };
         }
 
-        writeStoredIds(localIds);
-        writeStoredMeta(localMeta);
+        writeStoredIds(serverIds);
+        writeStoredMeta(serverMeta);
         notifyChange();
-        return { ids: localIds, meta: localMeta };
+        return { ids: serverIds, meta: serverMeta };
       }
     } catch {
       // Continue with local storage if API call fails

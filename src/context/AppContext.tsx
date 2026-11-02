@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { api, type AuthUser } from '../services/api';
+import { savedNotesService } from '../services/savedNotes';
 
 export type UserSession = AuthUser;
 
@@ -85,6 +86,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.error('Error writing session:', e);
     }
+    // Reset local saved notes cache so previous account notes never leak to new accounts
+    savedNotesService.clear();
+    savedNotesService.syncFromServer().catch(() => {});
   }, []);
 
   const logout = useCallback(async () => {
@@ -100,6 +104,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore
     }
+    savedNotesService.clear();
   }, []);
 
   const triggerRefresh = () => setRefreshKey((prev) => prev + 1);

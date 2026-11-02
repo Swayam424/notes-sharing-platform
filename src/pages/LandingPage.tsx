@@ -382,6 +382,9 @@ export default function LandingPage() {
 
   const openAuth = (tab: 'signin' | 'signup') => {
     setAuthTab(tab);
+    setAuthForm({ name: '', email: '', password: '' });
+    setAuthError(null);
+    setAuthMessage(null);
     setAuthModalOpen(true);
   };
 
@@ -1165,66 +1168,16 @@ export default function LandingPage() {
           {authTab === 'signin' && (
             <div className="auth-view active" id="view-signin">
               <h3 className="auth-title" id="modal-title">Sign in to your account</h3>
-              <p className="auth-sub">Enter your student credentials to access your Study Space workspace.</p>
-
-              {/* Quick Demo Fill Buttons */}
-              <div style={{
-                background: 'var(--color-surface-alt, #F2EFE9)',
-                border: '1px solid var(--color-border, #E8E5DF)',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                marginBottom: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px'
-              }}>
-                <span style={{ fontSize: '11px', color: 'var(--color-muted, #706B63)', fontWeight: 600 }}>
-                  Demo Accounts:
-                </span>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setAuthForm({ name: 'Nishant Verma', email: 'student@atelier.edu', password: 'password123' })}
-                    style={{
-                      background: '#FFFFFF',
-                      border: '1px solid #E8E5DF',
-                      borderRadius: '4px',
-                      padding: '3px 8px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      color: 'var(--color-deep, #1F2421)',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Student
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAuthForm({ name: 'Priya Sharma', email: 'moderator@atelier.edu', password: 'password123' })}
-                    style={{
-                      background: '#FFFFFF',
-                      border: '1px solid #E8E5DF',
-                      borderRadius: '4px',
-                      padding: '3px 8px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      color: 'var(--color-deep, #1F2421)',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Moderator
-                  </button>
-                </div>
-              </div>
+              <p className="auth-sub">Enter your credentials to access your Study Space workspace.</p>
 
               <form className="auth-form" onSubmit={handleAuthSubmit}>
                 <div className="form-group">
-                  <label htmlFor="signin-email">Academic or Personal Email</label>
+                  <label htmlFor="signin-email">Email Address</label>
                   <input
                     type="email"
                     id="signin-email"
-                    placeholder="student@university.edu"
+                    placeholder="Enter your email address"
+                    autoComplete="off"
                     required
                     value={authForm.email}
                     onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
@@ -1246,7 +1199,8 @@ export default function LandingPage() {
                   <input
                     type="password"
                     id="signin-password"
-                    placeholder="••••••••••••"
+                    placeholder="Enter your password"
+                    autoComplete="off"
                     required
                     value={authForm.password}
                     onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
@@ -1258,12 +1212,64 @@ export default function LandingPage() {
                 </button>
               </form>
 
-              <div className="auth-footer-text" style={{ marginTop: '16px', fontSize: '13px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              {/* Optional Quick Demo Helpers at Bottom */}
+              <div style={{
+                marginTop: '16px',
+                paddingTop: '12px',
+                borderTop: '1px solid var(--color-border, #E8E5DF)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                flexWrap: 'wrap'
+              }}>
+                <span style={{ fontSize: '11px', color: 'var(--color-muted, #706B63)', fontWeight: 500 }}>
+                  Demo Accounts:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAuthForm({ name: 'Nishant Verma', email: 'student@atelier.edu', password: 'password123' })}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E8E5DF',
+                    borderRadius: '4px',
+                    padding: '3px 8px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: 'var(--color-deep, #1F2421)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Student
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthForm({ name: 'Priya Sharma', email: 'moderator@atelier.edu', password: 'password123' })}
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid #E8E5DF',
+                    borderRadius: '4px',
+                    padding: '3px 8px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: 'var(--color-deep, #1F2421)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Moderator
+                </button>
+              </div>
+
+              <div className="auth-footer-text" style={{ marginTop: '14px', fontSize: '13px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                 Don't have an account?{' '}
                 <button
                   type="button"
                   style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
-                  onClick={() => setAuthTab('signup')}
+                  onClick={() => {
+                    setAuthTab('signup');
+                    setAuthForm({ name: '', email: '', password: '' });
+                    setAuthError(null);
+                  }}
                 >
                   Create one now (Sign Up)
                 </button>
@@ -1283,7 +1289,8 @@ export default function LandingPage() {
                   <input
                     type="text"
                     id="signup-name"
-                    placeholder="Nishant Verma"
+                    placeholder="Enter your full name"
+                    autoComplete="off"
                     required
                     value={authForm.name}
                     onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
@@ -1291,11 +1298,12 @@ export default function LandingPage() {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="signup-email">Student or University Email</label>
+                  <label htmlFor="signup-email">Email Address</label>
                   <input
                     type="email"
                     id="signup-email"
-                    placeholder="student@apex.edu"
+                    placeholder="Enter your college or personal email"
+                    autoComplete="off"
                     required
                     value={authForm.email}
                     onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
@@ -1307,7 +1315,8 @@ export default function LandingPage() {
                   <input
                     type="password"
                     id="signup-password"
-                    placeholder="Minimum 8 characters"
+                    placeholder="Create a password (min. 8 characters)"
+                    autoComplete="off"
                     required
                     value={authForm.password}
                     onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
@@ -1324,7 +1333,11 @@ export default function LandingPage() {
                 <button
                   type="button"
                   style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
-                  onClick={() => setAuthTab('signin')}
+                  onClick={() => {
+                    setAuthTab('signin');
+                    setAuthForm({ name: '', email: '', password: '' });
+                    setAuthError(null);
+                  }}
                 >
                   Sign In instead
                 </button>
