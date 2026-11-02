@@ -93,12 +93,15 @@ export default function StudyAssistant() {
 
       setMessages(prev => [...prev, botMessage]);
     } catch (err: any) {
+      const isRateLimit = err?.message?.toLowerCase()?.includes('limit') || err?.message?.toLowerCase()?.includes('wait');
       const errorMessage: Message = {
         id: `err-${Date.now()}`,
         role: 'assistant',
-        content: "I encountered a problem connecting to the study assistant. Please check that the server is running and try again.",
+        content: isRateLimit
+          ? (err.message || 'AI query limit reached. Please wait a few moments before sending another question.')
+          : "⚠️ I experienced a temporary network delay reaching the assistant. Please click below to retry your question, or browse your course notes.",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        suggestions: ['Retry query', 'Browse Notes Library'],
+        suggestions: [query, 'Explain Operating Systems paging', 'Browse Notes Library'],
         actions: [{ label: 'Go to Notes', to: '/notes' }]
       };
       setMessages(prev => [...prev, errorMessage]);

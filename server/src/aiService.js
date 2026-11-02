@@ -338,45 +338,96 @@ The foundation of modern information security architecture consists of:
     };
   }
 
-  // 2. LRU & Page Replacement & Virtual Memory
-  if (q.includes('lru') || q.includes('page replacement') || q.includes('paging') || q.includes('page fault') || q.includes('virtual memory')) {
+  // 2. Paging & Memory Management (Operating Systems)
+  if (q.includes('paging') || q.includes('page table') || q.includes('frame') || q.includes('tlb') || q.includes('internal fragmentation') || q.includes('address translation') || q.includes('mmu')) {
     return {
-      reply: `### LRU (Least Recently Used) Page Replacement Algorithm
+      reply: `### Paging in Operating Systems
+
+**1. Definition & Core Principle**
+Paging is a memory management scheme that eliminates the need for contiguous allocation of physical memory. It permits the physical address space of a process to be non-contiguous, allowing the Operating System to allocate physical memory wherever free space is available.
+
+**2. Logical Memory vs. Physical Memory**
+- **Pages (Logical Address Space):** The CPU generates logical addresses. The logical memory of a process is partitioned into fixed-size blocks called **Pages**.
+- **Frames (Physical Address Space):** Main memory (RAM) is divided into fixed-size blocks of the exact same size called **Frames**.
+- **Page Size:** Always a power of 2 (commonly 4 KB, i.e., $2^{12}$ bytes) to facilitate fast hardware bit-shifting.
+
+**3. Address Translation Architecture (MMU & Page Table)**
+The CPU generates a logical address containing two parts:
+$$\\text{Logical Address} = [\\text{Page Number } (p), \\text{Offset } (d)]$$
+
+- If the logical address space is $2^m$ bytes and page size is $2^n$ bytes:
+  - Higher $(m - n)$ bits represent the **Page Number ($p$)**.
+  - Lower $n$ bits represent the **Page Offset ($d$)**.
+
+**Translation Steps:**
+1. The CPU sends logical address $(p, d)$ to the **Memory Management Unit (MMU)**.
+2. The MMU uses page number $p$ as an index into the process's **Page Table** (located via Page Table Base Register - PTBR).
+3. The page table entry yields the corresponding **Frame Number ($f$)** where that page resides in RAM.
+4. The physical address is constructed by concatenating frame number $f$ with offset $d$:
+$$\\text{Physical Address} = [\\text{Frame Number } (f), \\text{Offset } (d)] = (f \\times \\text{Page Size}) + d$$
+
+**4. Hardware Acceleration: Translation Lookaside Buffer (TLB)**
+Because standard paging requires two memory accesses per data reference (one for the page table, one for actual memory), a high-speed associative hardware cache called the **TLB (Translation Lookaside Buffer)** is used:
+- **TLB Hit:** If page number $p$ is cached in the TLB, frame number $f$ is retrieved in $\\approx 1$ ns.
+- **TLB Miss:** If absent, the MMU accesses the page table in RAM (costing an extra memory access) and caches the entry in the TLB.
+- **Effective Memory Access Time (EMAT):**
+$$\\text{EMAT} = h \\times (t_{\\text{TLB}} + t_{\\text{RAM}}) + (1 - h) \\times (t_{\\text{TLB}} + 2 \\times t_{\\text{RAM}})$$
+*(where $h$ is the TLB hit ratio).*
+
+**5. Advantages & Trade-Offs (Internal vs. External Fragmentation)**
+- **No External Fragmentation:** Any free frame in RAM can be allocated to any process page.
+- **Internal Fragmentation Exists:** If a process requires 13 KB and page size is 4 KB, it gets 4 pages (16 KB). The last page has 3 KB unused. On average, internal fragmentation is $\\frac{\\text{Page Size}}{2}$ per process.
+- **Protection & Sharing:** Page table entries include permission bits (Read, Write, Execute, Valid-Invalid bit), enabling memory isolation between processes and seamless sharing of common code libraries.`,
+      suggestions: [
+        'How does the TLB improve Effective Memory Access Time (EMAT)?',
+        'Compare Paging with Segmentation in Operating Systems',
+        'Solve an exam numerical on Logical to Physical Address Translation'
+      ],
+      actions: [
+        { label: 'View Operating Systems Notes', to: '/notes' },
+        { label: 'Browse OS PYQs & Solutions', to: '/pyq' }
+      ]
+    };
+  }
+
+  // 3. LRU & Page Replacement & Virtual Memory
+  if (q.includes('lru') || q.includes('page replacement') || q.includes('page fault') || q.includes('virtual memory') || q.includes('belady') || q.includes('fifo page') || q.includes('optimal page') || q.includes('thrashing')) {
+    return {
+      reply: `### Page Replacement Algorithms & Virtual Memory (LRU, FIFO, Optimal)
 
 **1. Core Principle & Definition**
-LRU is a memory management algorithm based on the **principle of temporal locality of reference**: if a memory page has been accessed recently, it is likely to be accessed again soon. When a page fault occurs and no free memory frame is available, LRU replaces the page that has **not been referenced for the longest period of time**.
+In virtual memory systems with demand paging, pages are loaded into memory only when needed. When a process attempts to access a page not currently in physical RAM, the MMU triggers a hardware trap called a **Page Fault**. If no physical frames are free, the Operating System must invoke a **Page Replacement Algorithm** to select a victim page to evict to disk swap space.
 
-**2. How It Works Step-by-Step**
-1. When the CPU requests a logical address, the MMU checks the page table.
-2. If the page is present in RAM (**Page Hit**), its access timestamp or stack position is updated to the most recent.
-3. If the page is absent (**Page Fault**):
-   - If free frames exist, the page is loaded into a free frame.
-   - If all frames are occupied, the Operating System inspects page history and evicts the page with the oldest access time.
-4. The requested page is brought in from secondary storage (swap space).
+**2. Step-by-Step Page Fault Handling Routine**
+1. CPU references memory; the internal page table shows valid-invalid bit is **Invalid** ($0$).
+2. Trap to Operating System (Page Fault Interrupt).
+3. OS checks internal process table:
+   - If invalid reference $\\rightarrow$ terminate process (Segmentation Fault).
+   - If valid but page not in RAM $\\rightarrow$ proceed to fetch from disk.
+4. OS finds a free frame in physical RAM (or selects a victim frame via page replacement).
+5. Disk I/O scheduled to read desired page into allocated frame.
+6. When I/O completes, internal page table updated (valid bit set to $1$, frame number stored).
+7. Instruction that caused page fault is restarted automatically by CPU.
 
-**3. Implementation Mechanisms**
-- **Counters / Timestamps:** Each page entry is paired with a clock register. On access, the current clock value is copied. The page with the smallest time value is victimized (search overhead $O(N)$).
-- **Stack Implementation (Doubly-Linked List + Hash Map):** Whenever a page is referenced, it is moved to the top of the stack. The page at the bottom is always the Least Recently Used (fast $O(1)$ operations).
+**3. Major Page Replacement Algorithms**
+- **LRU (Least Recently Used):**
+  - Based on temporal locality: replaces page that has not been referenced for the longest period of time.
+  - *Implementation:* Doubly-linked list + hash map, or hardware clock/timestamps.
+  - Immune to Belady’s Anomaly (belongs to the class of stack algorithms).
+- **FIFO (First-In, First-Out):**
+  - Replaces the oldest loaded page. Low overhead (simple queue).
+  - **Belady’s Anomaly:** For certain reference strings, allocating *more* physical frames actually *increases* the number of page faults!
+- **Optimal (OPT / MIN / Clairvoyant):**
+  - Replaces page that will not be accessed for the longest time in the future.
+  - Provably yields lowest possible page fault rate; used as theoretical benchmark (unrealizable in real-time OS without future knowledge).
 
-**4. Numerical Exam Walkthrough**
-*Reference String:* \`7, 0, 1, 2, 0, 3, 0, 4\` with **3 frames** (initially empty):
-- \`7\`: [7, -, -] → **Fault (1)**
-- \`0\`: [7, 0, -] → **Fault (2)**
-- \`1\`: [7, 0, 1] → **Fault (3)**
-- \`2\`: Evict \`7\` (longest unused) → [2, 0, 1] → **Fault (4)**
-- \`0\`: [2, 0, 1] → **Hit** (0 moved to most recent)
-- \`3\`: Evict \`1\` (longest unused among 2, 0, 1) → [2, 0, 3] → **Fault (5)**
-- \`0\`: [2, 0, 3] → **Hit**
-- \`4\`: Evict \`2\` → [4, 0, 3] → **Fault (6)**
-
-**5. Comparison with Other Algorithms**
-- **FIFO:** Replaces oldest loaded page; suffers from **Belady’s Anomaly** (increasing frames can increase page faults).
-- **LRU:** Belongs to the class of **Stack Algorithms**; strictly immune to Belady’s Anomaly.
-- **Optimal (OPT / MIN):** Replaces page that will not be used for the longest time in the future. Serves as a theoretical benchmark.`,
+**4. Thrashing & Working Set Model**
+- **Thrashing:** A condition where a system spends more time servicing page faults and swapping pages in/out than executing user instructions. Occurs when sum of working set sizes exceeds available physical memory: $\\sum WSS_i > D$.
+- **Mitigation:** Working Set Model and Page Fault Frequency (PFF) control to suspend low-priority processes.`,
       suggestions: [
-        'How does Belady’s Anomaly happen in FIFO?',
-        'Show me the Doubly Linked List LRU implementation',
-        'Compare LRU with Clock (Second Chance) Algorithm'
+        'How does Belady’s Anomaly happen in FIFO with an example?',
+        'Walk through an LRU reference string calculation',
+        'Compare LRU with Second Chance (Clock) algorithm'
       ],
       actions: [
         { label: 'View Virtual Memory Notes', to: '/notes' },
@@ -722,7 +773,116 @@ In any distributed asynchronous data store, it is mathematically impossible to s
     };
   }
 
-  // 11. General Academic & Technical Concept Explainer (Never redirects to notes without answering!)
+  // 11. Data Structures & Algorithms (Trees, Graphs, Sorting, Complexity)
+  if (q.includes('data structure') || q.includes('algorithm') || q.includes('tree') || q.includes('graph') || q.includes('linked list') || q.includes('stack') || q.includes('queue') || q.includes('binary search') || q.includes('dijkstra') || q.includes('sorting') || q.includes('quicksort') || q.includes('mergesort') || q.includes('big-o') || q.includes('complexity')) {
+    return {
+      reply: `### Data Structures & Algorithms: Fundamentals & Complexity
+
+**1. Asymptotic Notations & Efficiency Analysis**
+- **Big-O ($O$):** Tight upper bound (worst-case execution growth rate).
+- **Big-Omega ($\\Omega$):** Lower bound (best-case execution growth rate).
+- **Big-Theta ($\\Theta$):** Asymptotically tight bound (both upper and lower).
+
+**2. Key Data Structures Comparison**
+- **Arrays vs. Linked Lists:**
+  - *Arrays:* Contiguous physical memory. Direct indexing $O(1)$; insertions/deletions require shifts $O(N)$.
+  - *Linked Lists:* Non-contiguous nodes connected via pointers. Dynamic resizing, insertion/deletion $O(1)$ at pointer; searching is sequential $O(N)$.
+- **Stacks (LIFO) & Queues (FIFO):**
+  - *Stack:* Used for recursion call stacks, expression evaluation (infix to postfix), DFS.
+  - *Queue:* Used for CPU scheduling, buffer management, BFS graph traversal.
+- **Binary Search Tree (BST) & Self-Balancing Trees (AVL, Red-Black):**
+  - Standard BST operations degenerate to $O(N)$ when skewed.
+  - *AVL Trees:* Strictly balance factor in $\\{-1, 0, +1\\}$ using rotations (LL, RR, LR, RL) ensuring guaranteed $O(\\log N)$ search, insert, and delete.
+
+**3. Classic Sorting Algorithms Benchmark**
+- **QuickSort:** Divide-and-conquer using pivot partitioning. Average: $O(N \\log N)$, Worst: $O(N^2)$ (sorted array with naive pivot). In-place $O(\\log N)$ auxiliary stack.
+- **MergeSort:** Stable divide-and-conquer. Guaranteed $O(N \\log N)$ across best, average, and worst. Requires $O(N)$ auxiliary memory.
+- **HeapSort:** Uses binary heap representation. Guaranteed $O(N \\log N)$, in-place $O(1)$ auxiliary space.
+
+**4. Graph Traversal & Shortest Path**
+- **BFS (Breadth-First Search):** Queue-based, explores level-by-level. Finds unweighted shortest paths ($O(V + E)$).
+- **DFS (Depth-First Search):** Stack/recursion-based, backtracks deep paths. Used for topological sorting and cycle detection.
+- **Dijkstra’s Algorithm:** Greedy shortest path for graphs with non-negative edge weights using a Min-Heap ($O((V + E) \\log V)$).`,
+      suggestions: [
+        'How do AVL tree rotations (LL, RR, LR, RL) work?',
+        'Compare QuickSort vs MergeSort in exam numericals',
+        'Walk through Dijkstra’s Algorithm step-by-step'
+      ],
+      actions: [
+        { label: 'View Data Structures Notes', to: '/notes' },
+        { label: 'Check DSA PYQ Solutions', to: '/pyq' }
+      ]
+    };
+  }
+
+  // 12. Computer Organization & Architecture (Pipelining, Cache, Hazards)
+  if (q.includes('pipelining') || q.includes('pipeline') || q.includes('cache') || q.includes('von neumann') || q.includes('harvard') || q.includes('risc') || q.includes('cisc') || q.includes('hazard') || q.includes('instruction cycle')) {
+    return {
+      reply: `### Computer Organization & Architecture: Pipelining & Cache Memory
+
+**1. Instruction Pipelining Concept**
+Pipelining overlaps the execution of multiple instructions simultaneously across dedicated hardware execution stages, increasing processor instruction throughput without changing clock cycle time.
+
+**2. Standard 5-Stage RISC Pipeline**
+1. **IF (Instruction Fetch):** Retrieve instruction from memory at PC address.
+2. **ID (Instruction Decode / Register Read):** Decode opcode and read source registers.
+3. **EX (Execute / ALU):** Perform ALU operation or calculate effective memory address.
+4. **MEM (Memory Access):** Read or write data for Load/Store operations.
+5. **WB (Write-Back):** Write result back into destination register file.
+
+**3. Pipeline Hazards & Mitigations**
+- **Structural Hazards:** Hardware resource conflicts (e.g., single memory port for both instructions and data). *Fix:* Harvard architecture (separate Instruction & Data caches).
+- **Data Hazards (RAW, WAR, WAW):** An instruction depends on the result of an earlier uncompleted instruction. *Fix:* Operand Forwarding / Bypassing, compiler scheduling, or inserting pipeline stalls (bubbles).
+- **Control Hazards (Branch / Jump):** The CPU cannot know the target address of a conditional branch until ID or EX stage. *Fix:* Dynamic Branch Prediction (2-bit saturating counters), Branch Target Buffers (BTB), and delayed branching.
+
+**4. Cache Memory Organization**
+- **Direct-Mapped Cache:** Each memory block maps to exactly one cache line: $\\text{Line Index} = \\text{Block Address} \\pmod K$. High conflict miss rate.
+- **Fully Associative Cache:** A block can be placed in any cache line. Lowest miss rate; requires complex parallel comparator hardware.
+- **Set-Associative Cache ($N$-way):** Cache divided into sets of $N$ lines. Balances speed and collision reduction.`,
+      suggestions: [
+        'How does Operand Forwarding resolve RAW hazards?',
+        'Calculate Cache Hit/Miss Effective Memory Access Time',
+        'Compare RISC vs CISC Architecture'
+      ],
+      actions: [
+        { label: 'View Computer Architecture Notes', to: '/notes' },
+        { label: 'Check COA Semester PYQs', to: '/pyq' }
+      ]
+    };
+  }
+
+  // 13. Object-Oriented Programming (OOP) Principles
+  if (q.includes('oop') || q.includes('object oriented') || q.includes('encapsulation') || q.includes('inheritance') || q.includes('polymorphism') || q.includes('abstraction') || q.includes('solid principle')) {
+    return {
+      reply: `### Object-Oriented Programming (OOP) & SOLID Principles
+
+**1. The Four Pillars of OOP**
+- **Encapsulation:** Bundling data (state) and methods (behavior) within a class, restricting direct outside access via access specifiers (\`private\`, \`protected\`, \`public\`) to preserve object invariants.
+- **Abstraction:** Hiding complex low-level implementation details and exposing only clean, essential interfaces (achieved via Abstract Classes and Interfaces).
+- **Inheritance:** Enabling a child class to inherit fields and behaviors from a parent class, fostering code reusability and hierarchical taxonomy (\`extends\` / \`implements\`).
+- **Polymorphism ("Many forms"):**
+  - *Compile-Time (Static):* Method Overloading (same method name, different parameter signature) and Operator Overloading.
+  - *Run-Time (Dynamic):* Method Overriding (subclass provides specific implementation of parent method), resolved dynamically via Virtual Method Tables (vtable).
+
+**2. The SOLID Architectural Design Principles**
+- **S (Single Responsibility):** A class should have only one reason to change.
+- **O (Open/Closed):** Software entities should be open for extension, but closed for modification.
+- **L (Liskov Substitution):** Subtypes must be substitutable for their base types without altering system correctness.
+- **I (Interface Segregation):** Clients should not be forced to depend on interfaces they do not use.
+- **D (Dependency Inversion):** High-level modules should depend on abstractions (interfaces), not concrete low-level details.`,
+      suggestions: [
+        'Explain Dynamic Dispatch and Virtual Method Tables (vtable)',
+        'Walk through SOLID principles with code examples',
+        'Compare Method Overloading vs Overriding'
+      ],
+      actions: [
+        { label: 'View OOP & Java/C++ Notes', to: '/notes' },
+        { label: 'Check Programming PYQs', to: '/pyq' }
+      ]
+    };
+  }
+
+  // 14. General Academic & Technical Concept Explainer (Never redirects to notes without answering!)
   return {
     reply: `### Academic Concept Guide: ${query.trim()}
 
@@ -753,162 +913,164 @@ In university Computer Science & Engineering coursework, **${query.trim()}** is 
 // 5. Gemini API Runner with Model Fallbacks
 // -------------------------------------------------------------
 export async function generateChatResponse({ message, history = [], user = null }) {
-  // Step 1: Pre-filter guardrail
-  const preCheck = runPreFilter(message);
-  if (!preCheck.allowed) {
-    return {
-      reply: preCheck.reply,
-      guardrailTriggered: true,
-      suggestions: [
-        'Explain Virtual Memory paging',
-        'Find Operating Systems notes',
-        'Where can I find PYQ papers?',
-      ],
-      actions: [],
-    };
-  }
-
-  const context = getContextForQuery(message);
-  const rawKey = process.env.GEMINI_API_KEY || GEMINI_API_KEY || '';
-  const key = rawKey.trim().replace(/^["']|["']$/g, '').trim();
-
-  if (!key) {
-    return generateDirectAcademicExplanation(message, context, user);
-  }
-  const systemInstruction = buildSystemInstruction(user, context);
-
-  // Step 3: Format conversation contents for Gemini (enforcing strict alternating user/model turns)
-  const contents = [];
-  let expectedRole = 'user';
-  const recentHistory = Array.isArray(history) ? history.slice(-6) : [];
-
-  for (const h of recentHistory) {
-    if (!h.content || !h.content.trim()) continue;
-    const targetRole = h.role === 'assistant' ? 'model' : 'user';
-    if (targetRole === expectedRole) {
-      contents.push({ role: targetRole, parts: [{ text: h.content.trim() }] });
-      expectedRole = expectedRole === 'user' ? 'model' : 'user';
-    }
-  }
-
-  // Ensure the history doesn't end on a user turn before we append our current message
-  if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
-    contents.pop();
-  }
-
-  // Append current user message
-  contents.push({ role: 'user', parts: [{ text: message.trim() }] });
-
-  // Candidate models (prioritizing active fast-response models)
-  const candidateModels = [
-    'gemini-3.5-flash',
-    'gemini-3.5-flash-lite',
-    'gemini-3.7-flash',
-    'gemini-3.1-flash-lite',
-    'gemini-flash-latest',
-    'gemini-3.8-flash',
-  ];
-
-  let rawReply = null;
-  let lastError = null;
-
-  for (const model of candidateModels) {
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-      const payload = {
-        systemInstruction: {
-          parts: [{ text: systemInstruction }],
-        },
-        contents: contents,
-        generationConfig: {
-          temperature: 0.5,
-          maxOutputTokens: 1200,
-        },
+  try {
+    // Step 1: Pre-filter guardrail
+    const preCheck = runPreFilter(message);
+    if (!preCheck.allowed) {
+      return {
+        reply: preCheck.reply,
+        guardrailTriggered: true,
+        suggestions: [
+          'Explain Operating Systems paging',
+          'What is the CIA triad in Cyber Security?',
+          'Explain Database Normalization (1NF, 2NF, 3NF)',
+        ],
+        actions: [],
       };
+    }
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(9000),
-      });
+    const context = getContextForQuery(message);
+    const key = getGeminiApiKey();
 
-      const data = await res.json();
+    if (!key) {
+      return generateDirectAcademicExplanation(message, context, user);
+    }
+    const systemInstruction = buildSystemInstruction(user, context);
 
-      if (res.ok && data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-        rawReply = data.candidates[0].content.parts[0].text;
-        break; // Successfully got response
-      } else {
-        lastError = data.error?.message || `HTTP ${res.status}`;
-        console.warn(`[GEMINI] ${model} attempt failed: ${lastError}`);
+    // Step 3: Format conversation contents for Gemini (enforcing strict alternating user/model turns)
+    const contents = [];
+    let expectedRole = 'user';
+    const recentHistory = Array.isArray(history) ? history.slice(-6) : [];
+
+    for (const h of recentHistory) {
+      if (!h.content || !h.content.trim()) continue;
+      const targetRole = h.role === 'assistant' ? 'model' : 'user';
+      if (targetRole === expectedRole) {
+        contents.push({ role: targetRole, parts: [{ text: h.content.trim() }] });
+        expectedRole = expectedRole === 'user' ? 'model' : 'user';
       }
-    } catch (err) {
-      lastError = err.message;
-      console.warn(`[GEMINI] ${model} attempt error: ${lastError}`);
-    }
-  }
-
-  if (!rawReply) {
-    console.error('All Gemini model candidates failed. Last error:', lastError);
-    return generateDirectAcademicExplanation(message, context, user);
-  }
-
-  // Step 4: Intelligent Post-Filter & Grounded Action Extraction
-  const actions = [];
-  const lowerMsg = message.toLowerCase();
-  const lowerReply = rawReply.toLowerCase();
-
-  // Check if reply is a refusal or safety declination
-  const isDeclinedOrSafety =
-    lowerReply.includes("i'm your atelier study assistant") ||
-    lowerReply.includes('i cannot fulfill this request') ||
-    lowerReply.includes('i specialize in university coursework') ||
-    lowerReply.includes('academic integrity guidelines') ||
-    lowerReply.includes('cannot provide direct code') ||
-    lowerReply.includes('cannot disclose');
-
-  if (!isDeclinedOrSafety) {
-    if (lowerMsg.includes('pyq') || lowerMsg.includes('question paper') || lowerMsg.includes('previous year')) {
-      actions.push({ label: 'Open PYQ Archive', to: '/pyq' });
-    }
-    if (lowerMsg.includes('saved') || lowerMsg.includes('bookmark') || lowerMsg.includes('my library')) {
-      actions.push({ label: 'Go to My Library', to: '/library' });
-    }
-    if (lowerMsg.includes('upload') || lowerMsg.includes('contribute') || lowerMsg.includes('share note')) {
-      actions.push({ label: 'Upload Notes', to: '/uploads' });
-    }
-    if (lowerMsg.includes('syllabus') || lowerMsg.includes('units') || lowerMsg.includes('coverage')) {
-      actions.push({ label: 'Explore Syllabus', to: '/syllabus' });
-    }
-    if (lowerMsg.includes('request note') || lowerReply.includes('request notes board') || lowerReply.includes('not available')) {
-      actions.push({ label: 'Request Notes on Board', to: '/requests' });
     }
 
-    // Only attach note action if the note is explicitly relevant or mentioned in reply
-    if (context.notes.length > 0 && actions.length === 0) {
-      for (const note of context.notes) {
-        // Confirm the note is actually related to the reply or query
-        const titleWords = note.title.toLowerCase().split(/\s+/).filter(w => w.length >= 4);
-        const isMentionedInReply = rawReply.includes(note.id) || titleWords.some(w => lowerReply.includes(w));
-        const isMentionedInMsg = titleWords.some(w => lowerMsg.includes(w));
+    // Ensure the history doesn't end on a user turn before we append our current message
+    if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+      contents.pop();
+    }
 
-        if (isMentionedInReply || isMentionedInMsg) {
-          actions.push({ label: `View: ${note.title.slice(0, 24)}…`, to: `/notes/${note.id}` });
-          break;
+    // Append current user message
+    contents.push({ role: 'user', parts: [{ text: message.trim() }] });
+
+    // Active, ultra-fast Gemini candidate models (prioritizing sub-2s responses)
+    const candidateModels = [
+      'gemini-3.5-flash-lite',
+      'gemini-flash-lite-latest',
+      'gemini-3-flash-preview',
+    ];
+
+    let rawReply = null;
+    let lastError = null;
+
+    for (const model of candidateModels) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+        const payload = {
+          systemInstruction: {
+            parts: [{ text: systemInstruction }],
+          },
+          contents: contents,
+          generationConfig: {
+            temperature: 0.5,
+            maxOutputTokens: 1200,
+          },
+        };
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(5000),
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+          rawReply = data.candidates[0].content.parts[0].text;
+          break; // Successfully got response
+        } else {
+          lastError = data.error?.message || `HTTP ${res.status}`;
+          console.warn(`[GEMINI] ${model} attempt failed: ${lastError}`);
+          // If quota exceeded (429) or forbidden (403), jump to next candidate immediately
+        }
+      } catch (err) {
+        lastError = err.message;
+        console.warn(`[GEMINI] ${model} attempt error: ${lastError}`);
+      }
+    }
+
+    if (!rawReply) {
+      console.warn('All Gemini model candidates failed or timed out. Falling back to built-in academic synthesizer. Last error:', lastError);
+      return generateDirectAcademicExplanation(message, context, user);
+    }
+
+    // Step 4: Intelligent Post-Filter & Grounded Action Extraction
+    const actions = [];
+    const lowerMsg = message.toLowerCase();
+    const lowerReply = rawReply.toLowerCase();
+
+    // Check if reply is a refusal or safety declination
+    const isDeclinedOrSafety =
+      lowerReply.includes("i'm your atelier study assistant") ||
+      lowerReply.includes('i cannot fulfill this request') ||
+      lowerReply.includes('i specialize in university coursework') ||
+      lowerReply.includes('academic integrity guidelines') ||
+      lowerReply.includes('cannot provide direct code') ||
+      lowerReply.includes('cannot disclose');
+
+    if (!isDeclinedOrSafety) {
+      if (lowerMsg.includes('pyq') || lowerMsg.includes('question paper') || lowerMsg.includes('previous year')) {
+        actions.push({ label: 'Open PYQ Archive', to: '/pyq' });
+      }
+      if (lowerMsg.includes('saved') || lowerMsg.includes('bookmark') || lowerMsg.includes('my library')) {
+        actions.push({ label: 'Go to My Library', to: '/library' });
+      }
+      if (lowerMsg.includes('upload') || lowerMsg.includes('contribute') || lowerMsg.includes('share note')) {
+        actions.push({ label: 'Upload Notes', to: '/uploads' });
+      }
+      if (lowerMsg.includes('syllabus') || lowerMsg.includes('units') || lowerMsg.includes('coverage')) {
+        actions.push({ label: 'Explore Syllabus', to: '/syllabus' });
+      }
+      if (lowerMsg.includes('request note') || lowerReply.includes('request notes board') || lowerReply.includes('not available')) {
+        actions.push({ label: 'Request Notes on Board', to: '/requests' });
+      }
+
+      // Only attach note action if the note is explicitly relevant or mentioned in reply
+      if (context.notes.length > 0 && actions.length === 0) {
+        for (const note of context.notes) {
+          // Confirm the note is actually related to the reply or query
+          const titleWords = note.title.toLowerCase().split(/\s+/).filter(w => w.length >= 4);
+          const isMentionedInReply = rawReply.includes(note.id) || titleWords.some(w => lowerReply.includes(w));
+          const isMentionedInMsg = titleWords.some(w => lowerMsg.includes(w));
+
+          if (isMentionedInReply || isMentionedInMsg) {
+            actions.push({ label: `View: ${note.title.slice(0, 24)}…`, to: `/notes/${note.id}` });
+            break;
+          }
         }
       }
     }
+
+    // Suggestions tailored to query
+    const suggestions = isDeclinedOrSafety
+      ? ['Explain Operating Systems paging', 'Show DBMS Normalization', 'Find PYQ Papers']
+      : ['Give a real-world example', 'What are key exam takeaways?', 'Where can I find PYQs for this?'];
+
+    return {
+      reply: rawReply,
+      guardrailTriggered: false,
+      suggestions,
+      actions,
+    };
+  } catch (outerErr) {
+    console.error('[AI SERVICE UNEXPECTED ERROR]', outerErr);
+    return generateDirectAcademicExplanation(message, getContextForQuery(message), user);
   }
-
-  // Suggestions tailored to query
-  const suggestions = isDeclinedOrSafety
-    ? ['Explain Operating Systems paging', 'Show DBMS Normalization', 'Find PYQ Papers']
-    : ['Give a real-world example', 'What are key exam takeaways?', 'Where can I find PYQs for this?'];
-
-  return {
-    reply: rawReply,
-    guardrailTriggered: false,
-    suggestions,
-    actions,
-  };
 }

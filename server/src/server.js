@@ -6,7 +6,7 @@ import multer from 'multer';
 import { db, initDatabase, closeDatabase, uploadsDir } from './database.js';
 import { seedDatabase } from './seed.js';
 import { hashPassword, verifyPassword, generateToken } from './auth.js';
-import { generateChatResponse } from './aiService.js';
+import { generateChatResponse, generateDirectAcademicExplanation, getContextForQuery } from './aiService.js';
 
 const envCandidates = [
   path.resolve(process.cwd(), '.env'),
@@ -114,7 +114,7 @@ const uploadRateLimiter = createRateLimiter({
 
 const aiRateLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
-  maxRequests: 30,
+  maxRequests: 120,
   message: 'AI Study Assistant query limit reached. Please wait a few minutes before asking more questions.'
 });
 
@@ -2658,11 +2658,11 @@ app.post('/api/auth/logout', (req, res) => {
 // AI Study Assistant Chatbot Endpoint (Guardrails + Gemini RAG)
 // -------------------------------------------------------------
 app.post('/api/chat', aiRateLimiter, async (req, res) => {
-  try {
-    const { message, history } = req.body || {};
-    const authHeader = req.headers.authorization;
-    let authUser = null;
+  let authUser = null;
+  const { message = '', history = [] } = req.body || {};
 
+  try {
+    const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
       const session = db.prepare('SELECT user_id FROM sessions WHERE token = ?').get(token);
@@ -2679,11 +2679,24 @@ app.post('/api/chat', aiRateLimiter, async (req, res) => {
 
     res.json({ success: true, data: response });
   } catch (err) {
-    console.error('[AI CHAT ERROR]', err);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to process study assistance query'
-    });
+    console.error('[AI CHAT UNEXPECTED ERROR - GRACEFUL FALLBACK]', err);
+    try {
+      const fallback = generateDirectAcademicExplanation(
+        message,
+        getContextForQuery(message),
+        authUser
+      );
+      res.json({ success: true, data: fallback });
+    } catch {
+      res.json({
+        success: true,
+        data: {
+          reply: "### Academic Assistant\nI am ready to help you with your university coursework and exam preparation. What topic or doubt can I explain for you today?",
+          suggestions: ['What is paging in OS?', 'Explain Normalization in DBMS', 'What is the CIA Triad in Cyber Security?'],
+          actions: [{ label: 'Browse Notes Library', to: '/notes' }]
+        }
+      });
+    }
   }
 });
 
