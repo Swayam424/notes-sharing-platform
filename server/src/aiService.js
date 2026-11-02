@@ -17,7 +17,10 @@ for (const envPath of envCandidates) {
   } catch {}
 }
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+export function getGeminiApiKey() {
+  const envKey = process.env.GEMINI_API_KEY || '';
+  return envKey.trim().replace(/^["']|["']$/g, '').trim();
+}
 
 // -------------------------------------------------------------
 // 1. Guardrail Pre-filters: Safety, Injection, PII & Spam
@@ -70,6 +73,20 @@ const OFF_TOPIC_TRIGGER_PATTERNS = [
   /\b(who\s+is\s+(your\s+favorite|the\s+goat)|are\s+you\s+(real|human|alive|single|in\s+love)|tell\s+me\s+a\s+joke|what\s+is\s+your\s+favorite\s+(food|color|sport|singer)|who\s+won\s+the\s+match|weather\s+today|horoscope)\b/i,
 ];
 
+// Academic keywords that immediately exempt a query from off-topic false positives
+const ACADEMIC_KEYWORDS = [
+  'computer', 'software', 'hardware', 'programming', 'code', 'coding', 'algorithm', 'data',
+  'database', 'dbms', 'sql', 'query', 'network', 'cyber', 'security', 'crypto', 'encryption',
+  'operating system', 'os', 'linux', 'unix', 'process', 'thread', 'memory', 'paging', 'lru',
+  'deadlock', 'scheduling', 'compiler', 'automata', 'theory of computation', 'toc', 'grammar',
+  'turing', 'dfa', 'nfa', 'tree', 'graph', 'stack', 'queue', 'linked list', 'sort', 'search',
+  'ai', 'machine learning', 'deep learning', 'neural', 'cloud', 'docker', 'container', 'kubernetes',
+  'api', 'rest', 'http', 'tcp', 'udp', 'ip', 'router', 'switch', 'firewall', 'drm', 'piracy',
+  'agile', 'scrum', 'sdlc', 'testing', 'unit test', 'object oriented', 'class', 'inheritance',
+  'polymorphism', 'math', 'calculus', 'probability', 'discrete', 'boolean', 'logic', 'engineering',
+  'syllabus', 'course', 'exam', 'pyq', 'semester', 'unit', 'chapter', 'lecture', 'notes'
+];
+
 export function runPreFilter(message) {
   const trimmed = (message || '').trim();
 
@@ -119,13 +136,19 @@ export function runPreFilter(message) {
     }
   }
 
-  for (const pattern of OFF_TOPIC_TRIGGER_PATTERNS) {
-    if (pattern.test(trimmed)) {
-      return {
-        allowed: false,
-        reason: 'off_topic',
-        reply: "I am strictly trained as an academic study assistant for university coursework and exam preparation. I cannot answer non-academic questions, sports trivia, pop culture, or casual chat. Please ask a study-related question (such as Operating Systems, DBMS, Computer Networks, Theory of Computation, or Software Engineering)!",
-      };
+  // Academic bypass: if query clearly contains academic keywords, do not trigger off-topic filter
+  const lowerMsg = trimmed.toLowerCase();
+  const hasAcademicIntent = ACADEMIC_KEYWORDS.some(kw => lowerMsg.includes(kw));
+
+  if (!hasAcademicIntent) {
+    for (const pattern of OFF_TOPIC_TRIGGER_PATTERNS) {
+      if (pattern.test(trimmed)) {
+        return {
+          allowed: false,
+          reason: 'off_topic',
+          reply: "I am strictly trained as an academic study assistant for university coursework and exam preparation. I cannot answer non-academic questions, sports trivia, pop culture, or casual chat. Please ask a study-related question (such as Cyber Security, Operating Systems, DBMS, Computer Networks, or Software Engineering)!",
+        };
+      }
     }
   }
 

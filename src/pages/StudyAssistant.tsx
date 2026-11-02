@@ -19,12 +19,14 @@ interface Message {
 
 const INITIAL_PROMPTS = [
   {
-    category: 'Academic Doubts',
+    category: 'Core Concepts & Doubts',
     icon: Lightbulb,
     items: [
       'Explain LRU Page Replacement in Operating Systems',
       'Explain Database Normalization (1NF, 2NF, 3NF, BCNF)',
       'What is the difference between TCP and UDP with examples?',
+      'Explain the CIA Triad & Cryptography in Cyber Security',
+      'What is Data Piracy & Digital Rights Management (DRM)?',
     ]
   },
   {
@@ -331,7 +333,7 @@ export default function StudyAssistant() {
                   {msg.guardrailTriggered && (
                     <div className="assistant-guardrail-notice">
                       <ShieldCheck size={14} />
-                      <span>Academic Guardrail Triggered</span>
+                      <span>Academic Scope Notice</span>
                     </div>
                   )}
 
