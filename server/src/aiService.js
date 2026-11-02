@@ -1,10 +1,21 @@
 // server/src/aiService.js
+import fs from 'node:fs';
+import path from 'node:path';
 import { db } from './database.js';
 
-// Load .env safely
-try {
-  process.loadEnvFile();
-} catch {}
+// Load .env safely across root and server directories
+const envCandidates = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), '../.env'),
+];
+for (const envPath of envCandidates) {
+  try {
+    if (fs.existsSync(envPath)) {
+      process.loadEnvFile(envPath);
+      break;
+    }
+  } catch {}
+}
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -292,15 +303,15 @@ export async function generateChatResponse({ message, history = [], user = null 
   // Append current user message
   contents.push({ role: 'user', parts: [{ text: message }] });
 
-  // Candidate models
+  // Candidate models (prioritizing active fast-response models)
   const candidateModels = [
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
     'gemini-3.5-flash',
     'gemini-3.5-flash-lite',
+    'gemini-3.7-flash',
+    'gemini-3.1-flash-lite',
     'gemini-flash-latest',
     'gemini-3.8-flash',
+    'gemini-2.5-flash',
   ];
 
   let rawReply = null;

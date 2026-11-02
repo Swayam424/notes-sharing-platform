@@ -8,9 +8,18 @@ import { seedDatabase } from './seed.js';
 import { hashPassword, verifyPassword, generateToken } from './auth.js';
 import { generateChatResponse } from './aiService.js';
 
-try {
-  process.loadEnvFile();
-} catch {}
+const envCandidates = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), '../.env'),
+];
+for (const envPath of envCandidates) {
+  try {
+    if (fs.existsSync(envPath)) {
+      process.loadEnvFile(envPath);
+      break;
+    }
+  } catch {}
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;

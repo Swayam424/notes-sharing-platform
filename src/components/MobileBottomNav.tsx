@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router';
-import { LayoutDashboard, FolderOpen, FileText, Bookmark, Menu } from 'lucide-react';
+import { LayoutDashboard, FolderOpen, FileText, Bot, Menu } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export default function MobileBottomNav() {
@@ -49,15 +49,16 @@ export default function MobileBottomNav() {
       </NavLink>
 
       <NavLink
-        to="/library"
-        className={`mobile-bottom-item ${isNavActive('/library') ? 'active' : ''}`}
-        id="mobile-nav-library"
+        to="/assistant"
+        className={`mobile-bottom-item ${isNavActive('/assistant') ? 'active' : ''}`}
+        id="mobile-nav-assistant"
         onClick={() => setMobileNavOpen(false)}
       >
-        <div className="mobile-bottom-icon-wrap">
-          <Bookmark size={20} strokeWidth={1.75} />
+        <div className="mobile-bottom-icon-wrap" style={{ position: 'relative' }}>
+          <Bot size={20} strokeWidth={1.75} style={{ color: isNavActive('/assistant') ? 'var(--color-primary)' : 'inherit' }} />
+          <span className="mobile-nav-ai-pill">AI</span>
         </div>
-        <span className="mobile-bottom-label">Saved</span>
+        <span className="mobile-bottom-label">Assistant</span>
       </NavLink>
 
       <button
