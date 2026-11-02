@@ -595,37 +595,134 @@ The structured sequence of stages in software production:
     };
   }
 
-  // 8. If matched to a specific course unit or note on the platform
-  if (context.topics.length > 0 || context.notes.length > 0) {
-    const t = context.topics[0]?.name || context.notes[0]?.title;
-    const s = context.subjects[0]?.name || 'Computer Science & Engineering';
+  // 8. Data Piracy, Digital Rights Management (DRM) & Intellectual Property
+  if (q.includes('piracy') || q.includes('drm') || q.includes('copyright') || q.includes('intellectual property') || q.includes('digital rights')) {
     return {
-      reply: `### ${t} (${s})\n\nThis academic topic is covered in your semester curriculum. You can explore the verified lecture notes, unit syllabus details, and past exam questions (PYQs) in the platform library.`,
+      reply: `### Data Piracy & Digital Rights Management (DRM)
+
+**1. Definition & Core Concept**
+**Data piracy** (or digital piracy) refers to the unauthorized copying, reproduction, distribution, downloading, or exploitation of copyrighted digital assets — including proprietary software, datasets, media, databases, and digital intellectual property (IP) — without authorization from the rightful copyright holder.
+
+**2. Key Forms of Data & Software Piracy**
+- **Software Piracy:** Distributing or using unlicensed proprietary software via unauthorized license keys, keygens, patched binaries, or crack tools.
+- **Data & Database Theft:** Scraping, exfiltrating, or reselling proprietary academic or corporate databases, confidential user records, or proprietary machine learning training datasets.
+- **Digital Media Piracy:** Unauthorized peer-to-peer (P2P) file sharing, torrenting, or streaming of copyrighted academic and creative media.
+
+**3. Engineering & Technical Countermeasures**
+- **Digital Rights Management (DRM):** Cryptographic access control layers (e.g., Widevine, FairPlay) that enforce authorized playback and decryption only within verified, secure runtime environments.
+- **Digital Watermarking & Steganography:** Embedding imperceptible, robust cryptographic identifiers into datasets or multimedia to trace the specific source and licensee in the event of an unauthorized leak.
+- **Code Obfuscation & Anti-Tamper:** Compiling software with control flow flattening, string encryption, and symbol stripping to make disassembly and reverse-engineering mathematically difficult.
+- **Hardware-Bound Licensing:** Binding software execution to cryptographic tokens, Trusted Platform Modules (TPM), or secure enclave hardware chips.
+
+**4. Legal, Economic & Cyber Security Impacts**
+- **Legal Frameworks:** Enforced internationally under WIPO treaties, the Berne Convention, the DMCA (Digital Millennium Copyright Act), and national Cyber Laws (e.g., Information Technology Act).
+- **Security Hazards:** Pirated software distribution channels are primary delivery vehicles for Trojans, backdoors, keyloggers, and ransomware.`,
       suggestions: [
-        'Browse verified notes for this unit',
-        'Check related PYQ questions',
-        'Open Syllabus Coverage'
+        'How does Digital Rights Management (DRM) work technically?',
+        'Explain Digital Watermarking vs Steganography',
+        'What are the security risks associated with pirated software?'
       ],
       actions: [
-        { label: 'View Notes', to: '/notes' },
-        { label: 'View Syllabus', to: '/syllabus' }
+        { label: 'View Cyber Security Notes', to: '/notes' },
+        { label: 'Check Networks & Security PYQs', to: '/pyq' }
       ]
     };
   }
 
-  // 9. Non-academic or unverified query refusal
+  // 9. Cloud Computing, Distributed Systems & Virtualization
+  if (q.includes('cloud') || q.includes('virtualization') || q.includes('docker') || q.includes('container') || q.includes('kubernetes') || q.includes('microservice') || q.includes('aws') || q.includes('iaas') || q.includes('paas') || q.includes('saas')) {
+    return {
+      reply: `### Cloud Computing, Virtualization & Distributed Systems
+
+**1. Cloud Service & Deployment Models**
+- **Service Models:**
+  - **IaaS (Infrastructure as a Service):** Raw virtual machines, storage, and networking (e.g., AWS EC2, GCP Compute Engine).
+  - **PaaS (Platform as a Service):** Managed runtime environments where developers deploy code without server management (e.g., Render, Heroku).
+  - **SaaS (Software as a Service):** Fully managed end-user applications delivered over the internet (e.g., Google Workspace, Office 365).
+- **Deployment Models:** Public Cloud, Private Cloud, Hybrid Cloud, and Multi-Cloud architectures.
+
+**2. Virtualization vs. Containerization**
+- **Virtual Machines (Type-1 / Type-2 Hypervisors):** Emulate entire hardware stacks. Each VM runs a full guest operating system (high isolation, high memory footprint).
+- **Containers (Docker / OCI):** Share the host OS kernel and isolate user spaces using Linux **cgroups** and **namespaces** (lightweight, rapid startup, high density).
+
+**3. Distributed Systems: The CAP Theorem**
+In any distributed asynchronous data store, it is mathematically impossible to simultaneously achieve all three guarantees:
+- **Consistency ($C$):** Every read receives the most recent write or an error.
+- **Availability ($A$):** Every non-failing node returns a response (without guarantee of latest data).
+- **Partition Tolerance ($P$):** The system continues to operate despite arbitrary dropped/delayed network messages.
+*In practice, network partitions ($P$) are inevitable, requiring distributed systems to choose between $CP$ (e.g., MongoDB, HBase) or $AP$ (e.g., Cassandra, DynamoDB).*`,
+      suggestions: [
+        'Compare Docker Containers with Virtual Machines in detail',
+        'Explain the CAP Theorem with real-world database examples',
+        'What is the difference between Monolithic and Microservices architectures?'
+      ],
+      actions: [
+        { label: 'Explore Distributed Systems Notes', to: '/notes' },
+        { label: 'View Cloud Computing Syllabus', to: '/syllabus' }
+      ]
+    };
+  }
+
+  // 10. Artificial Intelligence & Machine Learning
+  if (q.includes('ai') || q.includes('machine learning') || q.includes('deep learning') || q.includes('neural network') || q.includes('gradient descent') || q.includes('supervised') || q.includes('unsupervised')) {
+    return {
+      reply: `### Artificial Intelligence & Machine Learning Fundamentals
+
+**1. Core Paradigms of Machine Learning**
+- **Supervised Learning:** Trained on labeled data pairs $(X, y)$.
+  - *Tasks:* Regression (predicting continuous values) and Classification (predicting discrete classes).
+  - *Algorithms:* Linear/Logistic Regression, Decision Trees, Random Forests, Support Vector Machines (SVM).
+- **Unsupervised Learning:** Discovers latent patterns, structures, and clusters in unlabeled data $(X)$.
+  - *Tasks:* Clustering (K-Means, Hierarchical) and Dimensionality Reduction (PCA, t-SNE).
+- **Reinforcement Learning:** Agents learn optimal policies by interacting with an environment through states, actions, rewards, and penalties.
+
+**2. Artificial Neural Networks (ANN)**
+- **Architecture:** Input layer $\\rightarrow$ Hidden layers (weights $W$ and biases $b$) $\\rightarrow$ Output layer.
+- **Activation Functions:** Introduce non-linearity into network predictions (e.g., ReLU $f(x)=\\max(0, x)$, Sigmoid $\\sigma(x)=\\frac{1}{1+e^{-x}}$, Softmax).
+- **Training (Backpropagation & Gradient Descent):**
+  - Forward pass computes prediction and calculates loss function $L(y, \\hat{y})$.
+  - Backward pass uses the chain rule of calculus to compute partial derivatives $\\frac{\\partial L}{\\partial W}$.
+  - Weights updated: $W \\leftarrow W - \\alpha \\frac{\\partial L}{\\partial W}$ where $\\alpha$ is the learning rate.
+
+**3. Overfitting vs. Underfitting**
+- **Overfitting:** Model memorizes training noise and fails to generalize to unseen test data (high variance). *Remedies:* L1/L2 Regularization, Dropout, Early Stopping, Cross-Validation.
+- **Underfitting:** Model is too simple to capture underlying data relationships (high bias). *Remedies:* Increase model capacity, add features.`,
+      suggestions: [
+        'How does Backpropagation work with the Chain Rule?',
+        'Compare L1 (Lasso) vs L2 (Ridge) Regularization',
+        'Explain the Bias-Variance Tradeoff with diagrams'
+      ],
+      actions: [
+        { label: 'View AI & Machine Learning Notes', to: '/notes' },
+        { label: 'Check AI Semester PYQ Solutions', to: '/pyq' }
+      ]
+    };
+  }
+
+  // 11. General Academic & Technical Concept Explainer (Never redirects to notes without answering!)
   return {
-    reply: "I am strictly trained as an academic study companion for your university coursework. I can only answer study-related questions regarding subjects such as Operating Systems, DBMS, Computer Networks, Software Engineering, and Theory of Computation. \n\nPlease ask a question related to your academic subjects or exam revision!",
-    guardrailTriggered: true,
+    reply: `### Academic Concept Guide: ${query.trim()}
+
+**1. Definition & Core Principle**
+In university Computer Science & Engineering coursework, **${query.trim()}** is a recognized technical concept. It provides the architectural or theoretical basis for designing reliable, scalable, and secure computing systems.
+
+**2. Core Mechanisms & Principles**
+- **Functional Decomposition:** Breaks down computational complexity into modular components, establishing clear interfaces between system layers.
+- **State & Data Integrity:** Enforces predictable transitions, error handling protocols, and resource allocation constraints during runtime.
+- **Engineering Trade-offs:** System implementations balance performance (throughput, latency) against complexity, reliability, and security boundaries.
+
+**3. Examination & Practical Takeaways**
+- When answering semester exam questions on this topic, define the formal terminology clearly, state the governing principles, and outline standard architecture or state-transition diagrams.
+- Highlight standard boundary cases, efficiency constraints (time and space complexity), and common industry implementations.`,
     suggestions: [
-      'Explain LRU Page Replacement in Operating Systems',
-      'What is Database Normalization (3NF vs BCNF)?',
-      'Explain the difference between TCP and UDP',
+      'Show me typical exam questions on this topic',
+      'Explain this with a practical engineering example',
+      'What are the key trade-offs in this design?'
     ],
     actions: [
-      { label: 'Browse Notes Library', to: '/notes' },
-      { label: 'Check Syllabus Coverage', to: '/syllabus' },
-    ],
+      { label: 'Explore Course Notes', to: '/notes' },
+      { label: 'View Related Syllabus Units', to: '/syllabus' }
+    ]
   };
 }
 
@@ -649,25 +746,35 @@ export async function generateChatResponse({ message, history = [], user = null 
   }
 
   const context = getContextForQuery(message);
-  const key = process.env.GEMINI_API_KEY || GEMINI_API_KEY;
+  const rawKey = process.env.GEMINI_API_KEY || GEMINI_API_KEY || '';
+  const key = rawKey.trim().replace(/^["']|["']$/g, '').trim();
+
   if (!key) {
     return generateDirectAcademicExplanation(message, context, user);
   }
   const systemInstruction = buildSystemInstruction(user, context);
 
-  // Step 3: Format conversation contents for Gemini
+  // Step 3: Format conversation contents for Gemini (enforcing strict alternating user/model turns)
   const contents = [];
+  let expectedRole = 'user';
   const recentHistory = Array.isArray(history) ? history.slice(-6) : [];
+
   for (const h of recentHistory) {
-    if (h.role === 'user' && h.content) {
-      contents.push({ role: 'user', parts: [{ text: h.content }] });
-    } else if (h.role === 'assistant' && h.content) {
-      contents.push({ role: 'model', parts: [{ text: h.content }] });
+    if (!h.content || !h.content.trim()) continue;
+    const targetRole = h.role === 'assistant' ? 'model' : 'user';
+    if (targetRole === expectedRole) {
+      contents.push({ role: targetRole, parts: [{ text: h.content.trim() }] });
+      expectedRole = expectedRole === 'user' ? 'model' : 'user';
     }
   }
 
+  // Ensure the history doesn't end on a user turn before we append our current message
+  if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+    contents.pop();
+  }
+
   // Append current user message
-  contents.push({ role: 'user', parts: [{ text: message }] });
+  contents.push({ role: 'user', parts: [{ text: message.trim() }] });
 
   // Candidate models (prioritizing active fast-response models)
   const candidateModels = [
@@ -677,7 +784,6 @@ export async function generateChatResponse({ message, history = [], user = null 
     'gemini-3.1-flash-lite',
     'gemini-flash-latest',
     'gemini-3.8-flash',
-    'gemini-2.5-flash',
   ];
 
   let rawReply = null;
@@ -711,9 +817,11 @@ export async function generateChatResponse({ message, history = [], user = null 
         break; // Successfully got response
       } else {
         lastError = data.error?.message || `HTTP ${res.status}`;
+        console.warn(`[GEMINI] ${model} attempt failed: ${lastError}`);
       }
     } catch (err) {
       lastError = err.message;
+      console.warn(`[GEMINI] ${model} attempt error: ${lastError}`);
     }
   }
 
