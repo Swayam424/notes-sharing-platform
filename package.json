@@ -8,6 +8,7 @@
     "start": "node server/src/server.js",
     "server": "node server/src/server.js",
     "build": "tsc -b && vite build",
+    "postinstall": "npm run build",
     "lint": "tsc -b",
     "preview": "vite preview"
   },

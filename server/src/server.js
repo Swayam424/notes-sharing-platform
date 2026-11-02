@@ -29,27 +29,14 @@ app.use((_req, res, next) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   next();
 });
 
 // -------------------------------------------------------------
-// Security Hardening: Origin-Restricted CORS
+// CORS: Unified access for local dev & production deployments
 // -------------------------------------------------------------
-const allowedOrigins = (process.env.CLIENT_ORIGINS || 'http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173')
-  .split(',')
-  .map(o => o.trim())
-  .filter(Boolean);
-
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow non-browser requests (Postman, curl, internal jobs)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-      return callback(null, true);
-    }
-    return callback(new Error(`CORS blocked request from origin: ${origin}`));
-  },
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -2688,15 +2675,49 @@ app.post('/api/chat', aiRateLimiter, async (req, res) => {
 // -------------------------------------------------------------
 // Serve built client assets in production (SPA fallback)
 // -------------------------------------------------------------
-const clientDistDir = path.resolve(process.cwd(), 'dist');
-if (fs.existsSync(clientDistDir)) {
-  app.use(express.static(clientDistDir));
+const candidateDirs = [
+  path.resolve(process.cwd(), 'dist'),
+  path.resolve(import.meta.dirname, '../../dist'),
+  path.resolve(import.meta.dirname, '../dist')
+];
+
+const clientDistDir = candidateDirs.find(dir => fs.existsSync(dir) && fs.existsSync(path.join(dir, 'index.html')));
+
+if (clientDistDir) {
+  console.log(`[ATELIER API] Serving static production client from: ${clientDistDir}`);
+  app.use(express.static(clientDistDir, { maxAge: '1d', index: false }));
+
   app.use((req, res, next) => {
     if (req.method !== 'GET') return next();
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
       return next();
     }
+    // Prevent MIME mismatch: Never serve index.html for missing static files (js, css, etc.)
+    if (path.extname(req.path)) {
+      return res.status(404).end();
+    }
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.sendFile(path.join(clientDistDir, 'index.html'));
+  });
+} else {
+  console.warn('[ATELIER API] Notice: dist/ directory not found yet.');
+  app.use((req, res, next) => {
+    if (req.method !== 'GET') return next();
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      return next();
+    }
+    res.status(503).send(`
+      <!doctype html>
+      <html>
+        <head><title>Atelier — Initializing...</title><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+        <body style="font-family:system-ui,-apple-system,sans-serif;background:#F4EFE8;color:#171A18;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;text-align:center;">
+          <div style="background:white;padding:32px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.08);max-width:440px;">
+            <h2 style="margin:0 0 12px;color:#C84B28;">Atelier Academic Studio</h2>
+            <p style="color:#555;font-size:14px;line-height:1.5;">Compiling client assets. If you just deployed, please ensure the build step completed and refresh in a few moments.</p>
+          </div>
+        </body>
+      </html>
+    `);
   });
 }
 
