@@ -2414,12 +2414,17 @@ const handleSignup = (req, res) => {
     const initials = name.trim().split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2) || 'ST';
     const now = new Date().toISOString();
 
+    const defaultEnrolled = JSON.stringify(['os', 'dbms', 'cn', 'toc', 'se']);
+    const defaultDepartment = department ? department.trim() : 'Computer Science';
+    const defaultStream = stream ? stream.trim() : 'Computer Science & Engineering';
+    const defaultCollege = college ? college.trim() : 'University Institute of Technology';
+
     db.prepare(`
       INSERT INTO users (
         id, email, password_hash, salt, name, initials, role, college, department,
         stream, degree, academic_goal, enrolled_subjects, onboarding_completed, semester, created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, 'student', ?, ?, ?, ?, '', '[]', 0, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, 'student', ?, ?, ?, ?, '', ?, 1, ?, ?)
     `).run(
       userId,
       cleanEmail,
@@ -2427,10 +2432,11 @@ const handleSignup = (req, res) => {
       salt,
       name.trim(),
       initials,
-      college ? college.trim() : '',
-      department ? department.trim() : '',
-      stream ? stream.trim() : '',
+      defaultCollege,
+      defaultDepartment,
+      defaultStream,
       degree || 'B.Tech / B.E.',
+      defaultEnrolled,
       parseInt(semester) || 1,
       now
     );

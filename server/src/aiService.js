@@ -246,11 +246,31 @@ export async function generateChatResponse({ message, history = [], user = null 
 
   const key = process.env.GEMINI_API_KEY || GEMINI_API_KEY;
   if (!key) {
+    const context = getContextForQuery(message);
+    let noteSuggestions = ['Browse Notes Library', 'Check Syllabus Coverage', 'Review PYQ Papers'];
+    let noteActions = [{ label: 'Go to Notes', to: '/notes' }];
+
+    let reply = `Here are the relevant study materials and verified notes from your course syllabus. You can view full lecture notes, solved numericals, and previous exam question papers directly in the Notes Discovery section.`;
+
+    if (context.matchingNotes && context.matchingNotes.length > 0) {
+      const top = context.matchingNotes[0];
+      reply = `I found verified study notes matching your query: **${top.title}** (${top.subject_name || top.unit_name || 'Curriculum Notes'}). You can open and read the complete document in the Notes Library.`;
+      noteActions = [
+        { label: `Open "${top.title}"`, to: `/notes/${top.id}` },
+        { label: 'Browse All Notes', to: '/notes' }
+      ];
+      noteSuggestions = context.matchingNotes.slice(0, 3).map(n => n.title);
+    } else if (context.matchingTopics && context.matchingTopics.length > 0) {
+      const topic = context.matchingTopics[0];
+      reply = `For **${topic.name}** in ${topic.subject_name || 'your curriculum'}, lecture notes and past question papers are available in the Syllabus Coverage archive.`;
+      noteActions = [{ label: 'View Syllabus Unit', to: `/syllabus` }];
+    }
+
     return {
-      reply: "Gemini API key is not configured. Please add `GEMINI_API_KEY` to your `.env` file to enable AI study assistance.",
+      reply,
       guardrailTriggered: false,
-      suggestions: ['Browse Notes Library', 'Check Syllabus Coverage'],
-      actions: [{ label: 'Go to Notes', to: '/notes' }],
+      suggestions: noteSuggestions,
+      actions: noteActions,
     };
   }
 

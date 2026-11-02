@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router';
 import {
   ArrowRight, AlertTriangle, TrendingUp, Clock, FileText, Search,
   Sparkles, Bookmark, Layers, X, ChevronRight,
-  Trophy, Crown, ThumbsUp, MessageSquare, Upload,
-  Target, GraduationCap, SlidersHorizontal, Users, BookOpen
+  ThumbsUp, MessageSquare, Upload,
+  Target, GraduationCap, SlidersHorizontal, BookOpen
 } from 'lucide-react';
-import { api, type DashboardData, type NoteRequest } from '../services/api';
+import { api, type DashboardData } from '../services/api';
 import { useApp } from '../context/AppContext';
 import { savedNotesService } from '../services/savedNotes';
-import { notes as fallbackNotes, subjects as fallbackSubjects, type Subject, type NoteResource, type LeaderboardContributor } from '../data/mockData';
+import { notes as fallbackNotes, subjects as fallbackSubjects, type Subject, type NoteResource } from '../data/mockData';
 
 function CoverageRing({ value, size = 40 }: { value: number; size?: number }) {
   const r = (size - 8) / 2;
@@ -38,7 +38,6 @@ export default function Dashboard() {
   const [subjectsList, setSubjectsList] = useState<Subject[]>(fallbackSubjects);
   const [notesList, setNotesList] = useState<NoteResource[]>(fallbackNotes);
   const [dashboardStats, setDashboardStats] = useState<DashboardData | null>(null);
-  const [peerRequests, setPeerRequests] = useState<NoteRequest[]>([]);
 
   // Enrolled subjects filter
   const enrolledSubjectIds = user?.enrolledSubjects || [];
@@ -67,11 +66,6 @@ export default function Dashboard() {
     }
     return ['Core Concepts', 'Unit 1 Overview', 'Formula Sheet', 'Exam Derivations'];
   }, [displaySubjects]);
-
-  // Contributor Leaderboard State
-  const [leaderboard, setLeaderboard] = useState<LeaderboardContributor[]>([]);
-  const [leaderboardDept, setLeaderboardDept] = useState<string>('all');
-  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
 
   // In-page Topic Discovery State
   const [topicSearch, setTopicSearch] = useState('');
@@ -103,17 +97,7 @@ export default function Dashboard() {
     api.getDashboardData({ stream: user?.stream, semester: user?.semester })
       .then(setDashboardStats)
       .catch(console.error);
-
-    setLeaderboardLoading(true);
-    api.getContributorLeaderboard(leaderboardDept)
-      .then(data => setLeaderboard(data))
-      .catch(console.error)
-      .finally(() => setLeaderboardLoading(false));
-
-    api.getNoteRequests({ status: 'open', stream: user?.stream })
-      .then(reqs => setPeerRequests(reqs.slice(0, 3)))
-      .catch(() => {});
-  }, [refreshKey, leaderboardDept, user?.stream, user?.semester]);
+  }, [refreshKey, user?.stream, user?.semester]);
 
   // Stream-specific notes filtered by student's active enrolled subjects
   const enrolledSubjectIdSet = useMemo(() => new Set(displaySubjects.map(s => s.id)), [displaySubjects]);
@@ -821,84 +805,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Classmate Notes Exchange (Crowdsourced Note Requests) */}
-          <div className="card" id="classmate-requests-card" style={{ borderColor: 'var(--color-primary-muted)' }}>
-            <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                <Users size={16} style={{ color: 'var(--color-primary)' }} />
-                <h3 style={{ fontSize: 'var(--text-md)' }}>Classmate Note Requests</h3>
-              </div>
-              <span className="badge badge-primary" style={{ fontSize: '10px' }}>
-                {peerRequests.length > 0 ? `${peerRequests.length} Open` : 'Peer Board'}
-              </span>
-            </div>
-            <div className="card-body" style={{ padding: 0 }}>
-              {peerRequests.length > 0 ? (
-                peerRequests.map(req => (
-                  <div
-                    key={req.id}
-                    className="topic-row"
-                    style={{ padding: 'var(--space-3) var(--space-4)', display: 'flex', alignItems: 'center', gap: '10px' }}
-                  >
-                    <div style={{
-                      minWidth: '34px',
-                      padding: '3px 6px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--color-primary-light)',
-                      color: 'var(--color-primary)',
-                      textAlign: 'center',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      fontSize: '11px',
-                      fontWeight: 'var(--weight-semibold)',
-                      flexShrink: 0
-                    }}>
-                      <ThumbsUp size={11} style={{ marginBottom: '2px' }} />
-                      {req.upvotes}
-                    </div>
-                    <div className="topic-row-content" style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {req.topicName}
-                      </div>
-                      <div className="mono text-muted" style={{ fontSize: '10px' }}>
-                        {req.subjectCode || req.subjectName} • Asked by {req.requesterName}
-                      </div>
-                    </div>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      style={{ fontSize: '11px', padding: '3px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}
-                      onClick={() => navigate('/notes?tab=requests')}
-                      title="Help a classmate by fulfilling this request"
-                    >
-                      Share Note
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <div style={{ padding: 'var(--space-4)', textAlign: 'center', color: 'var(--color-muted)', fontSize: 'var(--text-xs)' }}>
-                  No open requests right now in your stream.
-                </div>
-              )}
-            </div>
-            <div className="card-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--space-3) var(--space-4)' }}>
-              <button
-                className="btn btn-ghost btn-sm"
-                style={{ fontSize: '11px', padding: 0, color: 'var(--color-primary)' }}
-                onClick={() => navigate('/notes?tab=requests')}
-              >
-                View Community Board →
-              </button>
-              <button
-                className="btn btn-primary btn-sm"
-                style={{ fontSize: '11px', padding: '4px 10px' }}
-                onClick={() => navigate('/notes?tab=requests&newRequest=true')}
-              >
-                + Request a Note
-              </button>
-            </div>
-          </div>
-
           {/* Community Notes Spotlight */}
           <div className="card" style={{ background: 'var(--color-secondary-light)', border: '1px solid var(--color-secondary-muted)' }} id="smart-rec">
             <div className="card-body" style={{ padding: 'var(--space-4) var(--space-5)' }}>
@@ -919,185 +825,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-
-      {/* ================================================================
-          5. HALL OF SCRIBES — CONTRIBUTOR LEADERBOARD (Student Social Layer)
-          ================================================================ */}
-      <section className="dashboard-leaderboard-section" id="contributor-leaderboard">
-        <div className="card" style={{ overflow: 'hidden' }}>
-          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                <Trophy size={18} style={{ color: 'var(--color-primary)' }} />
-                <h2 style={{ fontSize: 'var(--text-lg)', margin: 0, fontFamily: 'var(--font-display)' }}>
-                  Hall of Scribes — Contributor Leaderboard
-                </h2>
-              </div>
-              <p className="text-sm text-muted" style={{ margin: '4px 0 0' }}>
-                Recognizing peer contributors who write comprehensive lecture notes, verified numericals, and syllabus guides.
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <div className="leaderboard-dept-toggle">
-                <button
-                  type="button"
-                  className={`leaderboard-toggle-btn ${leaderboardDept === 'all' ? 'active' : ''}`}
-                  onClick={() => setLeaderboardDept('all')}
-                >
-                  All Depts
-                </button>
-                <button
-                  type="button"
-                  className={`leaderboard-toggle-btn ${leaderboardDept !== 'all' ? 'active' : ''}`}
-                  onClick={() => setLeaderboardDept(user?.department || user?.stream || 'Computer Science')}
-                >
-                  {user?.department || (user?.stream ? user.stream.split(' ')[0] : 'My Branch')}
-                </button>
-              </div>
-
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => setUploadOpen(true)}
-                id="btn-leaderboard-upload-cta"
-              >
-                <Upload size={13} />
-                <span>Upload Notes</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="card-body" style={{ padding: 'var(--space-5)' }}>
-            {leaderboardLoading ? (
-              <div style={{ textAlign: 'center', padding: 'var(--space-6)', color: 'var(--color-muted)' }}>
-                <span className="mono" style={{ fontSize: '12px' }}>Loading contributor standings…</span>
-              </div>
-            ) : leaderboard.length >= 3 && (
-              <div className="leaderboard-podium-grid">
-                {/* 2nd Place */}
-                <div className="podium-card rank-2">
-                  <div className="podium-medal-badge silver">
-                    <span>2nd</span>
-                  </div>
-                  <div className="podium-avatar silver">
-                    {leaderboard[1].initials}
-                  </div>
-                  <h3 className="podium-name">{leaderboard[1].name}</h3>
-                  <span className="podium-tier-pill silver">{leaderboard[1].badge}</span>
-                  <div className="podium-score mono">
-                    {leaderboard[1].reputationScore.toLocaleString()} pts
-                  </div>
-                  <div className="podium-stats-row text-muted mono">
-                    <span>{leaderboard[1].totalUploads} uploads</span>
-                    <span>•</span>
-                    <span>{leaderboard[1].totalUpvotes} helpful</span>
-                  </div>
-                  <span className="podium-college">{leaderboard[1].college}</span>
-                </div>
-
-                {/* 1st Place */}
-                <div className="podium-card rank-1">
-                  <div className="podium-crown-icon">
-                    <Crown size={22} style={{ color: '#d97706' }} />
-                  </div>
-                  <div className="podium-medal-badge gold">
-                    <span>1st</span>
-                  </div>
-                  <div className="podium-avatar gold">
-                    {leaderboard[0].initials}
-                  </div>
-                  <h3 className="podium-name">{leaderboard[0].name}</h3>
-                  <span className="podium-tier-pill gold">{leaderboard[0].badge}</span>
-                  <div className="podium-score mono">
-                    {leaderboard[0].reputationScore.toLocaleString()} pts
-                  </div>
-                  <div className="podium-stats-row text-muted mono">
-                    <span>{leaderboard[0].totalUploads} uploads</span>
-                    <span>•</span>
-                    <span>{leaderboard[0].totalUpvotes} helpful</span>
-                  </div>
-                  <span className="podium-college">{leaderboard[0].college}</span>
-                </div>
-
-                {/* 3rd Place */}
-                <div className="podium-card rank-3">
-                  <div className="podium-medal-badge bronze">
-                    <span>3rd</span>
-                  </div>
-                  <div className="podium-avatar bronze">
-                    {leaderboard[2].initials}
-                  </div>
-                  <h3 className="podium-name">{leaderboard[2].name}</h3>
-                  <span className="podium-tier-pill bronze">{leaderboard[2].badge}</span>
-                  <div className="podium-score mono">
-                    {leaderboard[2].reputationScore.toLocaleString()} pts
-                  </div>
-                  <div className="podium-stats-row text-muted mono">
-                    <span>{leaderboard[2].totalUploads} uploads</span>
-                    <span>•</span>
-                    <span>{leaderboard[2].totalUpvotes} helpful</span>
-                  </div>
-                  <span className="podium-college">{leaderboard[2].college}</span>
-                </div>
-              </div>
-            )}
-
-            {/* Runners-up Table */}
-            <div className="leaderboard-table-wrapper" style={{ marginTop: 'var(--space-5)' }}>
-              <table className="leaderboard-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '48px', textAlign: 'center' }}>Rank</th>
-                    <th>Scribe</th>
-                    <th>Department</th>
-                    <th style={{ textAlign: 'center' }}>Uploads</th>
-                    <th style={{ textAlign: 'center' }}>Helpful Votes</th>
-                    <th style={{ textAlign: 'right' }}>Reputation</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {leaderboard.map(item => (
-                    <tr key={item.userId} className={item.rank <= 3 ? `top-rank-row rank-${item.rank}` : ''}>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className={`rank-number-chip ${item.rank <= 3 ? `rank-${item.rank}` : ''}`}>
-                          #{item.rank}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div className={`table-scribe-avatar ${item.rank <= 3 ? `rank-${item.rank}` : ''}`}>
-                            {item.initials}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 'var(--weight-semibold)', fontSize: 'var(--text-sm)', color: 'var(--color-deep)' }}>
-                              {item.name}
-                            </div>
-                            <span className="mono text-muted" style={{ fontSize: '10.5px' }}>
-                              {item.badge}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{ fontSize: 'var(--text-sm)', color: 'var(--color-muted)' }}>
-                        {item.department}
-                      </td>
-                      <td style={{ textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)' }}>
-                        {item.totalUploads}
-                      </td>
-                      <td style={{ textAlign: 'center', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-primary)' }}>
-                        {item.totalUpvotes} 👍
-                      </td>
-                      <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 'var(--weight-bold)', fontSize: 'var(--text-sm)' }}>
-                        {item.reputationScore.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }

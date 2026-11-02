@@ -1212,55 +1212,7 @@ export default function LandingPage() {
                 </button>
               </form>
 
-              {/* Optional Quick Demo Helpers at Bottom */}
-              <div style={{
-                marginTop: '16px',
-                paddingTop: '12px',
-                borderTop: '1px solid var(--color-border, #E8E5DF)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                flexWrap: 'wrap'
-              }}>
-                <span style={{ fontSize: '11px', color: 'var(--color-muted, #706B63)', fontWeight: 500 }}>
-                  Demo Accounts:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setAuthForm({ name: 'Nishant Verma', email: 'student@atelier.edu', password: 'password123' })}
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E8E5DF',
-                    borderRadius: '4px',
-                    padding: '3px 8px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: 'var(--color-deep, #1F2421)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Student
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAuthForm({ name: 'Priya Sharma', email: 'moderator@atelier.edu', password: 'password123' })}
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #E8E5DF',
-                    borderRadius: '4px',
-                    padding: '3px 8px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: 'var(--color-deep, #1F2421)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Moderator
-                </button>
-              </div>
-
-              <div className="auth-footer-text" style={{ marginTop: '14px', fontSize: '13px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              <div className="auth-footer-text" style={{ marginTop: '16px', fontSize: '13px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                 Don't have an account?{' '}
                 <button
                   type="button"
@@ -1357,7 +1309,7 @@ export default function LandingPage() {
                   <input
                     type="email"
                     id="forgot-email"
-                    placeholder="student@apex.edu"
+                    placeholder="Enter your registered email"
                     required
                     value={authForm.email}
                     onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
