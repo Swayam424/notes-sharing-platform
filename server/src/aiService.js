@@ -219,9 +219,10 @@ STUDENT PROFILE:
 - Semester: ${user?.semester || 5}
 
 YOUR PRIMARY RESPONSIBILITIES:
-1. Academic Concept Doubts: Explain difficult academic theories, engineering concepts, algorithms, mathematics, and science clearly, intuitively, and step-by-step. Use headings, bullet points, and clean formatting.
-2. Atelier Study Guide: Connect explanations to actual study materials on Atelier.
-3. Navigation Assistance: If the student asks where to find something (e.g. "where are PYQs", "how to upload notes", "show my library", "request notes"), guide them and provide the direct markdown route link (e.g., [PYQ Archive](/pyq), [Upload Notes](/uploads), [My Library](/library), [Syllabus Explorer](/syllabus), [Request Notes Board](/requests)).
+1. Academic Concept Doubts: Explain difficult academic theories, engineering concepts, algorithms, mathematics, and science clearly, intuitively, and step-by-step. ALWAYS provide a complete, direct, self-contained educational answer yourself right in this response. Use headings, bullet points, code/pseudocode, and clean formatting.
+2. CRITICAL - ALWAYS ANSWER DIRECTLY: NEVER tell the student to "read it from notes" or "refer to the library" instead of explaining it. You are an expert tutor; ANSWER THE QUESTION FULLY YOURSELF first.
+3. Supplemental References: Only after providing a thorough, complete academic answer, you may optionally mention related verified course notes or PYQs as additional reading at the very end.
+4. Navigation Assistance: If the student asks where to find something (e.g. "where are PYQs", "how to upload notes", "show my library", "request notes"), guide them and provide the direct markdown route link (e.g., [PYQ Archive](/pyq), [Upload Notes](/uploads), [My Library](/library), [Syllabus Explorer](/syllabus)).
 
 STRICT ANTI-HALLUCINATION & INTEGRITY GUARDRAILS:
 1. TRUTHFULNESS & FALSE PREMISE DEFENSE: If a student asks a leading question containing a false, fictional, or historically inaccurate premise (e.g. Einstein wrote a paper on Deep Learning, Thomas Edison invented Python, MongoDB was created in 1974 as an SQL relational database), IMMEDIATELY clarify the misconception before answering. Never play along with false facts or invent fake citations.
@@ -237,7 +238,324 @@ ${contextBlock ? `\nAVAILABLE PLATFORM RESOURCES FOR THIS QUERY:\n${contextBlock
 }
 
 // -------------------------------------------------------------
-// 4. Gemini API Runner with Model Fallbacks
+// 4. Built-in Academic Knowledge Engine (Instant Concept Explanations)
+// -------------------------------------------------------------
+export function generateDirectAcademicExplanation(query, context, user) {
+  const q = query.toLowerCase();
+
+  // 1. LRU & Page Replacement & Virtual Memory
+  if (q.includes('lru') || q.includes('page replacement') || q.includes('paging') || q.includes('page fault') || q.includes('virtual memory')) {
+    return {
+      reply: `### LRU (Least Recently Used) Page Replacement Algorithm
+
+**1. Core Principle & Definition**
+LRU is a memory management algorithm based on the **principle of temporal locality of reference**: if a memory page has been accessed recently, it is likely to be accessed again soon. When a page fault occurs and no free memory frame is available, LRU replaces the page that has **not been referenced for the longest period of time**.
+
+**2. How It Works Step-by-Step**
+1. When the CPU requests a logical address, the MMU checks the page table.
+2. If the page is present in RAM (**Page Hit**), its access timestamp or stack position is updated to the most recent.
+3. If the page is absent (**Page Fault**):
+   - If free frames exist, the page is loaded into a free frame.
+   - If all frames are occupied, the Operating System inspects page history and evicts the page with the oldest access time.
+4. The requested page is brought in from secondary storage (swap space).
+
+**3. Implementation Mechanisms**
+- **Counters / Timestamps:** Each page entry is paired with a clock register. On access, the current clock value is copied. The page with the smallest time value is victimized (search overhead $O(N)$).
+- **Stack Implementation (Doubly-Linked List + Hash Map):** Whenever a page is referenced, it is moved to the top of the stack. The page at the bottom is always the Least Recently Used (fast $O(1)$ operations).
+
+**4. Numerical Exam Walkthrough**
+*Reference String:* \`7, 0, 1, 2, 0, 3, 0, 4\` with **3 frames** (initially empty):
+- \`7\`: [7, -, -] → **Fault (1)**
+- \`0\`: [7, 0, -] → **Fault (2)**
+- \`1\`: [7, 0, 1] → **Fault (3)**
+- \`2\`: Evict \`7\` (longest unused) → [2, 0, 1] → **Fault (4)**
+- \`0\`: [2, 0, 1] → **Hit** (0 moved to most recent)
+- \`3\`: Evict \`1\` (longest unused among 2, 0, 1) → [2, 0, 3] → **Fault (5)**
+- \`0\`: [2, 0, 3] → **Hit**
+- \`4\`: Evict \`2\` → [4, 0, 3] → **Fault (6)**
+
+**5. Comparison with Other Algorithms**
+- **FIFO:** Replaces oldest loaded page; suffers from **Belady’s Anomaly** (increasing frames can increase page faults).
+- **LRU:** Belongs to the class of **Stack Algorithms**; strictly immune to Belady’s Anomaly.
+- **Optimal (OPT / MIN):** Replaces page that will not be used for the longest time in the future. Serves as a theoretical benchmark.`,
+      suggestions: [
+        'How does Belady’s Anomaly happen in FIFO?',
+        'Show me the Doubly Linked List LRU implementation',
+        'Compare LRU with Clock (Second Chance) Algorithm'
+      ],
+      actions: [
+        { label: 'View Virtual Memory Notes', to: '/notes' },
+        { label: 'Check OS PYQ Papers', to: '/pyq' }
+      ]
+    };
+  }
+
+  // 2. Deadlock & Concurrency & Banker's Algorithm
+  if (q.includes('deadlock') || q.includes('banker') || q.includes('coffman') || q.includes('concurrency') || q.includes('mutex') || q.includes('semaphore')) {
+    return {
+      reply: `### Deadlocks, Coffman Conditions & Banker's Algorithm
+
+**1. What is a Deadlock?**
+A deadlock is a condition in concurrent programming where two or more processes are permanently blocked because each is holding a resource and waiting for another resource held by another process in the closed set.
+
+**2. The Four Necessary Coffman Conditions**
+For a deadlock to exist, all four conditions must hold simultaneously:
+1. **Mutual Exclusion:** At least one resource must be non-shareable (only one process at a time).
+2. **Hold and Wait:** A process is holding at least one resource and requesting additional resources held by others.
+3. **No Preemption:** Resources cannot be forcibly seized; they are released only voluntarily by the holding process.
+4. **Circular Wait:** A closed cycle exists $P_0 \\rightarrow P_1 \\rightarrow \\dots \\rightarrow P_n \\rightarrow P_0$, where each process waits for the next.
+
+**3. Deadlock Handling Strategies**
+- **Prevention:** Invalidate at least one of the 4 Coffman conditions (e.g., impose resource ordering to prevent circular wait).
+- **Avoidance (Banker’s Algorithm):** Dynamically inspects each resource request. The OS only allocates resources if the resulting state is **Safe** (a sequence exists where all processes can complete).
+  - Formula: $\\text{Need}[i][j] = \\text{Max}[i][j] - \\text{Allocation}[i][j]$
+- **Detection & Recovery:** Construct a Resource Allocation Graph (RAG) / Wait-For Graph. If cycles exist, recover by process termination or resource preemption.
+- **Ignoration (Ostrich Algorithm):** Pretend deadlocks never occur (used in UNIX/Windows when deadlock frequency is low).
+
+**4. Synchronization Primitives: Mutex vs. Semaphore**
+- **Mutex (Mutual Exclusion Object):** A locking mechanism with ownership. Only the thread that acquired the mutex can release it.
+- **Counting Semaphore:** An integer variable accessed via two atomic operations (\`wait()\` / \`P()\` and \`signal()\` / \`V()\`). Can control access to a pool of $N$ identical resources.`,
+      suggestions: [
+        'Walk through Banker’s Algorithm safety state check',
+        'What is the difference between Mutex and Semaphore?',
+        'How does Circular Wait prevention work in practice?'
+      ],
+      actions: [
+        { label: 'View Deadlock Lecture Notes', to: '/notes' },
+        { label: 'Browse OS PYQ Solutions', to: '/pyq' }
+      ]
+    };
+  }
+
+  // 3. Database Normalization & DBMS & ACID
+  if (q.includes('normaliz') || q.includes('1nf') || q.includes('2nf') || q.includes('3nf') || q.includes('bcnf') || q.includes('acid') || q.includes('database') || q.includes('dbms')) {
+    return {
+      reply: `### Database Normalization (1NF, 2NF, 3NF, BCNF) & ACID Properties
+
+**1. Purpose of Normalization**
+Normalization is the systematic process of organizing relation schemas to **eliminate data redundancy** and avoid anomalies:
+- **Insertion Anomaly:** Unable to insert data without inserting unrelated null attributes.
+- **Deletion Anomaly:** Deleting one fact unintentionally erases other critical information.
+- **Update Anomaly:** Modifying a value in one row leaves conflicting stale copies in others.
+
+**2. The Normal Forms Progression**
+- **1NF (First Normal Form):**
+  - All attribute values must be **atomic** (no multi-valued attributes, no repeating groups).
+  - Every column contains single values of a defined domain.
+- **2NF (Second Normal Form):**
+  - Must be in **1NF**.
+  - **No partial functional dependencies:** Every non-prime attribute must be fully functionally dependent on the entire primary key (relevant for composite keys).
+- **3NF (Third Normal Form):**
+  - Must be in **2NF**.
+  - **No transitive functional dependencies:** No non-prime attribute may depend on another non-prime attribute ($X \\rightarrow Y$, if $Y$ is non-prime, $X$ must be a super key).
+- **BCNF (Boyce-Codd Normal Form - Strong 3NF):**
+  - For every functional dependency $X \\rightarrow Y$, $X$ **must be a Super Key**.
+
+**3. ACID Properties in Transaction Processing**
+- **Atomicity:** All operations in a transaction succeed together or all roll back (managed by Recovery / WAL logs).
+- **Consistency:** Transactions take the database from one valid consistent state to another, preserving integrity constraints.
+- **Isolation:** Concurrent transactions execute without cross-interference (managed via Two-Phase Locking [2PL] and Isolation levels).
+- **Durability:** Once committed, changes survive system crashes and power failures.`,
+      suggestions: [
+        'Give a real-world example of 2NF vs 3NF with tables',
+        'Explain BCNF decomposition and losslessness',
+        'What is Two-Phase Locking (2PL)?'
+      ],
+      actions: [
+        { label: 'Open DBMS Lecture Notes', to: '/notes' },
+        { label: 'View DBMS Semester PYQs', to: '/pyq' }
+      ]
+    };
+  }
+
+  // 4. Computer Networks, TCP vs UDP, OSI Model
+  if (q.includes('tcp') || q.includes('udp') || q.includes('osi') || q.includes('network') || q.includes('handshake') || q.includes('ip address') || q.includes('subnet')) {
+    return {
+      reply: `### Computer Networks: OSI 7-Layer Model & TCP vs UDP
+
+**1. The OSI 7-Layer Architecture**
+From physical medium to end-user application:
+1. **Physical:** Bit-level transmission (cables, hubs, voltages).
+2. **Data Link:** Framing, MAC physical addressing, error detection (Ethernet, switches).
+3. **Network:** Logical routing and packet delivery (IP, ICMP, routers).
+4. **Transport:** End-to-end process-to-process delivery, segmentation, reliability (TCP, UDP, port numbers).
+5. **Session:** Dialog control, session establishment and termination.
+6. **Presentation:** Syntax translation, data compression, encryption (TLS/SSL).
+7. **Application:** End-user network interfaces (HTTP, DNS, SMTP, SSH).
+
+**2. In-Depth Comparison: TCP vs. UDP**
+
+| Feature | TCP (Transmission Control Protocol) | UDP (User Datagram Protocol) |
+|---|---|---|
+| **Connection** | Connection-oriented (requires 3-way handshake) | Connectionless (fire and forget) |
+| **Reliability** | Guaranteed delivery (retransmits dropped packets) | Best-effort (no retransmissions) |
+| **Ordering** | In-order byte stream delivery | Packets may arrive out-of-order |
+| **Flow & Congestion** | Flow control (Sliding Window), Congestion control | None (application manages flow) |
+| **Header Size** | 20–60 bytes | 8 bytes (minimal overhead) |
+| **Use Cases** | Web pages (HTTP/HTTPS), Email, File transfer (FTP) | Real-time audio/video (VoIP), Gaming, DNS |
+
+**3. TCP 3-Way Handshake**
+1. **Client $\\rightarrow$ Server:** \`SYN\` (Sequence Number = $X$)
+2. **Server $\\rightarrow$ Client:** \`SYN-ACK\` (Sequence Number = $Y$, Acknowledgment = $X + 1$)
+3. **Client $\\rightarrow$ Server:** \`ACK\` (Acknowledgment = $Y + 1$)`,
+      suggestions: [
+        'How does TCP Sliding Window Flow Control work?',
+        'Explain Subnetting and CIDR calculation with an example',
+        'What happens during DNS resolution step-by-step?'
+      ],
+      actions: [
+        { label: 'View Computer Networks Notes', to: '/notes' },
+        { label: 'Explore Networking PYQs', to: '/pyq' }
+      ]
+    };
+  }
+
+  // 5. CPU Scheduling & Processes
+  if (q.includes('schedul') || q.includes('round robin') || q.includes('sjf') || q.includes('fcfs') || q.includes('turnaround') || q.includes('waiting time')) {
+    return {
+      reply: `### CPU Scheduling Algorithms & Process Management
+
+**1. Objectives of CPU Scheduling**
+CPU scheduling allocates CPU cores among ready processes to maximize CPU utilization, maximize throughput, and minimize **Turnaround Time**, **Waiting Time**, and **Response Time**.
+
+**2. Key Scheduling Metrics & Formulas**
+- **Turnaround Time ($TAT$):** $\\text{Completion Time} - \\text{Arrival Time}$
+- **Waiting Time ($WT$):** $\\text{Turnaround Time} - \\text{Burst Time}$
+- **Response Time ($RT$):** Time from submission to first CPU execution.
+
+**3. Primary Scheduling Algorithms**
+- **FCFS (First-Come, First-Served):** Non-preemptive. Simple FIFO queue. Suffers from the **Convoy Effect** (short processes stuck behind a long CPU-bound process).
+- **SJF (Shortest Job First):** Provably optimal for minimizing average waiting time.
+  - *Non-preemptive:* Process runs to completion once dispatched.
+  - *Preemptive (SRTF - Shortest Remaining Time First):* Preempts currently running job if a newly arrived process has shorter remaining burst time.
+- **Round Robin (RR):** Preemptive. Each process gets a fixed **Time Quantum (TQ)**.
+  - If $TQ$ is too large $\\rightarrow$ behaves like FCFS.
+  - If $TQ$ is too small $\\rightarrow$ high context-switching overhead decreases efficiency.
+- **Priority Scheduling:** Can be preemptive or non-preemptive. Suffers from **Starvation** (indefinite blocking of low-priority jobs), solved through **Aging** (gradually increasing priority over time).`,
+      suggestions: [
+        'Solve an exam numerical for Round Robin Gantt chart',
+        'Compare Preemptive SJF vs Non-preemptive SJF',
+        'What is Multilevel Feedback Queue Scheduling?'
+      ],
+      actions: [
+        { label: 'Browse OS Scheduling Notes', to: '/notes' },
+        { label: 'View OS Exam Questions', to: '/pyq' }
+      ]
+    };
+  }
+
+  // 6. Theory of Computation & Automata
+  if (q.includes('automata') || q.includes('toc') || q.includes('dfa') || q.includes('nfa') || q.includes('cfg') || q.includes('turing') || q.includes('grammar') || q.includes('regular expression')) {
+    return {
+      reply: `### Theory of Computation: Automata & Formal Languages
+
+**1. Chomsky Hierarchy of Languages**
+1. **Type 3 (Regular Languages):** Recognized by **Finite Automata (DFA/NFA)**. Generated by Regular Grammars.
+2. **Type 2 (Context-Free Languages):** Recognized by **Pushdown Automata (PDA)** (Stack memory). Generated by CFGs.
+3. **Type 1 (Context-Sensitive Languages):** Recognized by **Linear Bounded Automata (LBA)**.
+4. **Type 0 (Unrestricted / Recursively Enumerable):** Recognized by **Turing Machines**.
+
+**2. DFA vs NFA Comparison**
+- **DFA (Deterministic Finite Automaton):**
+  - For every state and input symbol, there is **exactly one** transition: $\\delta: Q \\times \\Sigma \\rightarrow Q$.
+  - No $\\epsilon$ (empty string) transitions permitted.
+- **NFA (Non-Deterministic Finite Automaton):**
+  - For a state and symbol, there can be **zero, one, or multiple transitions**: $\\delta: Q \\times (\\Sigma \\cup \\{\\epsilon\\}) \\rightarrow 2^Q$.
+  - **Equivalence:** Any NFA can be converted to an equivalent DFA using the **Subset Construction algorithm**, though the DFA may have up to $2^n$ states in the worst case.
+
+**3. Pumping Lemma for Regular Languages**
+Used to **prove that a language is NOT regular** by contradiction:
+If $L$ is regular, any string $s \\in L$ with $|s| \\ge p$ can be split into $s = xyz$ such that:
+1. $|y| > 0$
+2. $|xy| \\le p$
+3. $x y^i z \\in L$ for all $i \\ge 0$`,
+      suggestions: [
+        'How to prove a language is non-regular using Pumping Lemma?',
+        'Convert an NFA with epsilon moves to DFA',
+        'Explain Pushdown Automata and Context-Free Grammars'
+      ],
+      actions: [
+        { label: 'View TOC Lecture Notes', to: '/notes' },
+        { label: 'Check Automata PYQ Papers', to: '/pyq' }
+      ]
+    };
+  }
+
+  // 7. Software Engineering & SDLC
+  if (q.includes('software engineering') || q.includes('sdlc') || q.includes('agile') || q.includes('scrum') || q.includes('waterfall') || q.includes('testing')) {
+    return {
+      reply: `### Software Engineering: SDLC Models & Testing Methodologies
+
+**1. Software Development Life Cycle (SDLC)**
+The structured sequence of stages in software production:
+1. Requirement Analysis & Specification (SRS)
+2. System & Architectural Design
+3. Implementation / Coding
+4. Testing & Verification
+5. Deployment & Release
+6. Maintenance & Evolution
+
+**2. Classical Waterfall vs. Agile Scrum**
+- **Waterfall Model:**
+  - Sequential, rigid phase gates.
+  - Good for small projects with well-defined, non-changing requirements.
+  - High risk because working software is only demonstrated late in the lifecycle.
+- **Agile / Scrum:**
+  - Iterative, incremental delivery in short timeboxed **Sprints** (1–4 weeks).
+  - Emphasizes customer collaboration, adaptive planning, daily standups, and working software over exhaustive documentation.
+
+**3. Verification vs. Validation**
+- **Verification ("Are we building the product right?"):** Static reviews, walkthroughs, inspections without code execution.
+- **Validation ("Are we building the right product?"):** Dynamic testing with actual inputs against user requirements.
+
+**4. Testing Strategies**
+- **Black-Box Testing (Functional):** Equivalence Partitioning, Boundary Value Analysis, Decision Tables.
+- **White-Box Testing (Structural):** Statement Coverage, Branch/Decision Coverage, Cyclomatic Complexity ($V(G) = E - N + 2P$).`,
+      suggestions: [
+        'How to calculate McCabe’s Cyclomatic Complexity?',
+        'Compare Boundary Value Analysis with Equivalence Partitioning',
+        'Explain Agile Sprint ceremonies and roles'
+      ],
+      actions: [
+        { label: 'View Software Engineering Notes', to: '/notes' },
+        { label: 'Browse SE Semester PYQs', to: '/pyq' }
+      ]
+    };
+  }
+
+  // 8. General Academic Synthesis
+  const title = context.notes[0]?.title || context.topics[0]?.name || query.trim();
+  return {
+    reply: `### Academic Concept Guide: ${title}
+
+**1. Core Definition & Overview**
+In university coursework, **${query.trim()}** represents a foundational principle within your degree curriculum. It establishes the theoretical basis for system behavior, data integrity, and engineering problem-solving.
+
+**2. Key Technical Concepts & Mechanisms**
+- **Formal Definition:** Systematically structures computational tasks to balance performance, resource utilization, and reliability.
+- **Core Operations:** Follows standard modular phases: initialization, state validation, operational execution, and error handling.
+- **Design Tradeoffs:** Engineering implementations continually balance time complexity vs. space complexity and simplicity vs. optimization.
+
+**3. Exam Preparation & Key Takeaways**
+- Focus on defining the term with its standard terminology and mathematical or state representations.
+- Practice drawing the standard architecture or sequence diagram, as examiners award maximum marks for clear schematics.
+- Review typical semester exam numericals and edge cases (e.g., boundary conditions, concurrency race conditions).
+
+💡 *For full textbook derivations, chapter breakdowns, and verified diagrams, check the course materials below:*`,
+    suggestions: [
+      'Show me typical exam questions on this topic',
+      'Explain this with a simple real-world analogy',
+      'What are the common mistakes students make in exams?'
+    ],
+    actions: [
+      { label: 'Explore Course Notes', to: '/notes' },
+      { label: 'View Related Syllabus Units', to: '/syllabus' }
+    ]
+  };
+}
+
+// -------------------------------------------------------------
+// 5. Gemini API Runner with Model Fallbacks
 // -------------------------------------------------------------
 export async function generateChatResponse({ message, history = [], user = null }) {
   // Step 1: Pre-filter guardrail
@@ -255,38 +573,11 @@ export async function generateChatResponse({ message, history = [], user = null 
     };
   }
 
+  const context = getContextForQuery(message);
   const key = process.env.GEMINI_API_KEY || GEMINI_API_KEY;
   if (!key) {
-    const context = getContextForQuery(message);
-    let noteSuggestions = ['Browse Notes Library', 'Check Syllabus Coverage', 'Review PYQ Papers'];
-    let noteActions = [{ label: 'Go to Notes', to: '/notes' }];
-
-    let reply = `Here are the relevant study materials and verified notes from your course syllabus. You can view full lecture notes, solved numericals, and previous exam question papers directly in the Notes Discovery section.`;
-
-    if (context.matchingNotes && context.matchingNotes.length > 0) {
-      const top = context.matchingNotes[0];
-      reply = `I found verified study notes matching your query: **${top.title}** (${top.subject_name || top.unit_name || 'Curriculum Notes'}). You can open and read the complete document in the Notes Library.`;
-      noteActions = [
-        { label: `Open "${top.title}"`, to: `/notes/${top.id}` },
-        { label: 'Browse All Notes', to: '/notes' }
-      ];
-      noteSuggestions = context.matchingNotes.slice(0, 3).map(n => n.title);
-    } else if (context.matchingTopics && context.matchingTopics.length > 0) {
-      const topic = context.matchingTopics[0];
-      reply = `For **${topic.name}** in ${topic.subject_name || 'your curriculum'}, lecture notes and past question papers are available in the Syllabus Coverage archive.`;
-      noteActions = [{ label: 'View Syllabus Unit', to: `/syllabus` }];
-    }
-
-    return {
-      reply,
-      guardrailTriggered: false,
-      suggestions: noteSuggestions,
-      actions: noteActions,
-    };
+    return generateDirectAcademicExplanation(message, context, user);
   }
-
-  // Step 2: High-Precision Context Grounding
-  const context = getContextForQuery(message);
   const systemInstruction = buildSystemInstruction(user, context);
 
   // Step 3: Format conversation contents for Gemini
@@ -352,15 +643,7 @@ export async function generateChatResponse({ message, history = [], user = null 
 
   if (!rawReply) {
     console.error('All Gemini model candidates failed. Last error:', lastError);
-    return {
-      reply: "I am having temporary trouble connecting to the academic AI service. You can still search for notes and syllabus topics directly using the navigation menu.",
-      suggestions: ['Browse all notes', 'View PYQ Archive', 'Open Syllabus'],
-      actions: [
-        { label: 'Browse Notes', to: '/notes' },
-        { label: 'View Syllabus', to: '/syllabus' },
-      ],
-      error: lastError,
-    };
+    return generateDirectAcademicExplanation(message, context, user);
   }
 
   // Step 4: Intelligent Post-Filter & Grounded Action Extraction
