@@ -116,6 +116,12 @@ const uploadRateLimiter = createRateLimiter({
   message: 'Upload rate limit reached for this hour. Please try again later.'
 });
 
+const aiRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 30,
+  message: 'AI Study Assistant query limit reached. Please wait a few minutes before asking more questions.'
+});
+
 app.use('/api/', apiGeneralLimiter);
 
 // -------------------------------------------------------------
@@ -405,16 +411,27 @@ app.get('/api/notes', (req, res) => {
       query += ' AND LOWER(author) = LOWER(?)';
       params.push(author);
     }
+    const requester = getUserFromRequest(req);
+    const requesterIsMod = isModerator(requester);
+
     if (userId) {
       query += ' AND user_id = ?';
       params.push(userId);
     }
     if (status && status !== 'all') {
+      if (status === 'quarantined' && !requesterIsMod) {
+        return res.status(403).json({ success: false, error: 'Access denied to quarantined resources' });
+      }
       query += ' AND status = ?';
       params.push(status);
-    } else if (!userId) {
-      // In public discovery, exclude quarantined / restricted resources
-      query += " AND (status != 'quarantined' OR status IS NULL)";
+    } else if (!requesterIsMod) {
+      // In public discovery, exclude quarantined / restricted resources unless requester is owner
+      if (requester) {
+        query += " AND (status != 'quarantined' OR user_id = ? OR status IS NULL)";
+        params.push(requester.id);
+      } else {
+        query += " AND (status != 'quarantined' OR status IS NULL)";
+      }
     }
     if (search) {
       query += ' AND (title LIKE ? OR author LIKE ? OR primary_topic LIKE ? OR description LIKE ? OR tags LIKE ?)';
@@ -493,6 +510,12 @@ app.get('/api/notes/:id', (req, res) => {
     }
 
     const reqUser = getUserFromRequest(req);
+    if (n.status === 'quarantined') {
+      const isOwner = reqUser && ((n.user_id && n.user_id === reqUser.id) || (n.author && n.author.toLowerCase() === reqUser.name.toLowerCase()));
+      if (!isModerator(reqUser) && !isOwner) {
+        return res.status(403).json({ success: false, error: 'This note has been restricted by academic moderators.' });
+      }
+    }
     const isUpvoted = reqUser ? !!db.prepare('SELECT 1 FROM note_upvotes WHERE user_id = ? AND note_id = ?').get(reqUser.id, n.id) : false;
     const commentCount = db.prepare('SELECT COUNT(*) as c FROM note_comments WHERE note_id = ?').get(n.id)?.c || 0;
 
@@ -682,12 +705,23 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
   }
 });
 
-// Update note metadata
+// Update note metadata (with strict BOLA / IDOR ownership authorization)
 app.put('/api/notes/:id', (req, res) => {
   try {
+    const user = getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Authentication required to update notes' });
+    }
+
     const existing = db.prepare('SELECT * FROM notes WHERE id = ?').get(req.params.id);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Note not found' });
+    }
+
+    const isOwner = (existing.user_id && existing.user_id === user.id) ||
+                    (existing.author && existing.author.toLowerCase() === user.name.toLowerCase());
+    if (!isOwner && !isModerator(user)) {
+      return res.status(403).json({ success: false, error: 'Permission denied. Only the author or a moderator can edit this note.' });
     }
 
     const {
@@ -715,14 +749,25 @@ app.put('/api/notes/:id', (req, res) => {
       }
     }
 
-    const updatedTitle = title !== undefined ? title.trim() : existing.title;
-    const updatedPrimaryTopic = primaryTopic !== undefined ? primaryTopic.trim() : existing.primary_topic;
-    const updatedDesc = description !== undefined ? description.trim() : existing.description;
+    const updatedTitle = title !== undefined ? sanitizeString(title) : existing.title;
+    const updatedPrimaryTopic = primaryTopic !== undefined ? sanitizeString(primaryTopic) : existing.primary_topic;
+    const updatedDesc = description !== undefined ? sanitizeString(description) : existing.description;
     const updatedFormat = format !== undefined ? format : existing.format;
-    const updatedPages = pages !== undefined ? parseInt(pages) : existing.pages;
-    const updatedStatus = status !== undefined ? status : (existing.status || 'published');
-    const updatedDept = department !== undefined ? department : existing.department;
-    const updatedSem = semester !== undefined ? parseInt(semester) : existing.semester;
+    const updatedPages = pages !== undefined ? Math.max(1, parseInt(pages, 10) || 1) : existing.pages;
+
+    let updatedStatus = existing.status || 'published';
+    if (status !== undefined) {
+      if (['published', 'draft', 'archived'].includes(status)) {
+        updatedStatus = status;
+      } else if (status === 'quarantined') {
+        if (isModerator(user)) {
+          updatedStatus = status;
+        }
+      }
+    }
+
+    const updatedDept = department !== undefined ? sanitizeString(department) : existing.department;
+    const updatedSem = semester !== undefined ? Math.min(8, Math.max(1, parseInt(semester, 10) || 1)) : existing.semester;
 
     db.prepare(`
       UPDATE notes
@@ -844,6 +889,15 @@ app.get('/api/notes/:id/download', (req, res) => {
       return res.status(404).send('Note not found');
     }
 
+    // Quarantine check: restricted resources can only be downloaded by author or moderator
+    if (note.status === 'quarantined') {
+      const user = getUserFromRequest(req);
+      const isOwner = user && ((note.user_id && note.user_id === user.id) || (note.author && note.author.toLowerCase() === user.name.toLowerCase()));
+      if (!isModerator(user) && !isOwner) {
+        return res.status(403).send('This note has been restricted by academic moderators.');
+      }
+    }
+
     // Increment download count
     db.prepare('UPDATE notes SET downloads = downloads + 1 WHERE id = ?').run(note.id);
 
@@ -883,7 +937,10 @@ app.get('/api/notes/:id/upvote-status', (req, res) => {
 
 app.post('/api/notes/:id/upvote', (req, res) => {
   try {
-    const user = getUserFromRequest(req) || { id: 'user-student', name: 'Nishant Verma' };
+    const user = getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Authentication required to upvote notes' });
+    }
     const note = db.prepare('SELECT id, upvotes FROM notes WHERE id = ?').get(req.params.id);
     if (!note) {
       return res.status(404).json({ success: false, error: 'Note not found' });
@@ -949,12 +1006,10 @@ app.get('/api/notes/:id/comments', (req, res) => {
 
 app.post('/api/notes/:id/comments', (req, res) => {
   try {
-    const user = getUserFromRequest(req) || {
-      id: 'user-student',
-      name: 'Nishant Verma',
-      initials: 'NV',
-      role: 'Student'
-    };
+    const user = getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Authentication required to post comments' });
+    }
 
     const { content, category } = req.body;
     const safeContent = sanitizeString(content);
@@ -1005,7 +1060,10 @@ app.post('/api/notes/:id/comments', (req, res) => {
 
 app.post('/api/comments/:id/upvote', (req, res) => {
   try {
-    const user = getUserFromRequest(req) || { id: 'user-student' };
+    const user = getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Authentication required to upvote comments' });
+    }
     const comment = db.prepare('SELECT id, upvotes FROM note_comments WHERE id = ?').get(req.params.id);
     if (!comment) {
       return res.status(404).json({ success: false, error: 'Comment not found' });
@@ -1229,11 +1287,10 @@ app.get('/api/note-requests', (req, res) => {
 // Create a new note request
 app.post('/api/note-requests', (req, res) => {
   try {
-    const user = getUserFromRequest(req) || {
-      id: 'user-student',
-      name: 'Nishant Verma',
-      initials: 'NV'
-    };
+    const user = getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Authentication required to create a note request' });
+    }
 
     const { subjectId, unitId, topicName, description } = req.body;
     if (!subjectId || !topicName || !topicName.trim()) {
@@ -1296,7 +1353,10 @@ app.post('/api/note-requests', (req, res) => {
 // Upvote / "Me too" toggle on a note request
 app.post('/api/note-requests/:id/upvote', (req, res) => {
   try {
-    const user = getUserFromRequest(req) || { id: 'user-student' };
+    const user = getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Authentication required to upvote note requests' });
+    }
     const request = db.prepare('SELECT id, upvotes FROM note_requests WHERE id = ?').get(req.params.id);
     if (!request) {
       return res.status(404).json({ success: false, error: 'Note request not found' });
@@ -1328,10 +1388,10 @@ app.post('/api/note-requests/:id/upvote', (req, res) => {
 // Fulfill a note request with an existing or freshly uploaded note
 app.post('/api/note-requests/:id/fulfill', (req, res) => {
   try {
-    const user = getUserFromRequest(req) || {
-      id: 'user-student',
-      name: 'Nishant Verma'
-    };
+    const user = getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Authentication required to fulfill note requests' });
+    }
 
     const { noteId } = req.body;
     if (!noteId) {
@@ -1656,6 +1716,9 @@ app.get('/api/pyqs/:id', (req, res) => {
 app.post('/api/pyqs', uploadRateLimiter, upload.single('file'), (req, res) => {
   try {
     const user = getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Authentication required to upload question papers' });
+    }
     const {
       title,
       subjectId,
@@ -1678,7 +1741,7 @@ app.post('/api/pyqs', uploadRateLimiter, upload.single('file'), (req, res) => {
 
     const subject = db.prepare('SELECT name, code FROM subjects WHERE id = ?').get(subjectId);
     const subjectName = subject ? subject.name : 'Academic';
-    const paperTitle = title && title.trim() ? title.trim() : `${subjectName} — ${month || 'Dec'} ${year} ${examType || 'End Semester'} Examination Paper`;
+    const paperTitle = title && title.trim() ? sanitizeString(title) : `${subjectName} — ${month || 'Dec'} ${year} ${examType || 'End Semester'} Examination Paper`;
     const id = 'pyq-' + Date.now();
     const now = new Date().toISOString().split('T')[0];
 
@@ -1790,15 +1853,33 @@ app.post('/api/pyqs', uploadRateLimiter, upload.single('file'), (req, res) => {
 app.get('/api/pyqs/:id/download', (req, res) => {
   try {
     const { id } = req.params;
+    const pyq = db.prepare('SELECT * FROM pyqs WHERE id = ?').get(id);
+    if (!pyq) {
+      return res.status(404).send('Question Paper not found');
+    }
+
+    if (pyq.status === 'quarantined') {
+      const user = getUserFromRequest(req);
+      if (!isModerator(user)) {
+        return res.status(403).send('This resource is restricted by academic moderators.');
+      }
+    }
+
     db.prepare('UPDATE pyqs SET downloads = downloads + 1 WHERE id = ?').run(id);
-    const pyq = db.prepare('SELECT title, file_path FROM pyqs WHERE id = ?').get(id);
-    res.json({
-      success: true,
-      message: 'Download registered',
-      fileName: `${(pyq?.title || 'PYQ-Paper').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`
-    });
+
+    const safeFilePath = getSafeUploadPath(pyq.file_path);
+    const sampleFilePath = getSafeUploadPath('sample_lecture_notes.pdf');
+    const safeTitle = (pyq.title || 'PYQ_Paper').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    if (safeFilePath && fs.existsSync(safeFilePath)) {
+      res.download(safeFilePath, `${safeTitle}.pdf`);
+    } else if (sampleFilePath && fs.existsSync(sampleFilePath)) {
+      res.download(sampleFilePath, `${safeTitle}.pdf`);
+    } else {
+      res.status(404).send('Question paper file not found');
+    }
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).send('Error downloading question paper');
   }
 });
 
@@ -2168,7 +2249,7 @@ app.post('/api/moderation', (req, res) => {
     const id = 'm-' + Date.now();
     const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 16);
     const safeReason = sanitizeString(reason);
-    const safeDetails = detailsText ? sanitizeString(detailsText) : null;
+    const safeDetails = details ? sanitizeString(details) : null;
 
     db.prepare(`
       INSERT INTO moderation (id, note_id, user_id, resource_name, reporter, category, reason, details, timestamp, status)
@@ -2311,11 +2392,7 @@ app.get('/api/stats/dashboard', (req, res) => {
 // -------------------------------------------------------------
 app.get('/api/user/profile', (req, res) => {
   try {
-    let user = getUserFromRequest(req);
-    if (!user) {
-      const fallbackRow = db.prepare('SELECT * FROM users LIMIT 1').get();
-      user = formatSafeUser(fallbackRow);
-    }
+    const user = getUserFromRequest(req);
     if (!user) {
       return res.status(401).json({ success: false, error: 'Not authenticated' });
     }
@@ -2578,7 +2655,7 @@ app.post('/api/auth/logout', (req, res) => {
 // -------------------------------------------------------------
 // AI Study Assistant Chatbot Endpoint (Guardrails + Gemini RAG)
 // -------------------------------------------------------------
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', aiRateLimiter, async (req, res) => {
   try {
     const { message, history } = req.body || {};
     const authHeader = req.headers.authorization;
@@ -2607,6 +2684,20 @@ app.post('/api/chat', async (req, res) => {
     });
   }
 });
+
+// -------------------------------------------------------------
+// Serve built client assets in production (SPA fallback)
+// -------------------------------------------------------------
+const clientDistDir = path.resolve(process.cwd(), 'dist');
+if (fs.existsSync(clientDistDir)) {
+  app.use(express.static(clientDistDir));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      return next();
+    }
+    res.sendFile(path.join(clientDistDir, 'index.html'));
+  });
+}
 
 // -------------------------------------------------------------
 // Centralized Express Error Handling Middleware

@@ -5,10 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "start": "node server/src/server.js",
     "server": "node server/src/server.js",
     "build": "tsc -b && vite build",
     "lint": "tsc -b",
     "preview": "vite preview"
+  },
+  "engines": {
+    "node": ">=22.5.0"
   },
   "dependencies": {
     "cors": "^2.8.6",

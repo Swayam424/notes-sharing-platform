@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { Search, Plus, ChevronRight, ChevronDown } from 'lucide-react';
+import { Search, Plus, ChevronRight, ChevronDown, Menu } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import type { Subject } from '../data/mockData';
@@ -24,7 +24,7 @@ const routeTitles: Record<string, { label: string; path: string }[]> = {
 export default function TopBar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, setSearchOpen, setUploadOpen, switchSemester, refreshKey } = useApp();
+  const { user, setSearchOpen, setUploadOpen, switchSemester, refreshKey, setMobileNavOpen } = useApp();
   const [liveSubjects, setLiveSubjects] = useState<Subject[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -101,7 +101,25 @@ export default function TopBar() {
 
   return (
     <header className="topbar" id="topbar">
-      {/* Breadcrumb */}
+      {/* Mobile Hamburger Menu Toggle */}
+      <button
+        type="button"
+        className="topbar-mobile-menu-btn"
+        onClick={() => setMobileNavOpen(true)}
+        aria-label="Open navigation menu"
+        title="Open menu"
+      >
+        <Menu size={20} strokeWidth={1.8} />
+      </button>
+
+      {/* Mobile Brand / Page Title */}
+      <div className="topbar-mobile-title">
+        <span className="topbar-mobile-brand">Atelier</span>
+        <ChevronRight size={12} className="topbar-mobile-sep" />
+        <span className="topbar-mobile-page">{breadcrumb[breadcrumb.length - 1]?.label || 'Study Space'}</span>
+      </div>
+
+      {/* Breadcrumb (Desktop / Laptop View) */}
       <nav className="topbar-breadcrumb" aria-label="Breadcrumb">
         {breadcrumb.map((item, i) => (
           <span key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -251,9 +269,9 @@ export default function TopBar() {
         </div>
       )}
 
-      {/* Search */}
+      {/* Search (Desktop) */}
       <button
-        className="topbar-search"
+        className="topbar-search topbar-desktop-only"
         onClick={() => setSearchOpen(true)}
         id="topbar-search-trigger"
         aria-label="Open search"
@@ -263,15 +281,37 @@ export default function TopBar() {
         <span className="topbar-search-kbd">⌘K</span>
       </button>
 
-      {/* Upload Button */}
+      {/* Upload Button (Desktop) */}
       <button
-        className="btn btn-primary"
+        className="btn btn-primary topbar-desktop-only"
         onClick={() => setUploadOpen(true)}
         id="topbar-upload-btn"
       >
         <Plus size={16} strokeWidth={2} />
         Upload Resource
       </button>
+
+      {/* Mobile Action Buttons */}
+      <div className="topbar-mobile-actions">
+        <button
+          type="button"
+          className="topbar-mobile-icon-btn"
+          onClick={() => setSearchOpen(true)}
+          aria-label="Search topics and notes"
+          title="Search"
+        >
+          <Search size={18} strokeWidth={1.8} />
+        </button>
+        <button
+          type="button"
+          className="topbar-mobile-icon-btn topbar-mobile-upload-btn"
+          onClick={() => setUploadOpen(true)}
+          aria-label="Upload resource"
+          title="Upload Resource"
+        >
+          <Plus size={18} strokeWidth={2.2} />
+        </button>
+      </div>
     </header>
   );
 }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import {
   BookOpen, FolderOpen, FileText, Clock, Compass,
-  Upload, Flag, Settings, LayoutDashboard, Sparkles, LogOut, Bookmark, ShieldAlert, Bot
+  Upload, Flag, Settings, LayoutDashboard, Sparkles, LogOut, Bookmark, ShieldAlert, Bot, X
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
@@ -33,8 +33,12 @@ const navItems = {
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user: appUser, logout } = useApp();
+  const { user: appUser, logout, mobileNavOpen, setMobileNavOpen } = useApp();
   const [profileUser, setProfileUser] = useState(fallbackUser);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname, setMobileNavOpen]);
 
   useEffect(() => {
     api.getUserProfile()
@@ -69,19 +73,41 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="sidebar" id="sidebar-nav">
-      {/* Brand Header (Clickable to Landing Page) */}
-      <div className="sidebar-header">
-        <NavLink to="/" className="sidebar-brand" style={{ textDecoration: 'none', color: 'inherit' }} title="Visit Scroll-Animated Landing Page">
-          <div className="sidebar-brand-icon">
-            <BookOpen size={18} strokeWidth={1.5} />
-          </div>
-          <div className="sidebar-brand-text">
-            <span className="sidebar-brand-name">Atelier</span>
-            <span className="sidebar-brand-meta">{currentUser.college} • {getStreamShortCode((currentUser as any).stream || currentUser.department)} • Sem {currentUser.semester}</span>
-          </div>
-        </NavLink>
-      </div>
+    <>
+      {mobileNavOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <aside className={`sidebar ${mobileNavOpen ? 'mobile-open' : ''}`} id="sidebar-nav">
+        {/* Brand Header (Clickable to Landing Page) */}
+        <div className="sidebar-header">
+          <NavLink
+            to="/"
+            className="sidebar-brand"
+            style={{ textDecoration: 'none', color: 'inherit' }}
+            title="Visit Scroll-Animated Landing Page"
+            onClick={() => setMobileNavOpen(false)}
+          >
+            <div className="sidebar-brand-icon">
+              <BookOpen size={18} strokeWidth={1.5} />
+            </div>
+            <div className="sidebar-brand-text">
+              <span className="sidebar-brand-name">Atelier</span>
+              <span className="sidebar-brand-meta">{currentUser.college} • {getStreamShortCode((currentUser as any).stream || currentUser.department)} • Sem {currentUser.semester}</span>
+            </div>
+          </NavLink>
+          <button
+            type="button"
+            className="sidebar-close-btn"
+            onClick={() => setMobileNavOpen(false)}
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
+        </div>
 
       {/* Navigation Sections */}
       <nav>
@@ -209,5 +235,6 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }

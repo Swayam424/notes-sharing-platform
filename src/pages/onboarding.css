@@ -544,3 +544,71 @@
   transform: translateY(-1px);
   box-shadow: 3px 3px 0px rgba(31, 36, 33, 0.18);
 }
+
+/* ==========================================================================
+   Responsive Adaptations for Mobile & Small Tablets
+   ========================================================================== */
+@media (max-width: 768px) {
+  .onboarding-root {
+    padding: 1rem 0.75rem;
+  }
+
+  .onboarding-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 1.25rem;
+  }
+
+  .onboarding-steps-container {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .onboarding-steps-pills {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+
+  .onboarding-steps-pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  .onboarding-step-pill {
+    padding: 5px 10px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .onboarding-card {
+    padding: 1.25rem 1rem;
+    border-radius: 12px;
+  }
+
+  .step-title {
+    font-size: 1.5rem;
+  }
+
+  .step-subtitle {
+    font-size: 0.82rem;
+  }
+
+  .degree-pills-grid,
+  .stream-grid,
+  .subjects-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px;
+  }
+
+  .onboarding-footer-actions {
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+
+  .onboarding-footer-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+}

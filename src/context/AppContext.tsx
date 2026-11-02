@@ -18,6 +18,8 @@ interface AppState {
   setSearchOpen: (open: boolean) => void;
   uploadOpen: boolean;
   setUploadOpen: (open: boolean) => void;
+  mobileNavOpen: boolean;
+  setMobileNavOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   activeSemester: number;
   setActiveSemester: (sem: number) => void;
   switchSemester: (sem: number) => Promise<void>;
@@ -44,6 +46,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [activeSemester, setActiveSemester] = useState(5);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -154,6 +157,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSearchOpen,
         uploadOpen,
         setUploadOpen,
+        mobileNavOpen,
+        setMobileNavOpen,
         activeSemester,
         setActiveSemester,
         switchSemester,

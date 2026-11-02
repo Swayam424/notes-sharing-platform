@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router';
 import { AppProvider } from './context/AppContext';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
+import MobileBottomNav from './components/MobileBottomNav';
 import SearchPalette from './components/SearchPalette';
 import UploadModal from './components/UploadModal';
 import LandingPage from './pages/LandingPage';
@@ -96,6 +97,7 @@ function AppShell() {
         <main className="app-content">
           <Outlet />
         </main>
+        <MobileBottomNav />
       </div>
       <SearchPalette />
       <UploadModal />

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { GraduationCap } from 'lucide-react';
+import { GraduationCap, Menu, X, LogOut } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { api } from '../services/api';
 import './landing.css';
@@ -20,6 +20,7 @@ export default function LandingPage() {
 
   // Active section for story rail & nav
   const [activeSection, setActiveSection] = useState('hero');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Auth modal state
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -258,11 +259,12 @@ export default function LandingPage() {
       {/* Fixed Top Navbar */}
       <header className="navbar" id="navbar">
         <div className="nav-container">
-          <a href="#hero" className="nav-brand" aria-label="Atelier Folio Home">
+          <a href="#hero" className="nav-brand" aria-label="Atelier Folio Home" onClick={() => setMobileMenuOpen(false)}>
             Atelier<span className="nav-brand-dot" />
           </a>
 
-          <nav aria-label="Story Navigation">
+          {/* Desktop Nav Links */}
+          <nav aria-label="Story Navigation" className="nav-menu-desktop">
             <ul className="nav-menu">
               <li>
                 <a
@@ -299,13 +301,13 @@ export default function LandingPage() {
             </ul>
           </nav>
 
+          {/* Desktop & Mobile Actions */}
           <div className="nav-actions">
             {!isAuthenticated ? (
-              // Unauthenticated students only see Sign In & Sign Up options
               <>
                 <button
                   type="button"
-                  className="nav-login"
+                  className="nav-login nav-desktop-item"
                   onClick={() => openAuth('signin')}
                   id="nav-signin-btn"
                 >
@@ -313,7 +315,7 @@ export default function LandingPage() {
                 </button>
                 <button
                   type="button"
-                  className="btn btn-primary"
+                  className="btn btn-primary nav-desktop-item"
                   onClick={() => openAuth('signup')}
                   id="nav-signup-btn"
                   style={{ padding: '8px 18px', fontSize: '13px' }}
@@ -322,10 +324,9 @@ export default function LandingPage() {
                 </button>
               </>
             ) : (
-              // Authenticated student who has logged in gets the option to enter Study Space
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  Hi, <strong>{user?.name}</strong>
+              <div className="nav-auth-user-bar nav-desktop-item">
+                <span className="nav-user-greeting">
+                  Hi, <strong>{user?.name?.split(' ')[0] || 'Student'}</strong>
                 </span>
                 <button
                   type="button"
@@ -334,7 +335,7 @@ export default function LandingPage() {
                   id="nav-enter-space-btn"
                   style={{ padding: '8px 18px', fontSize: '13px' }}
                 >
-                  Enter Study Space &rarr;
+                  Study Space &rarr;
                 </button>
                 <button
                   type="button"
@@ -346,8 +347,129 @@ export default function LandingPage() {
                 </button>
               </div>
             )}
+
+            {/* Mobile quick action button when authenticated */}
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard')}
+                className="btn btn-primary nav-mobile-cta"
+                style={{ padding: '6px 12px', fontSize: '12px' }}
+              >
+                Space &rarr;
+              </button>
+            )}
+
+            {/* Mobile Hamburger Toggle Button */}
+            <button
+              type="button"
+              className="nav-mobile-toggle"
+              onClick={() => setMobileMenuOpen(prev => !prev)}
+              aria-label={mobileMenuOpen ? 'Close navigation' : 'Open navigation'}
+            >
+              {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Dropdown / Drawer Menu */}
+        {mobileMenuOpen && (
+          <div className="landing-mobile-menu" id="landing-mobile-menu">
+            <div className="landing-mobile-menu-inner">
+              <div className="landing-mobile-links">
+                <a
+                  href="#hero"
+                  className="landing-mobile-link"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Overview
+                </a>
+                <a
+                  href="#problem"
+                  className="landing-mobile-link"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  The Problem
+                </a>
+                <a
+                  href="#syllabus-structure"
+                  className="landing-mobile-link"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Hierarchy
+                </a>
+                <a
+                  href="#coverage"
+                  className="landing-mobile-link"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Coverage
+                </a>
+                <a
+                  href="#connections"
+                  className="landing-mobile-link"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Connections
+                </a>
+              </div>
+
+              <div className="landing-mobile-menu-footer">
+                {!isAuthenticated ? (
+                  <div className="landing-mobile-auth-row">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ width: '100%', padding: '10px' }}
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        openAuth('signin');
+                      }}
+                    >
+                      Sign In
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ width: '100%', padding: '10px' }}
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        openAuth('signup');
+                      }}
+                    >
+                      Sign Up
+                    </button>
+                  </div>
+                ) : (
+                  <div className="landing-mobile-auth-row">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ width: '100%', padding: '10px' }}
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        navigate('/dashboard');
+                      }}
+                    >
+                      Enter Study Space &rarr;
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        logout();
+                      }}
+                    >
+                      <LogOut size={14} /> Sign Out ({user?.name})
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Right-side Story Progress Rail */}
