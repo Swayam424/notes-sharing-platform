@@ -1,4 +1,4 @@
-import { db, initDatabase, uploadsDir } from './database.js';
+import { db, initDatabase, uploadsDir, seedCommentsAndRequests } from './database.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { hashPassword } from './auth.js';
@@ -7,15 +7,20 @@ import { extendedCurricula } from './curriculumData.js';
 export function seedDatabase() {
   initDatabase();
 
-  // Ensure department is set for existing subjects
-  db.exec("UPDATE subjects SET department = 'Computer Science & Engineering' WHERE department IS NULL OR department = '';");
+  // Temporarily disable foreign keys during batch initial seeding
+  db.exec('PRAGMA foreign_keys = OFF;');
 
-  const countRow = db.prepare('SELECT COUNT(*) as count FROM subjects').get();
-  if (countRow && countRow.count > 0) {
-    seedExtendedSubjects();
-    seedDemoUsers();
-    return;
-  }
+  try {
+    // Ensure department is set for existing subjects
+    db.exec("UPDATE subjects SET department = 'Computer Science & Engineering' WHERE department IS NULL OR department = '';");
+
+    const countRow = db.prepare('SELECT COUNT(*) as count FROM subjects').get();
+    if (countRow && countRow.count > 0) {
+      seedExtendedSubjects();
+      seedDemoUsers();
+      seedCommentsAndRequests();
+      return;
+    }
 
   console.log('Seeding initial academic records...');
 
@@ -446,7 +451,13 @@ startxref
   // 6. Seed Extended Curricula
   seedExtendedSubjects();
 
+  // 7. Seed Discussion Comments & Peer Note Requests
+  seedCommentsAndRequests();
+
   console.log('Database seeded successfully!');
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON;');
+  }
 }
 
 export function seedExtendedSubjects() {

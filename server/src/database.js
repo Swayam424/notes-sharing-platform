@@ -456,7 +456,13 @@ export function initDatabase() {
     END
     WHERE upvotes IS NULL OR upvotes = 0;
   `);
+}
 
+// -------------------------------------------------------------
+// Seed sample discussion threads & peer note requests
+// (Called from seedDatabase AFTER subjects & notes are seeded)
+// -------------------------------------------------------------
+export function seedCommentsAndRequests() {
   // Seed sample discussion threads & comments if empty
   const commentCount = db.prepare('SELECT COUNT(*) as count FROM note_comments').get()?.count || 0;
   if (commentCount === 0) {
