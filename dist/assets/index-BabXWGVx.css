@@ -6451,15 +6451,22 @@ body {
   inset: 0;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   z-index: 1;
   pointer-events: none;
   overflow: hidden;
+  background-color: var(--desk-base, #F4EFE8);
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 #hero-canvas {
   width: 100%;
   height: 100%;
   display: block;
+  background-color: var(--desk-base, #F4EFE8);
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 /* Subtle vignette preserving the animated desk */
@@ -6468,6 +6475,7 @@ body {
   inset: 0;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   z-index: 2;
   pointer-events: none;
   background: radial-gradient(
@@ -6475,6 +6483,8 @@ body {
     rgba(244, 239, 232, 0.08) 0%,
     rgba(238, 231, 222, 0.35) 100%
   );
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 /* ==========================================================================

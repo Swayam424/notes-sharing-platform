@@ -46,14 +46,17 @@ export default function LandingPage() {
   }, [searchParams, setSearchParams]);
 
   // Image cache and animation refs
-  const imagesRef = useRef<HTMLImageElement[]>([]);
+  const imagesRef = useRef<(HTMLImageElement | null)[]>([]);
+  const lastDrawnImageRef = useRef<HTMLImageElement | null>(null);
+  const lastDrawnPosRef = useRef(-1);
+  const needsRedrawRef = useRef(true);
   const currentFrameRef = useRef(0);
   const targetFrameRef = useRef(0);
   const animFrameIdRef = useRef<number | null>(null);
 
   // Draw frame on canvas with object-fit: cover scaling
   const drawFrame = useCallback((ctx: CanvasRenderingContext2D, img: HTMLImageElement, alpha = 1) => {
-    if (!img || !img.complete || !img.naturalWidth) return;
+    if (!img || !img.complete || !img.naturalWidth || img.naturalWidth === 0) return;
 
     const cw = window.innerWidth;
     const ch = window.innerHeight;
@@ -71,23 +74,80 @@ export default function LandingPage() {
     ctx.globalAlpha = 1;
   }, []);
 
-  // Continuous animation loop with lerp smoothing
+  // Continuous animation loop with lerp smoothing & mobile resilience
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d', { alpha: false });
+    const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
+    // Helper to find the best loaded frame close to target index
+    const getBestFrame = (targetIdx: number): HTMLImageElement | null => {
+      const images = imagesRef.current;
+      if (!images || images.length === 0) return null;
+
+      // 1. Direct hit if loaded and valid
+      const direct = images[targetIdx];
+      if (direct && direct.complete && direct.naturalWidth > 0) {
+        return direct;
+      }
+
+      // 2. Search outward in expanding radius (prioritizing backward frames for smooth progress)
+      for (let r = 1; r < TOTAL_FRAMES; r++) {
+        const leftIdx = targetIdx - r;
+        if (leftIdx >= 0) {
+          const leftImg = images[leftIdx];
+          if (leftImg && leftImg.complete && leftImg.naturalWidth > 0) {
+            return leftImg;
+          }
+        }
+        const rightIdx = targetIdx + r;
+        if (rightIdx < TOTAL_FRAMES) {
+          const rightImg = images[rightIdx];
+          if (rightImg && rightImg.complete && rightImg.naturalWidth > 0) {
+            return rightImg;
+          }
+        }
+      }
+
+      // 3. Fallback to last successfully drawn image
+      if (lastDrawnImageRef.current && lastDrawnImageRef.current.complete && lastDrawnImageRef.current.naturalWidth > 0) {
+        return lastDrawnImageRef.current;
+      }
+
+      return null;
+    };
+
+    let lastWidth = window.innerWidth;
+    let lastHeight = window.innerHeight;
+
     const resizeCanvas = () => {
+      const newWidth = window.innerWidth;
+      const newHeight = window.innerHeight;
+
+      // Mobile protection: ignore minor height adjustments when browser URL bar collapses on scroll
+      const widthChanged = Math.abs(newWidth - lastWidth) > 6;
+      const heightChangedSignificantly = Math.abs(newHeight - lastHeight) > 120;
+
+      if (canvas.width > 0 && !widthChanged && !heightChangedSignificantly) {
+        return;
+      }
+
+      lastWidth = newWidth;
+      lastHeight = newHeight;
+
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = window.innerWidth * dpr;
-      canvas.height = window.innerHeight * dpr;
+      canvas.width = newWidth * dpr;
+      canvas.height = newHeight * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      // Redraw current frame immediately on resize
+      // Redraw immediately with best available frame on warm background
       const curIdx = Math.floor(currentFrameRef.current);
-      if (imagesRef.current[curIdx]) {
-        drawFrame(ctx, imagesRef.current[curIdx], 1);
+      const best = getBestFrame(curIdx);
+      ctx.fillStyle = '#F4EFE8';
+      ctx.fillRect(0, 0, newWidth, newHeight);
+      if (best) {
+        drawFrame(ctx, best, 1);
       }
     };
 
@@ -98,8 +158,8 @@ export default function LandingPage() {
     const LERP_FACTOR = 0.14;
     const render = () => {
       const scrollTop = window.scrollY || document.documentElement.scrollTop;
-      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-      const fraction = maxScroll > 0 ? Math.min(Math.max(scrollTop / maxScroll, 0), 1) : 0;
+      const maxScroll = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
+      const fraction = Math.min(Math.max(scrollTop / maxScroll, 0), 1);
 
       targetFrameRef.current = fraction * (TOTAL_FRAMES - 1);
 
@@ -110,14 +170,32 @@ export default function LandingPage() {
       const nextIdx = Math.min(frameIdx + 1, TOTAL_FRAMES - 1);
       const blend = currentFrameRef.current - frameIdx;
 
-      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      // Only perform canvas redraw if frame position or blend has actually changed
+      const deltaFrame = Math.abs(currentFrameRef.current - lastDrawnPosRef.current);
+      if (deltaFrame > 0.005 || needsRedrawRef.current) {
+        needsRedrawRef.current = false;
+        lastDrawnPosRef.current = currentFrameRef.current;
 
-      if (imagesRef.current[frameIdx]) {
-        drawFrame(ctx, imagesRef.current[frameIdx], 1);
-      }
+        const cw = window.innerWidth;
+        const ch = window.innerHeight;
 
-      if (blend > 0.01 && frameIdx !== nextIdx && imagesRef.current[nextIdx]) {
-        drawFrame(ctx, imagesRef.current[nextIdx], blend);
+        // Warm background fill ensures the canvas is NEVER black/dark
+        ctx.fillStyle = '#F4EFE8';
+        ctx.fillRect(0, 0, cw, ch);
+
+        const currentImg = getBestFrame(frameIdx);
+        if (currentImg) {
+          drawFrame(ctx, currentImg, 1);
+          lastDrawnImageRef.current = currentImg;
+        }
+
+        // Smooth crossfade with next frame when blend is noticeable and next frame is valid
+        if (blend > 0.05 && frameIdx !== nextIdx) {
+          const nextImg = imagesRef.current[nextIdx];
+          if (nextImg && nextImg.complete && nextImg.naturalWidth > 0) {
+            drawFrame(ctx, nextImg, blend);
+          }
+        }
       }
 
       animFrameIdRef.current = requestAnimationFrame(render);
@@ -133,35 +211,104 @@ export default function LandingPage() {
     };
   }, [drawFrame]);
 
-  // Preload frame images
+  // Priority Preloader: Loads keyframes across the whole scroll range first, then hydrates in-betweens
   useEffect(() => {
     let loaded = 0;
-    const images: HTMLImageElement[] = new Array(TOTAL_FRAMES);
+    const images: (HTMLImageElement | null)[] = new Array(TOTAL_FRAMES).fill(null);
     imagesRef.current = images;
 
-    for (let i = 1; i <= TOTAL_FRAMES; i++) {
-      const num = String(i).padStart(3, '0');
+    // Helper to load a single frame
+    const loadFrame = (indexOneBased: number, onComplete?: (success: boolean) => void) => {
+      const idx = indexOneBased - 1;
+      if (images[idx]) {
+        if (onComplete) onComplete(true);
+        return;
+      }
+
+      const num = String(indexOneBased).padStart(3, '0');
       const img = new Image();
       img.src = `${IMAGE_DIR}ezgif-frame-${num}.jpg`;
 
-      img.onload = img.onerror = () => {
-        images[i - 1] = img;
+      img.onload = () => {
+        images[idx] = img;
         loaded++;
+        needsRedrawRef.current = true;
         const pct = Math.round((loaded / TOTAL_FRAMES) * 100);
         setLoadPct(pct);
-
-        if (loaded >= TOTAL_FRAMES || (loaded >= 30 && i === TOTAL_FRAMES)) {
-          setTimeout(() => setIsLoading(false), 200);
-        }
+        if (onComplete) onComplete(true);
       };
+
+      img.onerror = () => {
+        images[idx] = null;
+        if (onComplete) onComplete(false);
+      };
+    };
+
+    // Stage 1: Load Hero Frames (frames 1-3) + Keyframes distributed evenly across 0-100% of the page
+    // Every 6th frame guarantees that anywhere the user scrolls, a crisp desk frame is ready
+    const keyframes: number[] = [1, 2, 3];
+    for (let f = 6; f <= TOTAL_FRAMES; f += 6) {
+      if (!keyframes.includes(f)) keyframes.push(f);
+    }
+    if (!keyframes.includes(TOTAL_FRAMES)) keyframes.push(TOTAL_FRAMES);
+
+    let keyframesLoaded = 0;
+    const totalKeyframes = keyframes.length;
+
+    keyframes.forEach((frameNum) => {
+      loadFrame(frameNum, () => {
+        keyframesLoaded++;
+        // As soon as hero frames and keyframes are in, the user can start exploring safely
+        if (keyframesLoaded >= Math.min(12, totalKeyframes)) {
+          setIsLoading(false);
+        }
+      });
+    });
+
+    // Stage 2: Hydrate remaining in-between frames in staggered batches
+    const remainingFrames: number[] = [];
+    for (let f = 1; f <= TOTAL_FRAMES; f++) {
+      if (!keyframes.includes(f)) {
+        remainingFrames.push(f);
+      }
     }
 
-    // Fallback: don't block user forever if some frame takes long
-    const timeout = setTimeout(() => {
-      setIsLoading(false);
-    }, 3500);
+    let batchIdx = 0;
+    const BATCH_SIZE = 8;
+    const loadNextBatch = () => {
+      if (batchIdx >= remainingFrames.length) return;
+      const currentBatch = remainingFrames.slice(batchIdx, batchIdx + BATCH_SIZE);
+      batchIdx += BATCH_SIZE;
 
-    return () => clearTimeout(timeout);
+      let batchDone = 0;
+      currentBatch.forEach((frameNum) => {
+        loadFrame(frameNum, () => {
+          batchDone++;
+          if (batchDone >= currentBatch.length) {
+            if ('requestIdleCallback' in window) {
+              window.requestIdleCallback(() => loadNextBatch(), { timeout: 350 });
+            } else {
+              setTimeout(loadNextBatch, 60);
+            }
+          }
+        });
+      });
+    };
+
+    // Start background hydration
+    const hydrationTimer = setTimeout(() => {
+      loadNextBatch();
+    }, 350);
+
+    // Fallback safety timeout: NEVER block the user's screen forever
+    const safetyTimeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 2500);
+
+    return () => {
+      clearTimeout(hydrationTimer);
+      clearTimeout(safetyTimeout);
+    };
   }, []);
 
   // Track active section for story rail & navbar
