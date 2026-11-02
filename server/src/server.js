@@ -2691,7 +2691,8 @@ app.post('/api/chat', aiRateLimiter, async (req, res) => {
 const clientDistDir = path.resolve(process.cwd(), 'dist');
 if (fs.existsSync(clientDistDir)) {
   app.use(express.static(clientDistDir));
-  app.get('*', (req, res, next) => {
+  app.use((req, res, next) => {
+    if (req.method !== 'GET') return next();
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
       return next();
     }
