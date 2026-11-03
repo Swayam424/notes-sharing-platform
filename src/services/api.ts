@@ -58,6 +58,44 @@ async function errorMessage(res: Response): Promise<string> {
   return 'The server is unavailable. Please try again.';
 }
 
+/**
+ * POST a credential payload and return the parsed body.
+ *
+ * Unlike a bare `res.json()`, this never surfaces a raw JSON parse error: if the
+ * API is unreachable or answers with HTML (dev server up but backend down), the
+ * caller gets a sentence a user can act on instead of "Unexpected token '<'".
+ */
+async function postAuth(
+  url: string,
+  payload: unknown,
+  fallback: string
+): Promise<{ token: string; user: AuthUser }> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error('Cannot reach the server. Check that it is running, then try again.');
+  }
+
+  const data = await res.json().catch(() => null);
+
+  if (!data) {
+    throw new Error(
+      res.status === 429
+        ? 'Too many attempts. Please wait a few minutes and try again.'
+        : 'The server sent an unreadable response. Please try again in a moment.'
+    );
+  }
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || fallback);
+  }
+  return data as { token: string; user: AuthUser };
+}
+
 // ---------- Types ----------
 export interface AuthUser {
   id: string;
@@ -101,13 +139,7 @@ export interface DashboardData {
 export const api = {
   // -------------------- Auth --------------------
   async login(email: string, password: string): Promise<{ token: string; user: AuthUser }> {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Login failed');
+    const data = await postAuth('/api/auth/login', { email, password }, 'Sign in failed');
     setToken(data.token);
     return { token: data.token, user: data.user };
   },
@@ -120,13 +152,7 @@ export const api = {
     department?: string;
     semester?: number;
   }): Promise<{ token: string; user: AuthUser }> {
-    const res = await fetch('/api/auth/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(fields),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Signup failed');
+    const data = await postAuth('/api/auth/signup', fields, 'Could not create your account');
     setToken(data.token);
     return { token: data.token, user: data.user };
   },

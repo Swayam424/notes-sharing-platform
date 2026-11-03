@@ -45,7 +45,9 @@ function pdfForm(fields) {
 
 before(async () => {
   proc = spawn(process.execPath, ['server/src/server.js'], {
-    env: { ...process.env, PORT: String(PORT), DATABASE_PATH: path.join(tmpDir, 'db.sqlite'), NODE_ENV: 'test', GEMINI_API_KEY: '' },
+    // AUTH_REQUIRE_PASSWORD keeps real password verification on under test, so the
+    // suite still covers authentication even while the dev bypass is enabled locally.
+    env: { ...process.env, PORT: String(PORT), DATABASE_PATH: path.join(tmpDir, 'db.sqlite'), NODE_ENV: 'test', AUTH_REQUIRE_PASSWORD: 'true', GEMINI_API_KEY: '' },
     stdio: 'ignore',
   });
   await waitForServer();
@@ -105,6 +107,36 @@ test('anonymous reports are rejected', async () => {
 test('weak passwords are rejected', async () => {
   const r = await json('POST', '/api/auth/signup', { name: 'Weak', email: 'weak@test.edu', password: 'abc' });
   assert.equal(r.status, 400);
+});
+
+// Guards the AUTH_REQUIRE_PASSWORD switch: with verification required, a wrong
+// password must never authenticate, and the right one must always work.
+test('password verification rejects a wrong password and accepts the right one', async () => {
+  const email = `pwcheck-${Math.random().toString(36).slice(2)}@test.edu`;
+  const created = await json('POST', '/api/auth/signup', { name: 'Pw Check', email, password: 'correct123' });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+
+  const wrong = await json('POST', '/api/auth/login', { email, password: 'definitelywrong9' });
+  assert.equal(wrong.status, 401, 'a wrong password must be rejected');
+
+  const right = await json('POST', '/api/auth/login', { email, password: 'correct123' });
+  assert.equal(right.status, 200, JSON.stringify(right.body));
+  assert.ok(right.body?.token, 'a valid password must return a session token');
+});
+
+// The reported bug: repeated failures must never lock out a valid password.
+test('a valid password still succeeds after many failed attempts', async () => {
+  const email = `lockout-${Math.random().toString(36).slice(2)}@test.edu`;
+  const created = await json('POST', '/api/auth/signup', { name: 'Lock Out', email, password: 'correct123' });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+
+  for (let i = 0; i < 30; i++) {
+    await json('POST', '/api/auth/login', { email, password: 'wrongpass' });
+  }
+
+  const ok = await json('POST', '/api/auth/login', { email, password: 'correct123' });
+  assert.equal(ok.status, 200, `valid password was blocked after failures: ${JSON.stringify(ok.body)}`);
+  assert.ok(ok.body?.token, 'expected a session token');
 });
 
 test('cross-origin requests from unknown sites are blocked', async () => {

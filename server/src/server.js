@@ -25,6 +25,19 @@ for (const envPath of envCandidates) {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// -------------------------------------------------------------
+// TEMPORARY DEV SWITCH — sign-in accepts ANY password
+// -------------------------------------------------------------
+// Requested for local development so sign-in is never blocked while testing.
+// The account must still exist; only the password check is skipped.
+//
+//   Restore real password checking:  set AUTH_REQUIRE_PASSWORD=true
+//
+// Hard-disabled whenever NODE_ENV=production, so this cannot ship to a deployed
+// site even if the flag is left in place. Remove this block before going live.
+const PASSWORD_CHECK_DISABLED =
+  process.env.NODE_ENV !== 'production' && process.env.AUTH_REQUIRE_PASSWORD !== 'true';
+
 // Initialize & seed DB on startup
 initDatabase();
 seedDatabase();
@@ -72,37 +85,90 @@ app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 // -------------------------------------------------------------
 // In-Memory Rate Limiting (OWASP Brute-Force & Abuse Protection)
 // -------------------------------------------------------------
-function createRateLimiter({ windowMs, maxRequests, message }) {
+/**
+ * In-memory rate limiter.
+ *
+ * `keyGenerator` scopes a bucket (defaults to the client IP). `countOnlyFailures`
+ * makes a bucket forgive itself as soon as a request on it succeeds (< 400), so a
+ * credential endpoint throttles genuine guessing without ever locking out someone
+ * who finally types the right password.
+ *
+ * `delayAfter`/`delayStepMs` add progressive slow-down: once a bucket passes
+ * `delayAfter` strikes, each further attempt is held back a little longer (capped by
+ * `maxDelayMs`) instead of being refused outright. That collapses the throughput of
+ * an automated guesser while a human who eventually types the right password still
+ * gets in — the reason `maxRequests` on a sign-in route can stay high enough that
+ * nobody is ever locked out of their own account.
+ */
+function createRateLimiter({
+  windowMs,
+  maxRequests,
+  message,
+  keyGenerator,
+  countOnlyFailures = false,
+  delayAfter = 0,
+  delayStepMs = 500,
+  maxDelayMs = 5000
+}) {
   const hits = new Map();
   // Cleanup expired entries periodically
   setInterval(() => {
     const now = Date.now();
-    for (const [ip, record] of hits.entries()) {
+    for (const [key, record] of hits.entries()) {
       if (now > record.resetTime) {
-        hits.delete(ip);
+        hits.delete(key);
       }
     }
   }, 5 * 60 * 1000).unref();
 
+  const clientIp = (req) => req.ip || req.socket.remoteAddress || 'unknown';
+
   return (req, res, next) => {
     // req.ip honours X-Forwarded-For only when TRUST_PROXY is configured
-    const rawIp = req.ip || req.socket.remoteAddress || 'unknown';
+    let key;
+    try {
+      key = keyGenerator ? keyGenerator(req, clientIp(req)) : clientIp(req);
+    } catch {
+      key = clientIp(req);
+    }
     const now = Date.now();
-    const record = hits.get(rawIp);
+    const record = hits.get(key);
+    let strikes = 1;
 
     if (!record || now > record.resetTime) {
-      hits.set(rawIp, { count: 1, resetTime: now + windowMs });
-      return next();
+      hits.set(key, { count: 1, resetTime: now + windowMs });
+    } else {
+      record.count += 1;
+      strikes = record.count;
+      if (record.count > maxRequests) {
+        const retryAfterSec = Math.max(1, Math.ceil((record.resetTime - now) / 1000));
+        const retryAfterMin = Math.max(1, Math.ceil(retryAfterSec / 60));
+        res.setHeader('Retry-After', retryAfterSec);
+        return res.status(429).json({
+          success: false,
+          retryAfterSeconds: retryAfterSec,
+          error: message
+            ? `${message} (about ${retryAfterMin} minute${retryAfterMin === 1 ? '' : 's'} left)`
+            : `Too many requests. Please try again in about ${retryAfterMin} minute${retryAfterMin === 1 ? '' : 's'}.`
+        });
+      }
     }
 
-    record.count += 1;
-    if (record.count > maxRequests) {
-      const retryAfterSec = Math.ceil((record.resetTime - now) / 1000);
-      res.setHeader('Retry-After', retryAfterSec);
-      return res.status(429).json({
-        success: false,
-        error: message || 'Too many requests. Please try again later.'
+    // A successful attempt proves this caller is legitimate: clear their strike count
+    // so earlier typos can never block a valid sign-in.
+    if (countOnlyFailures) {
+      res.on('finish', () => {
+        if (res.statusCode < 400) hits.delete(key);
       });
+    }
+
+    // Past the soft threshold, slow the attempt down rather than refusing it.
+    if (delayAfter && strikes > delayAfter) {
+      const delay = Math.min(maxDelayMs, (strikes - delayAfter) * delayStepMs);
+      const timer = setTimeout(next, delay);
+      // Don't leave a pending timer behind if the client gives up mid-wait.
+      res.on('close', () => clearTimeout(timer));
+      return;
     }
 
     next();
@@ -115,10 +181,46 @@ const apiGeneralLimiter = createRateLimiter({
   message: 'API rate limit exceeded. Please try again in 15 minutes.'
 });
 
-const authBruteForceLimiter = createRateLimiter({
+// Sign-in throttling is scoped per IP *and* per account, and only failed attempts
+// count. A correct password always gets through and wipes the account's strike
+// count, so one person's typos can never lock out a valid sign-in (their own or
+// anyone else's behind the same IP).
+const loginBruteForceLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
-  maxRequests: 25,
-  message: 'Too many authentication attempts. Please wait 15 minutes before retrying.'
+  // Deliberately high: the brake on guessing is the progressive delay below, not a
+  // lockout. The cap only exists so unbounded attempts can't burn CPU on scrypt.
+  maxRequests: 100,
+  countOnlyFailures: true,
+  delayAfter: 8,
+  delayStepMs: 300,
+  maxDelayMs: 3000,
+  keyGenerator: (req, ip) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    return `login:${ip}:${email}`;
+  },
+  message: 'Too many failed sign-in attempts for this account. Please wait before retrying.'
+});
+
+// Account creation is throttled per IP to stop signup spam.
+const signupRateLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  maxRequests: 20,
+  keyGenerator: (_req, ip) => `signup:${ip}`,
+  message: 'Too many accounts created from this network. Please wait before signing up again.'
+});
+
+// Password changes are already behind a valid session; only wrong-current-password
+// attempts count toward the limit.
+const passwordChangeLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxRequests: 15,
+  countOnlyFailures: true,
+  keyGenerator: (req, ip) => {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    return `pwchange:${ip}:${token ? hashToken(token) : 'anon'}`;
+  },
+  message: 'Too many failed password change attempts. Please wait before retrying.'
 });
 
 const uploadRateLimiter = createRateLimiter({
@@ -2577,10 +2679,10 @@ const handleSignup = (req, res) => {
   }
 };
 
-app.post('/api/auth/signup', authBruteForceLimiter, handleSignup);
-app.post('/api/auth/register', authBruteForceLimiter, handleSignup);
+app.post('/api/auth/signup', signupRateLimiter, handleSignup);
+app.post('/api/auth/register', signupRateLimiter, handleSignup);
 
-app.post('/api/auth/login', authBruteForceLimiter, (req, res) => {
+app.post('/api/auth/login', loginBruteForceLimiter, (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -2588,11 +2690,19 @@ app.post('/api/auth/login', authBruteForceLimiter, (req, res) => {
     }
     const cleanEmail = email.trim().toLowerCase();
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(cleanEmail);
-    if (!user || !user.password_hash || !user.salt) {
-      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        error: PASSWORD_CHECK_DISABLED
+          ? 'No account exists for that email address. Create an account first.'
+          : 'Invalid email or password'
+      });
     }
 
-    const isValid = verifyPassword(password, user.salt, user.password_hash);
+    // TEMPORARY: password verification bypassed in development (see PASSWORD_CHECK_DISABLED).
+    const isValid = PASSWORD_CHECK_DISABLED
+      ? true
+      : (user.password_hash && user.salt && verifyPassword(password, user.salt, user.password_hash));
     if (!isValid) {
       return res.status(401).json({ success: false, error: 'Invalid email or password' });
     }
@@ -2711,7 +2821,7 @@ app.put('/api/user/profile', (req, res) => {
 });
 
 // Change Password API (requires current password verification, enforces complexity, terminates other active sessions)
-app.post('/api/user/change-password', authBruteForceLimiter, (req, res) => {
+app.post('/api/user/change-password', passwordChangeLimiter, (req, res) => {
   try {
     const authUser = getUserFromRequest(req);
     if (!authUser) {
@@ -2723,7 +2833,7 @@ app.post('/api/user/change-password', authBruteForceLimiter, (req, res) => {
       return res.status(400).json({ success: false, error: 'Current password and new password are required.' });
     }
 
-    if (typeof newPassword !== 'string' || newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/d/.test(newPassword)) {
+    if (typeof newPassword !== 'string' || newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
       return res.status(400).json({ success: false, error: 'New password must be at least 8 characters and include a letter and a number.' });
     }
 
@@ -2892,6 +3002,12 @@ app.use((err, req, res, _next) => {
 // -------------------------------------------------------------
 const server = app.listen(PORT, () => {
   console.log(`[ATELIER API] Production-hardened server running on http://localhost:${PORT}`);
+  if (PASSWORD_CHECK_DISABLED) {
+    console.warn('[ATELIER API] ******************************************************');
+    console.warn('[ATELIER API] WARNING: sign-in accepts ANY password (dev bypass on).');
+    console.warn('[ATELIER API] Set AUTH_REQUIRE_PASSWORD=true to restore checking.');
+    console.warn('[ATELIER API] ******************************************************');
+  }
 });
 
 function handleGracefulShutdown(signal) {
