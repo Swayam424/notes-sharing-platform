@@ -650,66 +650,68 @@ export default function LandingPage() {
         {/* Section 1: Hero Overview */}
         <section className="content-section" id="hero" aria-labelledby="hero-title">
           <div className="content-container">
-            <div className="hero-tag">
-              <span className="hero-tag-pulse" />
-              The Academic Workspace
-            </div>
-            <h1 className="section-title" id="hero-title">
-              Your notes. Finally organized around what you study.
-            </h1>
-            <p className="section-subtitle">
-              Notes, syllabi, and previous-year questions — united into a single, syllabus-aware workspace. Watch your materials fall into place as you scroll.
-            </p>
-
-            {/* Action Row: Exclusively Auth Options for Guests */}
-            <div className="hero-action-row" style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
-              {!isAuthenticated ? (
-                <>
-                  <button
-                    type="button"
-                    className="btn-hero-cta"
-                    onClick={() => openAuth('signup')}
-                    id="hero-get-started"
-                  >
-                    Get Started (Sign Up)
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => openAuth('signin')}
-                    id="hero-sign-in"
-                    style={{ borderRadius: '9999px', padding: '13px 26px', fontSize: '15px' }}
-                  >
-                    Sign In to Account
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="btn-hero-cta"
-                    onClick={() => navigate('/dashboard')}
-                    id="hero-enter-space"
-                  >
-                    Enter Study Space &rarr;
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={logout}
-                    style={{ borderRadius: '9999px', padding: '13px 24px', fontSize: '15px' }}
-                  >
-                    Sign Out
-                  </button>
-                </>
-              )}
-            </div>
-
-            <div className="hero-scroll-prompt">
-              <div className="prompt-mouse">
-                <div className="prompt-wheel" />
+            <div className="hero-card">
+              <div className="hero-tag">
+                <span className="hero-tag-pulse" />
+                The Academic Workspace
               </div>
-              <span>Scroll down to explore</span>
+              <h1 className="section-title" id="hero-title">
+                Your notes. Finally organized around what you study.
+              </h1>
+              <p className="section-subtitle">
+                Notes, syllabi, and previous-year questions — united into a single, syllabus-aware workspace. Watch your materials fall into place as you scroll.
+              </p>
+
+              {/* Action Row: Exclusively Auth Options for Guests */}
+              <div className="hero-action-row" style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {!isAuthenticated ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-hero-cta"
+                      onClick={() => openAuth('signup')}
+                      id="hero-get-started"
+                    >
+                      Get Started (Sign Up)
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => openAuth('signin')}
+                      id="hero-sign-in"
+                      style={{ borderRadius: '9999px', padding: '13px 26px', fontSize: '15px' }}
+                    >
+                      Sign In to Account
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-hero-cta"
+                      onClick={() => navigate('/dashboard')}
+                      id="hero-enter-space"
+                    >
+                      Enter Study Space &rarr;
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={logout}
+                      style={{ borderRadius: '9999px', padding: '13px 24px', fontSize: '15px' }}
+                    >
+                      Sign Out
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="hero-scroll-prompt">
+                <div className="prompt-mouse">
+                  <div className="prompt-wheel" />
+                </div>
+                <span>Scroll down to explore</span>
+              </div>
             </div>
           </div>
         </section>
@@ -717,7 +719,7 @@ export default function LandingPage() {
         {/* Section 2: The Problem (Academic Chaos) */}
         <section className="content-section" id="problem" aria-labelledby="problem-heading">
           <div className="content-container">
-            <div className="text-center">
+            <div className="text-center section-header-box">
               <span className="section-eyebrow">The Academic Reality</span>
               <h2 className="section-title" id="problem-heading">
                 Too much material. No structure.
@@ -786,7 +788,7 @@ export default function LandingPage() {
         {/* Section 3: Syllabus Structure (Intentional Hierarchy) */}
         <section className="content-section" id="syllabus-structure" aria-labelledby="structure-heading">
           <div className="content-container">
-            <div className="text-center">
+            <div className="text-center section-header-box">
               <span className="section-eyebrow">Intentional Architecture</span>
               <h2 className="section-title" id="structure-heading">
                 Everything follows your syllabus.
@@ -895,7 +897,7 @@ export default function LandingPage() {
         {/* Section 4: Coverage Section (Exam Preparedness) */}
         <section className="content-section" id="coverage" aria-labelledby="coverage-heading">
           <div className="content-container">
-            <div className="text-center">
+            <div className="text-center section-header-box">
               <span className="section-eyebrow">Exam Visibility</span>
               <h2 className="section-title" id="coverage-heading">
                 Know what your resources actually cover.
@@ -977,7 +979,7 @@ export default function LandingPage() {
         {/* Section 5: Connections Section (Study with Context) */}
         <section className="content-section" id="connections" aria-labelledby="connections-heading">
           <div className="content-container">
-            <div className="text-center">
+            <div className="text-center section-header-box">
               <span className="section-eyebrow">Intelligent Context</span>
               <h2 className="section-title" id="connections-heading">
                 Study with context.
@@ -1036,47 +1038,49 @@ export default function LandingPage() {
         {/* Section 6: Final CTA Section */}
         <section className="content-section" id="final-cta" aria-labelledby="cta-heading">
           <div className="content-container text-center">
-            <span className="section-eyebrow">Start Learning</span>
-            <h2 className="section-title serif" id="cta-heading">
-              Everything you need to study, organized around your syllabus.
-            </h2>
-            <p className="section-subtitle">
-              Turn academic chaos into structured clarity. Sign in to enter your personalized study space.
-            </p>
+            <div className="cta-card">
+              <span className="section-eyebrow">Start Learning</span>
+              <h2 className="section-title serif" id="cta-heading">
+                Everything you need to study, organized around your syllabus.
+              </h2>
+              <p className="section-subtitle">
+                Turn academic chaos into structured clarity. Sign in to enter your personalized study space.
+              </p>
 
-            <div className="btn-group" style={{ justifyContent: 'center', marginTop: '24px' }}>
-              {!isAuthenticated ? (
-                <>
+              <div className="btn-group" style={{ justifyContent: 'center', marginTop: '24px' }}>
+                {!isAuthenticated ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => openAuth('signup')}
+                      id="final-signup-btn"
+                      style={{ padding: '14px 34px', fontSize: '15px' }}
+                    >
+                      Create Free Account (Sign Up)
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => openAuth('signin')}
+                      id="final-signin-btn"
+                      style={{ padding: '14px 30px', fontSize: '15px' }}
+                    >
+                      Sign In to Existing Account
+                    </button>
+                  </>
+                ) : (
                   <button
                     type="button"
                     className="btn btn-primary"
-                    onClick={() => openAuth('signup')}
-                    id="final-signup-btn"
-                    style={{ padding: '14px 34px', fontSize: '15px' }}
+                    onClick={() => navigate('/dashboard')}
+                    id="final-enter-space-btn"
+                    style={{ padding: '14px 36px', fontSize: '15px' }}
                   >
-                    Create Free Account (Sign Up)
+                    Enter Study Space Workspace &rarr;
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => openAuth('signin')}
-                    id="final-signin-btn"
-                    style={{ padding: '14px 30px', fontSize: '15px' }}
-                  >
-                    Sign In to Existing Account
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => navigate('/dashboard')}
-                  id="final-enter-space-btn"
-                  style={{ padding: '14px 36px', fontSize: '15px' }}
-                >
-                  Enter Study Space Workspace &rarr;
-                </button>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </section>
