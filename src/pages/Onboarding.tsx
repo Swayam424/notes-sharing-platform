@@ -1,3 +1,4 @@
+import StudyBackdrop from '../components/StudyBackdrop';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -129,6 +130,7 @@ export default function Onboarding() {
 
   return (
     <div className="onboarding-root">
+      <StudyBackdrop />
       {/* Ambient background atmosphere */}
       <div className="onboarding-ambient" aria-hidden="true">
         <div className="onboarding-blob-1" />

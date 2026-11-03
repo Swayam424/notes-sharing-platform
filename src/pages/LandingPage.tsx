@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { ArrowRight, X } from 'lucide-react';
 import { useApp } from '../context/appState';
 import { api, type AuthUser } from '../services/api';
+import StudyBackdrop from '../components/StudyBackdrop';
 import './landing.css';
 
 type AuthTab = 'signin' | 'signup';
@@ -106,6 +107,8 @@ export default function LandingPage() {
       </header>
 
       <main>
+        <div className="lp-hero-wrap">
+        <StudyBackdrop />
         <section className="lp-hero lp-container">
           <div className="lp-hero__copy">
             <p className="eyebrow lp-reveal">For university students · Free</p>
@@ -155,6 +158,7 @@ export default function LandingPage() {
             </figcaption>
           </figure>
         </section>
+        </div>
 
         <section id="how" className="lp-section lp-container">
           <div className="lp-section__head">

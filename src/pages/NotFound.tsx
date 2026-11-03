@@ -1,8 +1,10 @@
 import { Link } from 'react-router';
+import StudyBackdrop from '../components/StudyBackdrop';
 
 export default function NotFound() {
   return (
     <main className="not-found">
+      <StudyBackdrop />
       <p className="eyebrow">Error 404</p>
       <h1>This page isn’t in the stacks.</h1>
       <p className="not-found__lede">

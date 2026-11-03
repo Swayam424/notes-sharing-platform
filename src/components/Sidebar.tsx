@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/appState';
 import { getStreamShortCode } from '../data/degrees';
+import StudyBackdrop from './StudyBackdrop';
 
 type NavItem = { to: string; icon: typeof FileText; label: string; badge?: string };
 
@@ -106,6 +107,10 @@ export default function Sidebar() {
             </div>
           )}
         </nav>
+
+        <div className="sidebar-doodles">
+          <StudyBackdrop variant="subtle" />
+        </div>
 
         {user && (
           <div className="sidebar-footer">

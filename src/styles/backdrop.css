@@ -1,0 +1,232 @@
+/* ================================================================
+   Study backdrop: ink line-art objects with gentle motion.
+   ================================================================ */
+
+.study-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  --sb-ink: var(--color-deep);
+  --sb-paper: var(--color-surface);
+  --sb-hl: var(--color-highlight);
+  --sb-eraser: #F4A6B0;
+}
+.study-backdrop--subtle {
+  position: fixed;
+  opacity: 0.32;
+  --sb-speed: 1.6;
+}
+.study-backdrop--full { --sb-speed: 1; }
+
+.sb-item { position: absolute; will-change: transform; }
+
+/* Shared SVG paint */
+.sb-stroke { stroke: var(--sb-ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+.sb-thin { stroke-width: 1; opacity: 0.55; }
+.sb-fill-paper { fill: var(--sb-paper); }
+.sb-fill-highlight { fill: var(--sb-hl); }
+.sb-fill-eraser { fill: var(--sb-eraser); }
+.sb-fill-ink { fill: var(--sb-ink); }
+.sb-stroke.sb-fill-paper, .sb-stroke.sb-fill-highlight, .sb-stroke.sb-fill-eraser { stroke: var(--sb-ink); }
+.sb-fill-paper.sb-stroke { fill: var(--sb-paper); }
+.sb-fill-highlight.sb-stroke { fill: var(--sb-hl); }
+.sb-fill-eraser.sb-stroke { fill: var(--sb-eraser); }
+
+/* ---------- Book: pages flip right-to-left ---------- */
+.sb-book { top: 14%; right: 6%; width: 150px; height: 100px; perspective: 600px; animation: sb-float 9s ease-in-out infinite; animation-duration: calc(9s * var(--sb-speed)); }
+.sb-book__spread { position: relative; width: 100%; height: 100%; transform: rotateX(18deg); transform-style: preserve-3d; }
+.sb-book__cover {
+  position: absolute; top: 0; width: 50%; height: 100%;
+  background: var(--sb-paper);
+  border: 1.6px solid var(--sb-ink);
+}
+.sb-book__cover--left { left: 0; border-radius: 6px 0 0 6px; box-shadow: inset -6px 0 8px -6px rgba(18, 18, 20, 0.25); }
+.sb-book__cover--right { right: 0; border-radius: 0 6px 6px 0; box-shadow: inset 6px 0 8px -6px rgba(18, 18, 20, 0.25); }
+.sb-book__lines {
+  position: absolute; top: 18%; width: 34%; height: 64%;
+  background: repeating-linear-gradient(to bottom, transparent 0 9px, color-mix(in srgb, var(--sb-ink) 35%, transparent) 9px 10px);
+}
+.sb-book__lines--left { left: 8%; }
+.sb-book__lines--right { right: 8%; }
+.sb-book__page {
+  position: absolute; top: 2px; left: 50%; width: calc(50% - 2px); height: calc(100% - 4px);
+  background: var(--sb-paper);
+  border: 1.2px solid var(--sb-ink);
+  border-left: none;
+  border-radius: 0 5px 5px 0;
+  transform-origin: left center;
+  animation: sb-flip 3.6s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  animation-duration: calc(3.6s * var(--sb-speed));
+  backface-visibility: visible;
+}
+@keyframes sb-flip {
+  0%, 15% { transform: rotateY(0deg); }
+  60%, 100% { transform: rotateY(-178deg); }
+}
+
+/* ---------- Pencil ---------- */
+.sb-pencil { top: 64%; left: 4%; width: 170px; animation: sb-pencil-drift 11s ease-in-out infinite; animation-duration: calc(11s * var(--sb-speed)); }
+.sb-pencil__svg { width: 160px; overflow: visible; transform: rotate(-24deg); }
+.sb-pencil__body { animation: sb-wiggle 1.4s ease-in-out infinite; transform-origin: 20% 50%; }
+.sb-pencil__trail { width: 120px; margin: -6px 0 0 -10px; overflow: visible; }
+.sb-scribble { stroke-dasharray: 220; stroke-dashoffset: 220; animation: sb-draw 4.5s ease-in-out infinite; animation-duration: calc(4.5s * var(--sb-speed)); }
+@keyframes sb-draw {
+  0% { stroke-dashoffset: 220; opacity: 1; }
+  55% { stroke-dashoffset: 0; opacity: 1; }
+  85% { stroke-dashoffset: 0; opacity: 0; }
+  100% { stroke-dashoffset: 220; opacity: 0; }
+}
+@keyframes sb-wiggle { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-3deg); } }
+@keyframes sb-pencil-drift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(24px, -26px) rotate(4deg); }
+}
+
+/* ---------- Eraser: bounce with squash and stretch ---------- */
+.sb-eraser { bottom: 10%; right: 18%; width: 64px; height: 140px; }
+.sb-eraser__body {
+  position: absolute; left: 6px; bottom: 6px; width: 52px; height: 30px;
+  background: var(--sb-eraser);
+  border: 1.6px solid var(--sb-ink);
+  border-radius: 8px;
+  transform-origin: 50% 100%;
+  animation: sb-bounce 1.6s cubic-bezier(0.3, 0, 0.7, 1) infinite;
+  animation-duration: calc(1.6s * var(--sb-speed));
+}
+.sb-eraser__sleeve {
+  position: absolute; top: -1.6px; bottom: -1.6px; right: -1.6px; width: 42%;
+  background: var(--sb-paper);
+  border: 1.6px solid var(--sb-ink);
+  border-radius: 0 8px 8px 0;
+}
+.sb-eraser__shadow {
+  position: absolute; left: 10px; bottom: 0; width: 44px; height: 6px; border-radius: 50%;
+  background: color-mix(in srgb, var(--sb-ink) 18%, transparent);
+  animation: sb-shadow 1.6s cubic-bezier(0.3, 0, 0.7, 1) infinite;
+  animation-duration: calc(1.6s * var(--sb-speed));
+}
+@keyframes sb-bounce {
+  0%   { transform: translateY(0) scale(1.18, 0.78); }
+  12%  { transform: translateY(-30px) scale(0.92, 1.1) rotate(-6deg); }
+  50%  { transform: translateY(-96px) scale(1, 1) rotate(10deg); }
+  88%  { transform: translateY(-30px) scale(0.94, 1.08) rotate(-2deg); }
+  100% { transform: translateY(0) scale(1.18, 0.78); }
+}
+@keyframes sb-shadow {
+  0%, 100% { transform: scale(1.1); opacity: 1; }
+  50% { transform: scale(0.45); opacity: 0.4; }
+}
+
+/* ---------- Paper plane: looping flight ---------- */
+.sb-plane { top: 8%; left: -80px; width: 64px; animation: sb-fly 22s linear infinite; animation-duration: calc(22s * var(--sb-speed)); }
+.sb-plane svg { width: 64px; overflow: visible; }
+@keyframes sb-fly {
+  0%   { transform: translate(0, 40px) rotate(8deg); opacity: 0; }
+  5%   { opacity: 1; }
+  25%  { transform: translate(28vw, -10px) rotate(-6deg); }
+  50%  { transform: translate(55vw, 50px) rotate(10deg); }
+  75%  { transform: translate(82vw, 0) rotate(-8deg); }
+  95%  { opacity: 1; }
+  100% { transform: translate(112vw, 30px) rotate(4deg); opacity: 0; }
+}
+
+/* ---------- Sticky, ruler, clip, marker ---------- */
+.sb-sticky { top: 56%; right: 4%; width: 70px; transform-origin: 50% 0; animation: sb-sway 6s ease-in-out infinite; }
+.sb-sticky svg { width: 70px; }
+@keyframes sb-sway { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(5deg); } }
+
+.sb-ruler { bottom: 6%; left: 30%; width: 180px; animation: sb-float-rot 14s ease-in-out infinite; }
+.sb-ruler svg { width: 180px; }
+@keyframes sb-float-rot {
+  0%, 100% { transform: translateY(0) rotate(-8deg); }
+  50% { transform: translateY(-18px) rotate(-2deg); }
+}
+
+.sb-clip { top: 30%; left: 44%; width: 22px; animation: sb-tumble 16s linear infinite; }
+.sb-clip svg { width: 22px; }
+@keyframes sb-tumble {
+  0% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-30px) rotate(180deg); }
+  100% { transform: translateY(0) rotate(360deg); }
+}
+
+.sb-marker { top: 6%; left: 30%; width: 120px; animation: sb-float 8s ease-in-out infinite; animation-delay: -3s; }
+.sb-marker svg { width: 120px; transform: rotate(18deg); }
+
+@keyframes sb-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-16px); }
+}
+
+/* ---------- Formula scraps ---------- */
+.sb-glyph {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--sb-ink);
+  opacity: 0;
+  white-space: nowrap;
+  animation: sb-rise 18s linear infinite;
+}
+.sb-glyph--1 { left: 12%; bottom: -20px; animation-delay: 0s; }
+.sb-glyph--2 { left: 58%; bottom: -20px; animation-delay: -6s; }
+.sb-glyph--3 { left: 84%; bottom: -20px; animation-delay: -12s; }
+@keyframes sb-rise {
+  0% { transform: translateY(0); opacity: 0; }
+  10% { opacity: 0.45; }
+  80% { opacity: 0.45; }
+  100% { transform: translateY(-70vh); opacity: 0; }
+}
+
+/* ---------- Subtle variant: lives in the sidebar's empty space ---------- */
+.sidebar { display: flex; flex-direction: column; }
+.sidebar .sidebar-nav { flex: 0 1 auto; }
+.sidebar-doodles { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.study-backdrop--subtle { position: absolute; opacity: 0.7; }
+.study-backdrop--subtle .sb-plane { display: none; }
+.study-backdrop--subtle .sb-book { top: auto; bottom: 46%; right: auto; left: 50%; margin-left: -60px; width: 120px; height: 80px; }
+.study-backdrop--subtle .sb-pencil { top: auto; bottom: 8%; left: 6px; width: 130px; }
+.study-backdrop--subtle .sb-pencil__svg { width: 120px; }
+.study-backdrop--subtle .sb-pencil__trail { width: 90px; }
+.study-backdrop--subtle .sb-eraser { bottom: 4%; right: 8px; transform: scale(0.75); transform-origin: bottom right; }
+/* Hide the doodles when the sidebar has no room for them */
+@media (max-height: 760px) { .sidebar-doodles .study-backdrop { display: none; } }
+
+/* ---------- Landing: keep objects in the empty zones around the hero ---------- */
+.lp-hero-wrap .sb-book { top: 1%; right: 7%; }
+.lp-hero-wrap .sb-marker { top: 5%; left: 34%; }
+.lp-hero-wrap .sb-clip { top: 80%; left: 50%; }
+.lp-hero-wrap .sb-pencil { top: 82%; left: 1%; }
+.lp-hero-wrap .sb-ruler { bottom: 3%; left: 30%; }
+.lp-hero-wrap .sb-sticky { top: 52%; right: 2%; }
+.lp-hero-wrap .sb-eraser { bottom: 2%; right: 22%; }
+.lp-hero-wrap .sb-glyph--1 { left: 1.5%; }
+.lp-hero-wrap .sb-glyph--2 { left: 49%; }
+.lp-hero-wrap .sb-glyph--3 { left: 92%; }
+
+/* ---------- Small screens: fewer, smaller ---------- */
+@media (max-width: 960px) {
+  /* Hero stacks: only keep objects that fit beside or between blocks */
+  .lp-hero-wrap .sb-book, .lp-hero-wrap .sb-marker, .lp-hero-wrap .sb-clip,
+  .lp-hero-wrap .sb-ruler, .lp-hero-wrap .sb-sticky, .lp-hero-wrap .sb-glyph { display: none; }
+  .lp-hero-wrap .sb-pencil { top: auto; bottom: 1%; left: auto; right: 2%; transform: scale(0.8); }
+  .lp-hero-wrap .sb-eraser { bottom: auto; top: 41%; right: 4%; transform: scale(0.7); }
+  .not-found .sb-book, .not-found .sb-sticky { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .study-backdrop *, .study-backdrop *::before, .study-backdrop *::after { animation: none !important; }
+  .sb-scribble { stroke-dashoffset: 0; }
+  .sb-glyph { opacity: 0.4; bottom: 20%; }
+  .sb-plane { left: 60%; }
+}
+
+/* ---------- Hosts ----------
+   Each host is its own stacking context; the backdrop sits at z-index -1
+   inside it, so it paints above the host background but below all content
+   without changing how any child is positioned. */
+.lp-hero-wrap, .not-found, .onboarding-root, .sidebar-doodles { position: relative; isolation: isolate; }
+.study-backdrop { z-index: -1; }
+.not-found { max-width: none; }
+.not-found > :not(.study-backdrop) { max-width: 900px; }
