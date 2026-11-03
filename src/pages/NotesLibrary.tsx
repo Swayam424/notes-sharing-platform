@@ -1,3 +1,4 @@
+import { useOnChange } from '../hooks/useOnChange';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router';
 import {
@@ -6,9 +7,9 @@ import {
   ThumbsUp, MessageSquare, Plus, Clock, CheckCircle2, Users, BookOpen
 } from 'lucide-react';
 import { api, type NoteRequest } from '../services/api';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/appState';
 import { savedNotesService } from '../services/savedNotes';
-import { notes as fallbackNotes, subjects as fallbackSubjects, type NoteResource, type Subject } from '../data/mockData';
+import type { NoteResource, Subject } from '../data/mockData';
 import RequestNoteModal from '../components/RequestNoteModal';
 import FulfillRequestModal from '../components/FulfillRequestModal';
 
@@ -57,13 +58,10 @@ export default function NotesLibrary() {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(!!navState.openRequestModal || searchParams.get('newRequest') === 'true');
   const [fulfillTargetRequest, setFulfillTargetRequest] = useState<NoteRequest | null>(null);
 
-  useEffect(() => {
-    if (tabParam === 'requests') {
-      setActiveView('requests');
-    } else if (tabParam === 'browse') {
-      setActiveView('browse');
-    }
-  }, [tabParam]);
+  useOnChange(tabParam, () => {
+    if (tabParam === 'requests') setActiveView('requests');
+    else if (tabParam === 'browse') setActiveView('browse');
+  });
 
   // Search & Filter States (synced with URL params or navigation state)
   const initialTopicQuery = searchParams.get('q') || navState.searchQuery || '';
@@ -94,8 +92,9 @@ export default function NotesLibrary() {
 
   // Saved notes using reactive savedNotesService
   const [savedNoteIds, setSavedNoteIds] = useState<string[]>(() => savedNotesService.getSavedIds());
-  const [notesList, setNotesList] = useState<NoteResource[]>(fallbackNotes);
-  const [subjectsList, setSubjectsList] = useState<Subject[]>(fallbackSubjects);
+  const [notesList, setNotesList] = useState<NoteResource[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [subjectsList, setSubjectsList] = useState<Subject[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -134,20 +133,13 @@ export default function NotesLibrary() {
 
   // Fetch live subjects and notes if API is reachable
   useEffect(() => {
-    Promise.all([
-      api.getNotes().catch(() => fallbackNotes),
-      api.getSubjects().catch(() => fallbackSubjects)
-    ]).then(([liveNotes, liveSubjects]) => {
-      // Merge live notes with fallback notes to guarantee rich mock topic data
-      const mergedMap = new Map<string, NoteResource>();
-      fallbackNotes.forEach(n => mergedMap.set(n.id, n));
-      liveNotes.forEach(n => {
-        const existing = mergedMap.get(n.id);
-        mergedMap.set(n.id, { ...existing, ...n });
-      });
-      setNotesList(Array.from(mergedMap.values()));
-      setSubjectsList(liveSubjects && liveSubjects.length ? liveSubjects : fallbackSubjects);
-    });
+    Promise.all([api.getNotes(), api.getSubjects()])
+      .then(([liveNotes, liveSubjects]) => {
+        setNotesList(liveNotes);
+        setSubjectsList(liveSubjects);
+        setLoadError(null);
+      })
+      .catch(err => setLoadError(err instanceof Error ? err.message : 'Could not load notes.'));
   }, [refreshKey]);
 
   // Keep URL search query in sync
@@ -308,6 +300,7 @@ export default function NotesLibrary() {
 
   return (
     <div className="discovery-page" id="notes-discovery-screen">
+      {loadError && <div className="state-banner state-banner--error" role="alert">{loadError}</div>}
       {/* Toast Notification */}
       {toastMessage && (
         <div style={{
@@ -331,25 +324,14 @@ export default function NotesLibrary() {
         </div>
       )}
 
-      {/* Navigation Return */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 'var(--space-3)' }}>
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={() => navigate('/dashboard')}
-          id="btn-return-study-space"
-          style={{ fontSize: '12px' }}
-        >
-          ← Back to Study Space
-        </button>
-      </div>
 
       {/* 1. Prominent Topic Search Area */}
       <div className="discovery-search-card" id="discovery-search-card">
         <div className="discovery-header-titles" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <h1 className="discovery-title">Notes Discovery & Exchange</h1>
+            <h1 className="discovery-title">Discover notes</h1>
             <p className="discovery-subtitle">
-              Browse shared peer lecture notes or crowdsource missing lecture derivations from classmates
+              Notes shared by students in your course. Can’t find a topic? Request it.
             </p>
           </div>
           <button
@@ -371,7 +353,7 @@ export default function NotesLibrary() {
               padding: '7px 14px',
               borderRadius: 'var(--radius-md)',
               border: 'none',
-              background: activeView === 'browse' ? 'var(--color-primary)' : 'var(--color-surface-dim)',
+              background: activeView === 'browse' ? 'var(--color-deep)' : 'var(--color-surface-dim)',
               color: activeView === 'browse' ? 'white' : 'var(--color-deep)',
               fontSize: '12px',
               fontWeight: 600,
@@ -392,7 +374,7 @@ export default function NotesLibrary() {
               padding: '7px 14px',
               borderRadius: 'var(--radius-md)',
               border: 'none',
-              background: activeView === 'requests' ? 'var(--color-primary)' : 'var(--color-surface-dim)',
+              background: activeView === 'requests' ? 'var(--color-deep)' : 'var(--color-surface-dim)',
               color: activeView === 'requests' ? 'white' : 'var(--color-deep)',
               fontSize: '12px',
               fontWeight: 600,
@@ -950,7 +932,7 @@ export default function NotesLibrary() {
                       flexDirection: 'column',
                       justifyContent: 'space-between',
                       borderRadius: 'var(--radius-lg)',
-                      border: isOpen ? '1px solid var(--color-border)' : '1px solid rgba(46, 125, 50, 0.35)',
+                      border: isOpen ? '1px solid var(--color-border)' : '1px solid color-mix(in srgb, var(--color-secondary) 35%, transparent)',
                       background: isOpen ? 'var(--color-surface)' : 'rgba(232, 245, 233, 0.2)',
                       boxShadow: 'var(--shadow-subtle)',
                       transition: 'transform 150ms ease, box-shadow 150ms ease'
@@ -977,7 +959,7 @@ export default function NotesLibrary() {
                             gap: '4px',
                             fontSize: '11px',
                             fontWeight: 600,
-                            color: '#C85A32',
+                            color: 'var(--color-primary)',
                             background: 'rgba(200, 90, 50, 0.1)',
                             padding: '3px 8px',
                             borderRadius: '12px'
@@ -991,8 +973,8 @@ export default function NotesLibrary() {
                             gap: '4px',
                             fontSize: '11px',
                             fontWeight: 600,
-                            color: '#2E7D32',
-                            background: 'rgba(46, 125, 50, 0.12)',
+                            color: 'var(--color-secondary)',
+                            background: 'color-mix(in srgb, var(--color-secondary) 12%, transparent)',
                             padding: '3px 8px',
                             borderRadius: '12px'
                           }}>
@@ -1052,9 +1034,9 @@ export default function NotesLibrary() {
                           marginTop: '10px',
                           padding: '8px 10px',
                           borderRadius: 'var(--radius-sm)',
-                          background: 'rgba(46, 125, 50, 0.08)',
+                          background: 'color-mix(in srgb, var(--color-secondary) 8%, transparent)',
                           fontSize: '11px',
-                          color: '#2E7D32',
+                          color: 'var(--color-secondary)',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '6px'

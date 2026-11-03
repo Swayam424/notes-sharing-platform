@@ -1,23 +1,23 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { Search, Plus, ChevronRight, ChevronDown, Menu } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/appState';
 import { api } from '../services/api';
 import type { Subject } from '../data/mockData';
 import { DEGREE_OPTIONS, getStreamShortCode } from '../data/degrees';
 
 const routeTitles: Record<string, { label: string; path: string }[]> = {
-  '/': [{ label: 'Landing Showcase', path: '/' }],
-  '/dashboard': [{ label: 'Study Space', path: '/dashboard' }],
-  '/workspace': [{ label: 'Study Space', path: '/dashboard' }],
-  '/subjects': [{ label: 'My Subjects', path: '/subjects' }],
-  '/notes': [{ label: 'Notes Discovery', path: '/notes' }],
-  '/library': [{ label: 'My Library', path: '/library' }],
-  '/pyq': [{ label: 'PYQ Archive', path: '/pyq' }],
-  '/syllabus': [{ label: 'Syllabus Coverage', path: '/syllabus' }],
-  '/uploads': [{ label: 'My Uploads', path: '/uploads' }],
-  '/contributions': [{ label: 'My Uploads', path: '/uploads' }],
-  '/moderation': [{ label: 'Moderation Queue', path: '/moderation' }],
+  '/': [{ label: 'Home', path: '/' }],
+  '/dashboard': [{ label: 'Dashboard', path: '/dashboard' }],
+  '/workspace': [{ label: 'Dashboard', path: '/dashboard' }],
+  '/subjects': [{ label: 'Subjects', path: '/subjects' }],
+  '/notes': [{ label: 'Discover notes', path: '/notes' }],
+  '/library': [{ label: 'Saved', path: '/library' }],
+  '/pyq': [{ label: 'Past papers', path: '/pyq' }],
+  '/syllabus': [{ label: 'Syllabus coverage', path: '/syllabus' }],
+  '/uploads': [{ label: 'Uploads', path: '/uploads' }],
+  '/contributions': [{ label: 'Uploads', path: '/uploads' }],
+  '/moderation': [{ label: 'Reports', path: '/moderation' }],
   '/settings': [{ label: 'Settings', path: '/settings' }],
 };
 
@@ -63,10 +63,7 @@ export default function TopBar() {
   }, [dropdownOpen]);
 
   const getBreadcrumb = (): { label: string; path?: string }[] => {
-    const base = [
-      { label: 'Study Space', path: '/dashboard' },
-      { label: `Semester ${currentSem}`, path: '/dashboard' }
-    ];
+    const base: { label: string; path?: string }[] = [];
     const path = location.pathname;
 
     // Check for subject detail routes
@@ -75,9 +72,13 @@ export default function TopBar() {
       const subject = liveSubjects.find(s => s.id === subjectMatch[1]);
       return [
         ...base,
-        { label: 'My Subjects', path: '/subjects' },
+        { label: 'Subjects', path: '/subjects' },
         { label: subject ? subject.name : 'Subject Overview' }
       ];
+    }
+
+    if (/^\/pyq\/[^/]+/.test(path)) {
+      return [{ label: 'Past papers', path: '/pyq' }, { label: 'Paper' }];
     }
 
     // Check for note detail routes
@@ -85,8 +86,8 @@ export default function TopBar() {
     if (noteMatch) {
       return [
         ...base,
-        { label: 'Notes Discovery', path: '/notes' },
-        { label: 'Document Reader' }
+        { label: 'Discover notes', path: '/notes' },
+        { label: 'Note' }
       ];
     }
 
@@ -116,7 +117,7 @@ export default function TopBar() {
       <div className="topbar-mobile-title">
         <span className="topbar-mobile-brand">Atelier</span>
         <ChevronRight size={12} className="topbar-mobile-sep" />
-        <span className="topbar-mobile-page">{breadcrumb[breadcrumb.length - 1]?.label || 'Study Space'}</span>
+        <span className="topbar-mobile-page">{breadcrumb[breadcrumb.length - 1]?.label || 'Dashboard'}</span>
       </div>
 
       {/* Breadcrumb (Desktop / Laptop View) */}
@@ -157,20 +158,20 @@ export default function TopBar() {
               alignItems: 'center',
               gap: '8px',
               background: 'var(--color-surface, #FFFFFF)',
-              border: '1px solid var(--color-border, #E8E5DF)',
+              border: '1px solid var(--color-border, var(--color-border))',
               padding: '6px 13px',
               borderRadius: '999px',
               cursor: 'pointer',
               fontSize: '12px',
               fontWeight: 500,
-              color: 'var(--color-deep, #1F2421)',
+              color: 'var(--color-deep, var(--color-deep))',
               boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
               transition: 'all 0.15s ease'
             }}
           >
             <span style={{
-              background: 'rgba(217, 93, 57, 0.12)',
-              color: 'var(--color-primary, #D95D39)',
+              background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)',
+              color: 'var(--color-primary, var(--color-primary))',
               fontWeight: 700,
               fontSize: '11px',
               padding: '2px 7px',
@@ -181,7 +182,7 @@ export default function TopBar() {
             </span>
             <span>Sem {currentSem}</span>
             <ChevronDown size={13} style={{
-              color: 'var(--color-muted, #706B63)',
+              color: 'var(--color-muted, var(--color-muted))',
               transform: dropdownOpen ? 'rotate(180deg)' : 'none',
               transition: 'transform 0.15s ease'
             }} />
@@ -194,25 +195,25 @@ export default function TopBar() {
               right: 0,
               width: '280px',
               background: 'var(--color-surface, #FFFFFF)',
-              border: '1px solid var(--color-border, #E8E5DF)',
+              border: '1px solid var(--color-border, var(--color-border))',
               borderRadius: '12px',
               boxShadow: '0 12px 30px -4px rgba(0, 0, 0, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.05)',
               padding: '14px',
               zIndex: 1000
             }}>
-              <div style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid var(--color-border-light, #F0EFEB)' }}>
-                <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--color-muted, #706B63)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid var(--color-border-light, var(--color-base))' }}>
+                <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--color-muted, var(--color-muted))', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Academic Workspace
                 </div>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-deep, #1F2421)', marginTop: '2px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-deep, var(--color-deep))', marginTop: '2px' }}>
                   {currentStream}
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--color-muted, #706B63)' }}>
+                <div style={{ fontSize: '11px', color: 'var(--color-muted, var(--color-muted))' }}>
                   {degreeObj.name} • {degreeObj.years} Years
                 </div>
               </div>
 
-              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-muted, #706B63)', marginBottom: '8px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-muted, var(--color-muted))', marginBottom: '8px' }}>
                 Quick Semester Switcher:
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
@@ -229,9 +230,9 @@ export default function TopBar() {
                       borderRadius: '6px',
                       fontSize: '12px',
                       fontWeight: s === currentSem ? 600 : 500,
-                      border: s === currentSem ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
-                      background: s === currentSem ? 'rgba(217, 93, 57, 0.08)' : 'var(--color-surface-alt, #F9F8F6)',
-                      color: s === currentSem ? 'var(--color-primary, #D95D39)' : 'var(--color-deep, #1F2421)',
+                      border: s === currentSem ? '1.5px solid var(--color-primary, var(--color-primary))' : '1px solid var(--color-border, var(--color-border))',
+                      background: s === currentSem ? 'color-mix(in srgb, var(--color-primary) 8%, transparent)' : 'var(--color-surface-alt, var(--color-base))',
+                      color: s === currentSem ? 'var(--color-primary, var(--color-primary))' : 'var(--color-deep, var(--color-deep))',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease'
                     }}
@@ -241,8 +242,8 @@ export default function TopBar() {
                 ))}
               </div>
 
-              <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--color-border-light, #F0EFEB)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', color: 'var(--color-muted, #706B63)' }}>
+              <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--color-border-light, var(--color-base))', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: 'var(--color-muted, var(--color-muted))' }}>
                   Edit branches & courses
                 </span>
                 <button
@@ -254,7 +255,7 @@ export default function TopBar() {
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: 'var(--color-primary, #D95D39)',
+                    color: 'var(--color-primary, var(--color-primary))',
                     fontSize: '11px',
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -277,7 +278,7 @@ export default function TopBar() {
         aria-label="Open search"
       >
         <Search size={16} strokeWidth={1.5} />
-        <span className="topbar-search-text">Search topics, notes...</span>
+        <span className="topbar-search-text">Search notes, topics…</span>
         <span className="topbar-search-kbd">⌘K</span>
       </button>
 

@@ -1,3 +1,4 @@
+import { useOnChange } from '../hooks/useOnChange';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import {
@@ -29,7 +30,6 @@ import {
 import { api } from '../services/api';
 import { savedNotesService } from '../services/savedNotes';
 import type { PYQEntry, PYQQuestionItem, Subject } from '../data/mockData';
-import { subjects as fallbackSubjects } from '../data/mockData';
 
 const REPORT_REASONS = [
   {
@@ -109,10 +109,13 @@ export default function PYQDetail() {
   };
 
   // Load PYQ details and subject metadata
-  useEffect(() => {
-    if (!pyqId) return;
+  useOnChange(pyqId, () => {
     setLoading(true);
     setError(null);
+  });
+
+  useEffect(() => {
+    if (!pyqId) return;
 
     Promise.all([
       api.getPYQ(pyqId),
@@ -120,7 +123,7 @@ export default function PYQDetail() {
       api.checkNoteReportStatus(pyqId)
     ]).then(([fetchedPyq, fetchedSubjects, reportStatus]) => {
       setPyq(fetchedPyq);
-      const matchedSubject = (fetchedSubjects.length > 0 ? fetchedSubjects : fallbackSubjects)
+      const matchedSubject = fetchedSubjects
         .find(s => s.id === fetchedPyq.subjectId);
       setSubject(matchedSubject || null);
       setIsSaved(savedNotesService.isSaved(pyqId));
@@ -188,7 +191,7 @@ export default function PYQDetail() {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       element.style.transition = 'background-color 0.4s ease';
       const origBg = element.style.backgroundColor;
-      element.style.backgroundColor = 'rgba(200, 75, 40, 0.12)';
+      element.style.backgroundColor = 'color-mix(in srgb, var(--color-primary) 12%, transparent)';
       setTimeout(() => {
         element.style.backgroundColor = origBg;
       }, 1500);
@@ -207,7 +210,7 @@ export default function PYQDetail() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('atelier_token') || ''}`
+          'Authorization': `Bearer ${localStorage.getItem('atelier_auth_token') || ''}`
         },
         body: JSON.stringify({
           noteId: pyq.id,
@@ -307,11 +310,11 @@ export default function PYQDetail() {
     switch (viewMode) {
       case 'sepia':
         return {
-          wrapperBg: '#f4ecd8',
+          wrapperBg: 'var(--color-base)',
           paperBg: '#fbf0d9',
           color: '#3d3024',
           borderColor: '#e2d4bc',
-          subColor: '#7a6652',
+          subColor: 'var(--color-muted)',
           cardBg: '#f2e5cc'
         };
       case 'dark':
@@ -349,7 +352,7 @@ export default function PYQDetail() {
         <div style={{
           width: '32px',
           height: '32px',
-          border: '3px solid rgba(200, 75, 40, 0.2)',
+          border: '3px solid color-mix(in srgb, var(--color-primary) 20%, transparent)',
           borderTopColor: 'var(--color-primary)',
           borderRadius: '50%',
           animation: 'spin 0.8s linear infinite'
@@ -454,7 +457,7 @@ export default function PYQDetail() {
             <span style={{ fontSize: '12px' }}>Archive</span>
           </button>
 
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span className="chip chip-primary" style={{ fontSize: '11px', padding: '2px 8px' }}>
                 <Calendar size={11} style={{ marginRight: '4px' }} />
@@ -470,12 +473,12 @@ export default function PYQDetail() {
               )}
             </div>
             <h1 style={{
-              fontSize: '15px',
+              fontSize: '18px', letterSpacing: '-0.02em',
               fontFamily: 'var(--font-display)',
               margin: '3px 0 0',
               fontWeight: 600,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
+              
+              
               textOverflow: 'ellipsis'
             }}>
               {paperTitle}
@@ -524,7 +527,7 @@ export default function PYQDetail() {
               className={`btn btn-ghost btn-sm ${viewMode === 'sepia' ? 'active' : ''}`}
               onClick={() => setViewMode('sepia')}
               title="Sepia Warm Theme"
-              style={{ padding: '4px 8px', height: '28px', background: viewMode === 'sepia' ? '#f4ecd8' : 'transparent', color: viewMode === 'sepia' ? '#7a6652' : 'inherit' }}
+              style={{ padding: '4px 8px', height: '28px', background: viewMode === 'sepia' ? 'var(--color-base)' : 'transparent', color: viewMode === 'sepia' ? 'var(--color-muted)' : 'inherit' }}
             >
               <BookOpen size={13} />
             </button>
@@ -597,7 +600,7 @@ export default function PYQDetail() {
       </header>
 
       {/* Main Workspace Body */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div className="pyq-reader-body" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Central Examination Paper Canvas */}
         <div
           ref={canvasRef}
@@ -793,7 +796,7 @@ export default function PYQDetail() {
                       padding: '12px 14px',
                       borderRadius: 'var(--radius-md)',
                       border: activeQuestionId === q.id ? '1px solid var(--color-primary)' : '1px solid transparent',
-                      background: activeQuestionId === q.id ? 'rgba(200, 75, 40, 0.05)' : 'transparent'
+                      background: activeQuestionId === q.id ? 'color-mix(in srgb, var(--color-primary) 5%, transparent)' : 'transparent'
                     }}
                   >
                     <span className="mono" style={{ fontWeight: 700, minWidth: '40px', color: 'var(--color-primary)' }}>
@@ -851,7 +854,7 @@ export default function PYQDetail() {
 
         {/* Collapsible Right Sidebar: Exam Overview & Questions Index */}
         {sidebarOpen && (
-          <aside style={{
+          <aside className="pyq-reader-aside" style={{
             width: '320px',
             borderLeft: '1px solid var(--color-border)',
             background: 'var(--color-surface)',
@@ -930,7 +933,7 @@ export default function PYQDetail() {
                         </span>
                       </div>
                       <div style={{ width: '100%', height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
-                        <div style={{ width: `${percent}%`, height: '100%', background: 'var(--color-primary)', borderRadius: '2px' }} />
+                        <div style={{ width: `${percent}%`, height: '100%', background: 'var(--color-deep)', borderRadius: '2px' }} />
                       </div>
                     </div>
                   );
@@ -958,7 +961,7 @@ export default function PYQDetail() {
                       justifyContent: 'space-between',
                       padding: '8px 10px',
                       borderRadius: 'var(--radius-sm)',
-                      background: activeQuestionId === q.id ? 'rgba(200, 75, 40, 0.1)' : 'var(--color-bg)',
+                      background: activeQuestionId === q.id ? 'color-mix(in srgb, var(--color-primary) 10%, transparent)' : 'var(--color-bg)',
                       border: activeQuestionId === q.id ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
                       cursor: 'pointer',
                       textAlign: 'left',
@@ -1098,7 +1101,7 @@ export default function PYQDetail() {
                         padding: '10px 12px',
                         borderRadius: 'var(--radius-sm)',
                         border: isSelected ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-                        background: isSelected ? 'rgba(200, 75, 40, 0.08)' : 'var(--color-bg)',
+                        background: isSelected ? 'color-mix(in srgb, var(--color-primary) 8%, transparent)' : 'var(--color-bg)',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease'
                       }}

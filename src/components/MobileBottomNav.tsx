@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router';
 import { LayoutDashboard, FolderOpen, FileText, Bot, Menu } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/appState';
 
 export default function MobileBottomNav() {
   const location = useLocation();

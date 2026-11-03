@@ -3,9 +3,10 @@ import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
 import multer from 'multer';
+import crypto from 'node:crypto';
 import { db, initDatabase, closeDatabase, uploadsDir } from './database.js';
 import { seedDatabase } from './seed.js';
-import { hashPassword, verifyPassword, generateToken } from './auth.js';
+import { hashPassword, verifyPassword, generateToken, hashToken } from './auth.js';
 import { generateChatResponse, generateDirectAcademicExplanation, getContextForQuery } from './aiService.js';
 
 const envCandidates = [
@@ -36,7 +37,8 @@ app.disable('x-powered-by');
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; frame-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'");
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
 });
@@ -44,8 +46,20 @@ app.use((_req, res, next) => {
 // -------------------------------------------------------------
 // CORS: Unified access for local dev & production deployments
 // -------------------------------------------------------------
+if (process.env.TRUST_PROXY) {
+  app.set('trust proxy', /^\d+$/.test(process.env.TRUST_PROXY) ? Number(process.env.TRUST_PROXY) : process.env.TRUST_PROXY);
+}
+
+const allowedOrigins = new Set(
+  (process.env.CLIENT_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3001')
+    .split(',').map(o => o.trim()).filter(Boolean)
+);
 app.use(cors({
-  origin: true,
+  origin: (origin, cb) => {
+    // Same-origin and non-browser requests carry no Origin header
+    if (!origin || allowedOrigins.has(origin)) return cb(null, true);
+    cb(new Error('CORS blocked'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -71,7 +85,8 @@ function createRateLimiter({ windowMs, maxRequests, message }) {
   }, 5 * 60 * 1000).unref();
 
   return (req, res, next) => {
-    const rawIp = req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
+    // req.ip honours X-Forwarded-For only when TRUST_PROXY is configured
+    const rawIp = req.ip || req.socket.remoteAddress || 'unknown';
     const now = Date.now();
     const record = hits.get(rawIp);
 
@@ -127,21 +142,14 @@ app.get('/api/health', (_req, res) => {
   try {
     const dbPing = db.prepare('SELECT 1 as ping').get();
     const isDbAlive = dbPing && dbPing.ping === 1;
-    const memory = process.memoryUsage();
 
     res.json({
       status: isDbAlive ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
       uptimeSeconds: Math.floor(process.uptime()),
-      database: isDbAlive ? 'connected' : 'unreachable',
-      environment: process.env.NODE_ENV || 'development',
-      memory: {
-        rssMb: Math.round(memory.rss / 1024 / 1024),
-        heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
-        heapTotalMb: Math.round(memory.heapTotal / 1024 / 1024)
-      }
+      database: isDbAlive ? 'connected' : 'unreachable'
     });
-  } catch (err) {
+  } catch {
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
@@ -151,7 +159,16 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Serve uploaded files statically
-app.use('/uploads', express.static(uploadsDir));
+// Uploaded files are public only while their parent resource is visible
+app.use('/uploads', (req, res, next) => {
+  let name;
+  try { name = path.basename(decodeURIComponent(req.path)); } catch { return res.status(400).end(); }
+  const restricted = db.prepare(
+    "SELECT 1 FROM notes WHERE file_path = ? AND status IN ('quarantined','draft') UNION SELECT 1 FROM pyqs WHERE file_path = ? AND status = 'quarantined'"
+  ).get(name, name);
+  if (restricted) return res.status(403).send('This resource is restricted.');
+  next();
+}, express.static(uploadsDir, { dotfiles: 'deny', index: false }));
 
 // -------------------------------------------------------------
 // Security Hardening: Strict Multer File Upload Filter
@@ -171,7 +188,7 @@ const storage = multer.diskStorage({
     cb(null, uploadsDir);
   },
   filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const uniqueSuffix = crypto.randomUUID();
     const rawExt = path.extname(file.originalname).toLowerCase();
     const ext = ALLOWED_EXTENSIONS.has(rawExt) ? rawExt : '.pdf';
     cb(null, `${uniqueSuffix}${ext}`);
@@ -251,15 +268,51 @@ function getUserFromRequest(req) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7);
-  const session = db.prepare('SELECT user_id, expires_at FROM sessions WHERE token = ?').get(token);
+  const session = db.prepare('SELECT user_id, expires_at FROM sessions WHERE token = ?').get(hashToken(token));
   if (!session) return null;
   if (new Date(session.expires_at) < new Date()) {
-    db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+    db.prepare('DELETE FROM sessions WHERE token = ?').run(hashToken(token));
     return null;
   }
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id);
   return formatSafeUser(user);
 }
+
+// Helper: never leak internals to clients in production
+function publicError(err) {
+  if (process.env.NODE_ENV !== 'production') return err?.message || 'Unexpected error';
+  return 'Something went wrong. Please try again.';
+}
+
+// Helper: verify an uploaded file's magic bytes match its extension
+function fileContentMatches(file) {
+  if (!file) return false;
+  try {
+    const fd = fs.openSync(file.path, 'r');
+    const buf = Buffer.alloc(12);
+    fs.readSync(fd, buf, 0, 12, 0);
+    fs.closeSync(fd);
+    const ext = path.extname(file.filename).toLowerCase();
+    if (ext === '.pdf') return buf.subarray(0, 5).toString() === '%PDF-';
+    if (ext === '.png') return buf[0] === 0x89 && buf.subarray(1, 4).toString() === 'PNG';
+    if (ext === '.jpg' || ext === '.jpeg') return buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+    if (ext === '.webp') return buf.subarray(0, 4).toString() === 'RIFF' && buf.subarray(8, 12).toString() === 'WEBP';
+    if (ext === '.docx') return buf[0] === 0x50 && buf[1] === 0x4b;
+    if (ext === '.doc') return buf[0] === 0xd0 && buf[1] === 0xcf;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function discardUpload(file) {
+  if (file?.path) { try { fs.unlinkSync(file.path); } catch { /* ignore */ } }
+}
+
+const DOWNLOAD_EXT = {
+  'application/pdf': '.pdf', 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp',
+  'application/msword': '.doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx'
+};
 
 // Helper: Check if user has administrator or moderator privileges
 function isModerator(user) {
@@ -351,7 +404,7 @@ app.get('/api/subjects', (req, res) => {
 
     res.json({ success: true, subjects });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -378,7 +431,7 @@ app.get('/api/subjects/:id', (req, res) => {
 
     res.json({ success: true, subject: sub });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -484,7 +537,7 @@ app.get('/api/notes', (req, res) => {
 
     res.json({ success: true, notes });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -551,7 +604,7 @@ app.get('/api/notes/:id', (req, res) => {
 
     res.json({ success: true, note });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -560,7 +613,6 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
   try {
     const {
       title,
-      author,
       subjectId,
       unitId,
       topicIds,
@@ -574,9 +626,27 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
       status
     } = req.body;
     const file = req.file;
+    const currentUser = getUserFromRequest(req);
 
+    if (!currentUser) {
+      discardUpload(file);
+      return res.status(401).json({ success: false, error: 'Please sign in to upload notes.' });
+    }
+    if (!file) {
+      return res.status(400).json({ success: false, error: 'A file is required.' });
+    }
+    if (!fileContentMatches(file)) {
+      discardUpload(file);
+      return res.status(400).json({ success: false, error: 'File contents do not match its type.' });
+    }
     if (!subjectId || !unitId) {
+      discardUpload(file);
       return res.status(400).json({ success: false, error: 'Subject and Unit are required' });
+    }
+    const unitRow = db.prepare('SELECT id FROM units WHERE id = ? AND subject_id = ?').get(unitId, subjectId);
+    if (!unitRow) {
+      discardUpload(file);
+      return res.status(400).json({ success: false, error: 'Unknown subject or unit.' });
     }
 
     let parsedTopicIds = [];
@@ -589,6 +659,9 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
     } else if (Array.isArray(topicIds)) {
       parsedTopicIds = topicIds;
     }
+    // Only accept topics that actually belong to the chosen unit
+    const unitTopicIds = new Set(db.prepare('SELECT id FROM topics WHERE unit_id = ?').all(unitId).map(r => r.id));
+    parsedTopicIds = [...new Set(parsedTopicIds.map(String))].filter(id => unitTopicIds.has(id));
 
     let parsedTags = [];
     if (typeof tags === 'string') {
@@ -600,11 +673,14 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
     } else if (Array.isArray(tags)) {
       parsedTags = tags;
     }
+    parsedTags = parsedTags.map(t => sanitizeString(String(t))).filter(Boolean).slice(0, 12);
 
-    const noteId = 'n-' + Date.now();
-    const currentUser = getUserFromRequest(req);
-    const finalAuthor = author || currentUser?.name || 'Anonymous Scholar';
-    const authorInitials = currentUser?.initials || finalAuthor.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2) || 'AN';
+    const noteId = 'n-' + crypto.randomUUID();
+    const finalAuthor = currentUser.name;
+    const authorInitials = currentUser.initials || 'ST';
+    const finalStatus = status === 'draft' ? 'draft' : 'published';
+    const finalFormat = sanitizeString(String(format || 'Lecture Notes')).slice(0, 40) || 'Lecture Notes';
+    const finalPages = Math.min(2000, Math.max(1, parseInt(pages, 10) || 1));
     const noteTitle = title || (file ? file.originalname.replace(/\.[^/.]+$/, '') : 'Lecture Notes');
 
     // Resolve primary topic
@@ -620,10 +696,12 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
     const topicMatchCount = parsedTopicIds.length;
     const syllabusMatch = `Matches ${topicMatchCount}/${totalTopics} topics`;
 
-    const storedFileName = file ? file.filename : 'sample_lecture_notes.pdf';
-    const storedFileSize = file ? file.size : 1024000;
-    const mimeType = file ? file.mimetype : 'application/pdf';
+    const storedFileName = file.filename;
+    const storedFileSize = file.size;
+    const mimeType = file.mimetype;
 
+    db.exec('BEGIN');
+    try {
     db.prepare(`
       INSERT INTO notes (
         id, title, author, author_initials, subject_id, unit_id, topic_ids,
@@ -642,12 +720,12 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
       sanitizeString(resolvedPrimaryTopic),
       sanitizeString(description || ''),
       JSON.stringify(parsedTags),
-      department || currentUser?.department || '',
-      semester ? parseInt(semester) : (currentUser?.semester || null),
-      currentUser?.id || null,
-      status || 'published',
-      format || 'Lecture Notes',
-      parseInt(pages) || 12,
+      sanitizeString(String(department || currentUser.department || '')).slice(0, 80),
+      semester ? Math.min(8, Math.max(1, parseInt(semester, 10) || 1)) : (currentUser.semester || null),
+      currentUser.id,
+      finalStatus,
+      finalFormat,
+      finalPages,
       storedFileName,
       storedFileSize,
       mimeType,
@@ -671,6 +749,12 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
     // Recalculate subject coverage
     const newCoverage = calculateCoverage(subjectId);
     db.prepare('UPDATE subjects SET coverage = ? WHERE id = ?').run(newCoverage, subjectId);
+    db.exec('COMMIT');
+    } catch (txErr) {
+      db.exec('ROLLBACK');
+      discardUpload(file);
+      throw txErr;
+    }
 
     res.status(201).json({
       success: true,
@@ -678,18 +762,18 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
       message: 'Note uploaded and indexed successfully!',
       note: {
         id: noteId,
-        title: noteTitle,
+        title: sanitizeString(noteTitle),
         author: finalAuthor,
         authorInitials,
-        userId: currentUser?.id || null,
-        status: status || 'published',
+        userId: currentUser.id,
+        status: finalStatus,
         subjectId,
         unitId,
         primaryTopic: resolvedPrimaryTopic,
-        description: description || '',
+        description: sanitizeString(description || ''),
         tags: parsedTags,
-        format: format || 'Lecture Notes',
-        pages: parseInt(pages) || 12,
+        format: finalFormat,
+        pages: finalPages,
         uploadDate: new Date().toISOString().split('T')[0],
         downloads: 0,
         syllabusMatch
@@ -697,7 +781,7 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
     });
   } catch (err) {
     console.error('Upload error:', err);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -714,8 +798,7 @@ app.put('/api/notes/:id', (req, res) => {
       return res.status(404).json({ success: false, error: 'Note not found' });
     }
 
-    const isOwner = (existing.user_id && existing.user_id === user.id) ||
-                    (existing.author && existing.author.toLowerCase() === user.name.toLowerCase());
+    const isOwner = Boolean(existing.user_id) && existing.user_id === user.id;
     if (!isOwner && !isModerator(user)) {
       return res.status(403).json({ success: false, error: 'Permission denied. Only the author or a moderator can edit this note.' });
     }
@@ -748,7 +831,7 @@ app.put('/api/notes/:id', (req, res) => {
     const updatedTitle = title !== undefined ? sanitizeString(title) : existing.title;
     const updatedPrimaryTopic = primaryTopic !== undefined ? sanitizeString(primaryTopic) : existing.primary_topic;
     const updatedDesc = description !== undefined ? sanitizeString(description) : existing.description;
-    const updatedFormat = format !== undefined ? format : existing.format;
+    const updatedFormat = format !== undefined ? sanitizeString(String(format)).slice(0, 40) : existing.format;
     const updatedPages = pages !== undefined ? Math.max(1, parseInt(pages, 10) || 1) : existing.pages;
 
     let updatedStatus = existing.status || 'published';
@@ -829,7 +912,7 @@ app.put('/api/notes/:id', (req, res) => {
     res.json({ success: true, message: 'Note updated successfully', note });
   } catch (err) {
     console.error('Update note error:', err);
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -847,23 +930,32 @@ app.delete('/api/notes/:id', (req, res) => {
     }
 
     // Enforce ownership: user must be the original author or a moderator/admin
-    const isOwner = (note.user_id && note.user_id === user.id) ||
-                    (note.author && note.author.toLowerCase() === user.name.toLowerCase());
+    const isOwner = Boolean(note.user_id) && note.user_id === user.id;
     if (!isOwner && !isModerator(user)) {
       return res.status(403).json({ success: false, error: 'Permission denied. Only the author or a moderator can delete this note.' });
     }
 
-    // Cascade delete associated interactions
-    db.prepare('DELETE FROM notes WHERE id = ?').run(req.params.id);
-    db.prepare('DELETE FROM note_upvotes WHERE note_id = ?').run(req.params.id);
-    db.prepare('DELETE FROM note_comments WHERE note_id = ?').run(req.params.id);
-    db.prepare('DELETE FROM saved_notes WHERE note_id = ?').run(req.params.id);
+    // Cascade delete associated interactions atomically
+    db.exec('BEGIN');
+    try {
+      db.prepare('DELETE FROM note_upvotes WHERE note_id = ?').run(req.params.id);
+      db.prepare('DELETE FROM note_comments WHERE note_id = ?').run(req.params.id);
+      db.prepare('DELETE FROM saved_notes WHERE note_id = ?').run(req.params.id);
+      db.prepare('DELETE FROM notes WHERE id = ?').run(req.params.id);
+      for (const tId of JSON.parse(note.topic_ids || '[]')) {
+        db.prepare("UPDATE topics SET note_count = MAX(0, note_count - 1), status = CASE WHEN note_count - 1 <= 0 THEN 'missing' ELSE status END WHERE id = ?").run(tId);
+      }
+      db.exec('COMMIT');
+    } catch (txErr) {
+      db.exec('ROLLBACK');
+      throw txErr;
+    }
 
     // If there is an uploaded file on disk, remove it safely unless it's the sample file
     if (note.file_path && note.file_path !== 'sample_lecture_notes.pdf') {
       const fullPath = getSafeUploadPath(note.file_path);
       if (fullPath && fs.existsSync(fullPath)) {
-        try { fs.unlinkSync(fullPath); } catch (e) { /* ignore */ }
+        try { fs.unlinkSync(fullPath); } catch { /* ignore */ }
       }
     }
 
@@ -873,7 +965,7 @@ app.delete('/api/notes/:id', (req, res) => {
 
     res.json({ success: true, message: 'Note deleted successfully' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -888,7 +980,7 @@ app.get('/api/notes/:id/download', (req, res) => {
     // Quarantine check: restricted resources can only be downloaded by author or moderator
     if (note.status === 'quarantined') {
       const user = getUserFromRequest(req);
-      const isOwner = user && ((note.user_id && note.user_id === user.id) || (note.author && note.author.toLowerCase() === user.name.toLowerCase()));
+      const isOwner = Boolean(user && note.user_id && note.user_id === user.id);
       if (!isModerator(user) && !isOwner) {
         return res.status(403).send('This note has been restricted by academic moderators.');
       }
@@ -902,13 +994,13 @@ app.get('/api/notes/:id/download', (req, res) => {
     const safeTitle = (note.title || 'note').replace(/[^a-zA-Z0-9_-]/g, '_');
 
     if (safeFilePath && fs.existsSync(safeFilePath)) {
-      res.download(safeFilePath, `${safeTitle}.pdf`);
+      res.download(safeFilePath, `${safeTitle}${DOWNLOAD_EXT[note?.mime_type] || path.extname(safeFilePath)}`);
     } else if (sampleFilePath && fs.existsSync(sampleFilePath)) {
       res.download(sampleFilePath, `${safeTitle}.pdf`);
     } else {
       res.status(404).send('Requested file not found');
     }
-  } catch (err) {
+  } catch {
     res.status(500).send('Error downloading file');
   }
 });
@@ -927,7 +1019,7 @@ app.get('/api/notes/:id/upvote-status', (req, res) => {
     const upvoted = user ? !!db.prepare('SELECT 1 FROM note_upvotes WHERE user_id = ? AND note_id = ?').get(user.id, req.params.id) : false;
     res.json({ success: true, upvoted, upvotes: note.upvotes || 0 });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -948,20 +1040,20 @@ app.post('/api/notes/:id/upvote', (req, res) => {
 
     if (existing) {
       db.prepare('DELETE FROM note_upvotes WHERE user_id = ? AND note_id = ?').run(user.id, note.id);
-      newCount = Math.max(0, newCount - 1);
-      db.prepare('UPDATE notes SET upvotes = ? WHERE id = ?').run(newCount, note.id);
+      db.prepare('UPDATE notes SET upvotes = MAX(0, upvotes - 1) WHERE id = ?').run(note.id);
+      newCount = db.prepare('SELECT upvotes FROM notes WHERE id = ?').get(note.id).upvotes;
       upvoted = false;
     } else {
       const now = new Date().toISOString();
-      db.prepare('INSERT INTO note_upvotes (user_id, note_id, created_at) VALUES (?, ?, ?)').run(user.id, note.id, now);
-      newCount = newCount + 1;
-      db.prepare('UPDATE notes SET upvotes = ? WHERE id = ?').run(newCount, note.id);
+      db.prepare('INSERT OR IGNORE INTO note_upvotes (user_id, note_id, created_at) VALUES (?, ?, ?)').run(user.id, note.id, now);
+      db.prepare('UPDATE notes SET upvotes = upvotes + 1 WHERE id = ?').run(note.id);
+      newCount = db.prepare('SELECT upvotes FROM notes WHERE id = ?').get(note.id).upvotes;
       upvoted = true;
     }
 
     res.json({ success: true, upvoted, upvotes: newCount });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -996,7 +1088,7 @@ app.get('/api/notes/:id/comments', (req, res) => {
 
     res.json({ success: true, comments: formatted });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1013,7 +1105,7 @@ app.post('/api/notes/:id/comments', (req, res) => {
       return res.status(400).json({ success: false, error: 'Comment content cannot be empty' });
     }
 
-    const commentId = 'comm-' + Date.now();
+    const commentId = 'comm-' + crypto.randomUUID();
     const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
     const validCategory = ['Exam Tip', 'Errata / Correction', 'Question', 'Key Takeaway', 'General'].includes(category)
       ? category
@@ -1050,7 +1142,7 @@ app.post('/api/notes/:id/comments', (req, res) => {
 
     res.status(201).json({ success: true, comment: created });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1084,7 +1176,7 @@ app.post('/api/comments/:id/upvote', (req, res) => {
 
     res.json({ success: true, upvoted, upvotes: newCount });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1109,7 +1201,7 @@ app.delete('/api/comments/:id', (req, res) => {
 
     res.json({ success: true, message: 'Comment deleted successfully' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1188,7 +1280,7 @@ app.get('/api/contributors/leaderboard', (req, res) => {
 
     res.json({ success: true, leaderboard });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1276,7 +1368,7 @@ app.get('/api/note-requests', (req, res) => {
 
     res.json({ success: true, requests });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1295,7 +1387,7 @@ app.post('/api/note-requests', (req, res) => {
 
     const safeTopic = sanitizeString(topicName);
     const safeDesc = description ? sanitizeString(description) : '';
-    const requestId = 'req-' + Date.now();
+    const requestId = 'req-' + crypto.randomUUID();
     const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
 
     db.prepare(`
@@ -1342,7 +1434,7 @@ app.post('/api/note-requests', (req, res) => {
 
     res.status(201).json({ success: true, request: created, message: 'Note request posted to the community!' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1377,7 +1469,7 @@ app.post('/api/note-requests/:id/upvote', (req, res) => {
 
     res.json({ success: true, hasUpvoted, upvotes: newCount });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1399,9 +1491,15 @@ app.post('/api/note-requests/:id/fulfill', (req, res) => {
       return res.status(404).json({ success: false, error: 'Note request not found' });
     }
 
-    const note = db.prepare('SELECT id, title FROM notes WHERE id = ?').get(noteId);
+    if (request.status === 'fulfilled') {
+      return res.status(409).json({ success: false, error: 'This request has already been fulfilled.' });
+    }
+    const note = db.prepare("SELECT id, title, subject_id FROM notes WHERE id = ? AND status = 'published'").get(noteId);
     if (!note) {
       return res.status(404).json({ success: false, error: 'Linked note was not found in library.' });
+    }
+    if (request.subject_id && note.subject_id !== request.subject_id) {
+      return res.status(400).json({ success: false, error: 'The linked note must belong to the requested subject.' });
     }
 
     const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
@@ -1423,7 +1521,7 @@ app.post('/api/note-requests/:id/fulfill', (req, res) => {
       fulfilledNoteTitle: note.title
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1449,7 +1547,7 @@ app.delete('/api/note-requests/:id', (req, res) => {
 
     res.json({ success: true, message: 'Note request removed.' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1530,7 +1628,7 @@ app.get('/api/user/saved-notes', (req, res) => {
 
     res.json({ success: true, savedNotes });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1550,7 +1648,7 @@ app.post('/api/user/saved-notes/:noteId', (req, res) => {
 
     res.json({ success: true, message: 'Note saved to library', savedAt: now });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1566,7 +1664,7 @@ app.delete('/api/user/saved-notes/:noteId', (req, res) => {
 
     res.json({ success: true, message: 'Note removed from library' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1585,7 +1683,7 @@ app.post('/api/user/saved-notes/:noteId/access', (req, res) => {
 
     res.json({ success: true, lastAccessedAt: now });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1659,7 +1757,7 @@ app.get('/api/pyqs', (req, res) => {
 
     res.json({ success: true, pyqs });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1705,7 +1803,7 @@ app.get('/api/pyqs/:id', (req, res) => {
 
     res.json({ success: true, pyq });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1731,14 +1829,23 @@ app.post('/api/pyqs', uploadRateLimiter, upload.single('file'), (req, res) => {
       pages
     } = req.body;
 
+    if (req.file && !fileContentMatches(req.file)) {
+      discardUpload(req.file);
+      return res.status(400).json({ success: false, error: 'File contents do not match its type.' });
+    }
     if (!subjectId || !year) {
+      discardUpload(req.file);
       return res.status(400).json({ success: false, error: 'Subject and Year are required.' });
     }
 
     const subject = db.prepare('SELECT name, code FROM subjects WHERE id = ?').get(subjectId);
-    const subjectName = subject ? subject.name : 'Academic';
+    if (!subject) {
+      discardUpload(req.file);
+      return res.status(400).json({ success: false, error: 'Unknown subject.' });
+    }
+    const subjectName = subject.name;
     const paperTitle = title && title.trim() ? sanitizeString(title) : `${subjectName} — ${month || 'Dec'} ${year} ${examType || 'End Semester'} Examination Paper`;
-    const id = 'pyq-' + Date.now();
+    const id = 'pyq-' + crypto.randomUUID();
     const now = new Date().toISOString().split('T')[0];
 
     let mapping = [];
@@ -1842,7 +1949,7 @@ app.post('/api/pyqs', uploadRateLimiter, upload.single('file'), (req, res) => {
       }
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1868,13 +1975,13 @@ app.get('/api/pyqs/:id/download', (req, res) => {
     const safeTitle = (pyq.title || 'PYQ_Paper').replace(/[^a-zA-Z0-9_-]/g, '_');
 
     if (safeFilePath && fs.existsSync(safeFilePath)) {
-      res.download(safeFilePath, `${safeTitle}.pdf`);
+      res.download(safeFilePath, `${safeTitle}${DOWNLOAD_EXT[note?.mime_type] || path.extname(safeFilePath)}`);
     } else if (sampleFilePath && fs.existsSync(sampleFilePath)) {
       res.download(sampleFilePath, `${safeTitle}.pdf`);
     } else {
       res.status(404).send('Question paper file not found');
     }
-  } catch (err) {
+  } catch {
     res.status(500).send('Error downloading question paper');
   }
 });
@@ -1929,7 +2036,7 @@ app.get('/api/moderation', (req, res) => {
     }));
     res.json({ success: true, items: moderationItems });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1971,7 +2078,7 @@ app.get('/api/user/reports', (req, res) => {
     }));
     res.json({ success: true, reports, items: reports });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -1996,7 +2103,7 @@ app.get('/api/moderation/status/:noteId', (req, res) => {
     }
     res.json({ success: true, hasReported: false });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -2021,7 +2128,7 @@ app.patch('/api/moderation/:id', (req, res) => {
 
     res.json({ success: true, message: `Item updated to ${status}` });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -2120,7 +2227,7 @@ app.get('/api/admin/moderation', (req, res) => {
 
     res.json({ success: true, items });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -2195,14 +2302,17 @@ app.post('/api/admin/moderation/:id/decision', (req, res) => {
       report: updated
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
 app.post('/api/moderation', (req, res) => {
   try {
     const user = getUserFromRequest(req);
-    const { noteId, resourceName, reporter, reason, category, details } = req.body;
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Please sign in to report a resource.' });
+    }
+    const { noteId, resourceName, reason, category, details } = req.body;
 
     if (!reason || !reason.trim()) {
       return res.status(400).json({ success: false, error: 'A reason for reporting is required.' });
@@ -2223,8 +2333,8 @@ app.post('/api/moderation', (req, res) => {
     }
     if (!targetName) targetName = 'Untitled Resource';
 
-    const userId = user ? user.id : (req.body.userId || null);
-    const reporterName = user ? user.name : (reporter || 'Student');
+    const userId = user.id;
+    const reporterName = user.name;
 
     // Prevent duplicate pending report from the same user for this note
     if (userId && noteId) {
@@ -2242,7 +2352,7 @@ app.post('/api/moderation', (req, res) => {
       }
     }
 
-    const id = 'm-' + Date.now();
+    const id = 'm-' + crypto.randomUUID();
     const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 16);
     const safeReason = sanitizeString(reason);
     const safeDetails = details ? sanitizeString(details) : null;
@@ -2269,7 +2379,7 @@ app.post('/api/moderation', (req, res) => {
       message: 'Report submitted successfully. Thank you for helping keep the library accurate.'
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -2379,7 +2489,7 @@ app.get('/api/stats/dashboard', (req, res) => {
       }
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -2392,10 +2502,10 @@ app.get('/api/user/profile', (req, res) => {
     if (!user) {
       return res.status(401).json({ success: false, error: 'Not authenticated' });
     }
-    const notesCount = db.prepare('SELECT COUNT(*) as count FROM notes WHERE LOWER(author) = LOWER(?)').get(user.name)?.count || 0;
+    const notesCount = db.prepare('SELECT COUNT(*) as count FROM notes WHERE user_id = ?').get(user.id)?.count || 0;
     res.json({ success: true, user: { ...user, uploadedNotesCount: notesCount } });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -2405,13 +2515,16 @@ const handleSignup = (req, res) => {
     if (!email || !password || !name) {
       return res.status(400).json({ success: false, error: 'Name, email, and password are required' });
     }
+    if (typeof email !== 'string' || typeof name !== 'string' || name.trim().length > 80) {
+      return res.status(400).json({ success: false, error: 'Invalid signup details' });
+    }
     const cleanEmail = email.trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(cleanEmail)) {
       return res.status(400).json({ success: false, error: 'Please provide a valid email address' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long' });
+    if (typeof password !== 'string' || password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters and include a letter and a number' });
     }
     const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail);
     if (existing) {
@@ -2419,7 +2532,7 @@ const handleSignup = (req, res) => {
     }
 
     const { salt, hash } = hashPassword(password);
-    const userId = 'user-' + Date.now();
+    const userId = 'user-' + crypto.randomUUID();
     const initials = name.trim().split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2) || 'ST';
     const now = new Date().toISOString();
 
@@ -2439,28 +2552,28 @@ const handleSignup = (req, res) => {
       cleanEmail,
       hash,
       salt,
-      name.trim(),
+      sanitizeString(name),
       initials,
-      defaultCollege,
-      defaultDepartment,
-      defaultStream,
-      degree || 'B.Tech / B.E.',
+      sanitizeString(defaultCollege),
+      sanitizeString(defaultDepartment),
+      sanitizeString(defaultStream),
+      sanitizeString(degree || 'B.Tech / B.E.'),
       defaultEnrolled,
-      parseInt(semester) || 1,
+      Math.min(8, Math.max(1, parseInt(semester, 10) || 1)),
       now
     );
 
     // Create session token (valid 30 days)
     const token = generateToken();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(token, userId, now, expiresAt);
+    db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(hashToken(token), userId, now, expiresAt);
 
     const userRow = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
     const safeUser = formatSafeUser(userRow);
 
     res.status(201).json({ success: true, token, user: safeUser });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 };
 
@@ -2487,13 +2600,13 @@ app.post('/api/auth/login', authBruteForceLimiter, (req, res) => {
     const token = generateToken();
     const now = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(token, user.id, now, expiresAt);
+    db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(hashToken(token), user.id, now, expiresAt);
 
     const safeUser = formatSafeUser(user);
 
     res.json({ success: true, token, user: safeUser });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -2505,7 +2618,7 @@ app.get('/api/auth/me', (req, res) => {
     }
     res.json({ success: true, user });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -2551,7 +2664,7 @@ app.post('/api/user/onboarding', (req, res) => {
 
     res.json({ success: true, user: safeUser });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -2593,7 +2706,7 @@ app.put('/api/user/profile', (req, res) => {
 
     res.json({ success: true, user: safeUser, message: 'Academic profile updated successfully' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -2610,8 +2723,8 @@ app.post('/api/user/change-password', authBruteForceLimiter, (req, res) => {
       return res.status(400).json({ success: false, error: 'Current password and new password are required.' });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters long.' });
+    if (typeof newPassword !== 'string' || newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/d/.test(newPassword)) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 8 characters and include a letter and a number.' });
     }
 
     const userRecord = db.prepare('SELECT * FROM users WHERE id = ?').get(authUser.id);
@@ -2632,12 +2745,12 @@ app.post('/api/user/change-password', authBruteForceLimiter, (req, res) => {
     const authHeader = req.headers.authorization;
     const currentToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     if (currentToken) {
-      db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(authUser.id, currentToken);
+      db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(authUser.id, hashToken(currentToken));
     }
 
     res.json({ success: true, message: 'Password changed successfully. All other active sessions have been terminated.' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -2646,11 +2759,11 @@ app.post('/api/auth/logout', (req, res) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
-      db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+      db.prepare('DELETE FROM sessions WHERE token = ?').run(hashToken(token));
     }
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: publicError(err) });
   }
 });
 
@@ -2662,18 +2775,12 @@ app.post('/api/chat', aiRateLimiter, async (req, res) => {
   const { message = '', history = [] } = req.body || {};
 
   try {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.slice(7);
-      const session = db.prepare('SELECT user_id FROM sessions WHERE token = ?').get(token);
-      if (session) {
-        authUser = db.prepare('SELECT id, name, email, role, department, semester FROM users WHERE id = ?').get(session.user_id);
-      }
-    }
+    const u = getUserFromRequest(req);
+    if (u) authUser = { id: u.id, name: u.name, email: u.email, role: u.role, department: u.department, semester: u.semester };
 
     const response = await generateChatResponse({
-      message: message || '',
-      history: Array.isArray(history) ? history : [],
+      message: String(message || '').slice(0, 4000),
+      history: Array.isArray(history) ? history.slice(-20) : [],
       user: authUser
     });
 
@@ -2717,7 +2824,7 @@ if (clientDistDir) {
 
   app.use((req, res, next) => {
     if (req.method !== 'GET') return next();
-    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+    if (req.path.startsWith('/api')) {
       return next();
     }
     // Prevent MIME mismatch: Never serve index.html for missing static files (js, css, etc.)
@@ -2731,7 +2838,7 @@ if (clientDistDir) {
   console.warn('[ATELIER API] Notice: dist/ directory not found yet.');
   app.use((req, res, next) => {
     if (req.method !== 'GET') return next();
-    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+    if (req.path.startsWith('/api')) {
       return next();
     }
     res.status(503).send(`

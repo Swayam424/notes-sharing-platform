@@ -1,3 +1,4 @@
+import { useOnChange } from '../hooks/useOnChange';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -12,10 +13,9 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { api } from '../services/api';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/appState';
 import { savedNotesService } from '../services/savedNotes';
 import type { PYQEntry, Subject } from '../data/mockData';
-import { subjects as fallbackSubjects } from '../data/mockData';
 
 export default function PYQArchive() {
   const navigate = useNavigate();
@@ -43,15 +43,16 @@ export default function PYQArchive() {
   };
 
   // Fetch PYQs and subjects
+  useOnChange(refreshKey, () => setLoading(true));
+
   useEffect(() => {
-    setLoading(true);
     Promise.all([
       api.getPYQs(),
       api.getSubjects(),
       savedNotesService.syncFromServer()
     ]).then(([pyqs, subs, syncedData]) => {
       setPyqsList(pyqs);
-      setSubjectsList(subs.length > 0 ? subs : fallbackSubjects);
+      setSubjectsList(subs);
       setSavedIds(syncedData.ids);
     }).catch(err => {
       console.error('Failed to load PYQs:', err);
@@ -227,10 +228,10 @@ export default function PYQArchive() {
             </span>
           </div>
           <h1 className="page-title" style={{ margin: '0 0 6px' }}>
-            Previous Year Questions (PYQ)
+            Past papers
           </h1>
           <p className="page-subtitle" style={{ margin: 0 }}>
-            Topic-first past examination papers mapped to semester syllabus guidelines
+            Previous exam papers, with every question tagged to its syllabus topic.
           </p>
         </div>
 
@@ -372,7 +373,7 @@ export default function PYQArchive() {
                 borderRadius: '16px',
                 border: '1px solid',
                 borderColor: filterTopic === 'all' ? 'var(--color-primary)' : 'var(--color-border)',
-                background: filterTopic === 'all' ? 'rgba(200, 75, 40, 0.1)' : 'transparent',
+                background: filterTopic === 'all' ? 'color-mix(in srgb, var(--color-primary) 10%, transparent)' : 'transparent',
                 color: filterTopic === 'all' ? 'var(--color-primary)' : 'var(--color-text)',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
@@ -393,7 +394,7 @@ export default function PYQArchive() {
                     borderRadius: '16px',
                     border: '1px solid',
                     borderColor: isSelected ? 'var(--color-primary)' : 'var(--color-border)',
-                    background: isSelected ? 'rgba(200, 75, 40, 0.1)' : 'transparent',
+                    background: isSelected ? 'color-mix(in srgb, var(--color-primary) 10%, transparent)' : 'transparent',
                     color: isSelected ? 'var(--color-primary)' : 'var(--color-text)',
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',

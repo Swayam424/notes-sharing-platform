@@ -1,3 +1,4 @@
+import { useOnChange } from '../hooks/useOnChange';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -18,7 +19,7 @@ import {
   X
 } from 'lucide-react';
 import { api } from '../services/api';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/appState';
 import EditNoteModal from '../components/EditNoteModal';
 import type { NoteResource, Subject } from '../data/mockData';
 
@@ -56,8 +57,9 @@ export default function Contributions() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
+  useOnChange(refreshKey, () => setLoading(true));
+
   useEffect(() => {
-    setLoading(true);
     Promise.all([
       api.getNotes(),
       api.getUserProfile(),
@@ -274,22 +276,10 @@ export default function Contributions() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--color-primary-light)',
-                color: 'var(--color-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <Upload size={18} />
-              </div>
-              <h1 className="page-title" style={{ margin: 0 }}>My Uploads</h1>
+              <h1 className="page-title" style={{ margin: 0 }}>Your uploads</h1>
             </div>
             <p className="page-subtitle" style={{ margin: 'var(--space-1) 0 0' }}>
-              Manage your contributed study notes, update syllabus topic mappings, and track peer access.
+              Edit, retag or remove the notes you’ve shared, and see how they’re being used.
             </p>
 
             <div className="library-stats-pills">

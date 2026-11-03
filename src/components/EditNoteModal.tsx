@@ -1,3 +1,4 @@
+import { useOnChange } from '../hooks/useOnChange';
 import { useState, useEffect } from 'react';
 import { X, Check, Star, Plus, Loader2, AlertCircle } from 'lucide-react';
 import { api } from '../services/api';
@@ -32,7 +33,8 @@ export default function EditNoteModal({ note, isOpen, onClose, onSaved }: EditNo
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Reset the form whenever a different note is opened
+  useOnChange(isOpen && note ? note : null, () => {
     if (note && isOpen) {
       setTitle(note.title || '');
       setPrimaryTopic(note.primaryTopic || '');
@@ -42,13 +44,15 @@ export default function EditNoteModal({ note, isOpen, onClose, onSaved }: EditNo
       setStatus((note.status as any) || 'published');
       setTags(note.tags || []);
       setError(null);
-
-      // Load subject units & topics
-      if (note.subjectId) {
-        api.getSubject(note.subjectId).then(setSubject).catch(console.error);
-      }
     }
-  }, [note, isOpen]);
+  });
+
+  // Load subject units & topics
+  useEffect(() => {
+    if (isOpen && note?.subjectId) {
+      api.getSubject(note.subjectId).then(setSubject).catch(console.error);
+    }
+  }, [isOpen, note?.subjectId]);
 
   if (!isOpen || !note) return null;
 

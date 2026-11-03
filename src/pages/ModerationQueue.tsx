@@ -1,3 +1,4 @@
+import { useOnChange } from '../hooks/useOnChange';
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
 import {
@@ -6,7 +7,7 @@ import {
   AlertCircle, BookOpen
 } from 'lucide-react';
 import { api } from '../services/api';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/appState';
 import type { ModerationItem } from '../data/mockData';
 
 export default function ModerationQueue() {
@@ -21,8 +22,9 @@ export default function ModerationQueue() {
   const [loading, setLoading] = useState(true);
   const [previewItem, setPreviewItem] = useState<string | null>(null);
 
+  useOnChange(`${refreshKey}-${isModerator}`, () => setLoading(true));
+
   useEffect(() => {
-    setLoading(true);
     if (isModerator) {
       Promise.all([
         api.getModerationItems().catch(() => []),
@@ -82,7 +84,7 @@ export default function ModerationQueue() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
         <div>
           <h1 className="page-title">
-            {isModerator && activeTab === 'moderation_queue' ? 'Moderation Queue' : 'My Reports & Quality'}
+            {isModerator && activeTab === 'moderation_queue' ? 'Moderation queue' : 'Your reports'}
           </h1>
           <p className="page-subtitle">
             {isModerator && activeTab === 'moderation_queue'

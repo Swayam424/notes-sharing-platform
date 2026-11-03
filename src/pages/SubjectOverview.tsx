@@ -1,8 +1,9 @@
+import { useOnChange } from '../hooks/useOnChange';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { ChevronDown, Check, Minus, X, FileText, ArrowRight, MessageSquare, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/appState';
 import type { Subject } from '../data/mockData';
 
 export default function SubjectOverview() {
@@ -16,9 +17,10 @@ export default function SubjectOverview() {
   const [filter, setFilter] = useState<'all' | 'missing' | 'exam'>('all');
   const [hoveredTopic, setHoveredTopic] = useState<string | null>(null);
 
+  useOnChange(`${subjectId}-${refreshKey}`, () => setLoading(true));
+
   useEffect(() => {
     if (!subjectId) return;
-    setLoading(true);
     api.getSubject(subjectId)
       .then(sub => {
         setSubject(sub);
@@ -94,7 +96,7 @@ export default function SubjectOverview() {
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div className="mono" style={{ fontSize: '28px', fontWeight: 'var(--weight-bold)', color: subject.coverage >= 75 ? 'var(--color-secondary)' : subject.coverage >= 50 ? '#9A6D18' : 'var(--color-primary)' }}>
+            <div className="mono" style={{ fontSize: '28px', fontWeight: 'var(--weight-bold)', color: subject.coverage >= 75 ? 'var(--color-secondary)' : subject.coverage >= 50 ? 'var(--color-warning-ink)' : 'var(--color-primary)' }}>
               {subject.coverage}%
             </div>
             <div className="mono text-muted" style={{ fontSize: '11px' }}>COVERAGE</div>
@@ -105,12 +107,12 @@ export default function SubjectOverview() {
         <div style={{ marginTop: 'var(--space-5)', display: 'flex', gap: '2px', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
           <div style={{ flex: statusCounts.covered, background: 'var(--color-secondary)', transition: 'flex var(--transition-slow)' }} />
           <div style={{ flex: statusCounts.partial, background: 'var(--color-warning)', transition: 'flex var(--transition-slow)' }} />
-          <div style={{ flex: statusCounts.missing, background: 'var(--color-primary)', transition: 'flex var(--transition-slow)' }} />
+          <div style={{ flex: statusCounts.missing, background: 'var(--color-danger)', transition: 'flex var(--transition-slow)' }} />
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-4)', marginTop: 'var(--space-2)', fontSize: '11px' }}>
           <span className="mono" style={{ color: 'var(--color-secondary)' }}>● {statusCounts.covered} Covered</span>
-          <span className="mono" style={{ color: '#9A6D18' }}>● {statusCounts.partial} Partial</span>
-          <span className="mono" style={{ color: 'var(--color-primary)' }}>● {statusCounts.missing} Missing</span>
+          <span className="mono" style={{ color: 'var(--color-warning-ink)' }}>● {statusCounts.partial} Partial</span>
+          <span className="mono" style={{ color: 'var(--color-danger)' }}>● {statusCounts.missing} Missing</span>
         </div>
       </div>
 
@@ -155,7 +157,7 @@ export default function SubjectOverview() {
                       className="progress-fill"
                       style={{
                         width: `${Math.round((unitCovered / unit.topics.length) * 100)}%`,
-                        background: unitCovered === unit.topics.length ? 'var(--color-secondary)' : 'var(--color-primary)',
+                        background: unitCovered === unit.topics.length ? 'var(--color-secondary)' : 'var(--color-deep)',
                       }}
                     />
                   </div>
@@ -237,7 +239,7 @@ export default function SubjectOverview() {
                             style={{
                               fontSize: '11px',
                               fontWeight: 'var(--weight-medium)',
-                              color: topic.status === 'covered' ? 'var(--color-secondary)' : topic.status === 'partial' ? '#9A6D18' : 'var(--color-primary)',
+                              color: topic.status === 'covered' ? 'var(--color-secondary)' : topic.status === 'partial' ? 'var(--color-warning-ink)' : 'var(--color-primary)',
                               textTransform: 'uppercase',
                             }}
                           >

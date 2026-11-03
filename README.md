@@ -47,7 +47,7 @@
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js (v20+ recommended, SQLite built-in)
+- Node.js 22.5 or newer (uses the built-in `node:sqlite` module)
 - npm
 
 ### Installation & Setup

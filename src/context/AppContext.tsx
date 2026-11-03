@@ -1,35 +1,10 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { api, type AuthUser } from '../services/api';
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
+import { api } from '../services/api';
 import { savedNotesService } from '../services/savedNotes';
-
-export type UserSession = AuthUser;
+import { AppContext, type AppState, type UserSession } from './appState';
 
 const SESSION_KEY = 'atelier_student_session';
 
-interface AppState {
-  user: UserSession | null;
-  isAuthenticated: boolean;
-  /** True while the app is verifying a stored token on first load. */
-  authLoading: boolean;
-  /** Call after a successful api.login / api.signup to hydrate the user into global state. */
-  loginWithUser: (user: UserSession) => void;
-  /** Log the current user out (clears token + session). */
-  logout: () => void;
-  searchOpen: boolean;
-  setSearchOpen: (open: boolean) => void;
-  uploadOpen: boolean;
-  setUploadOpen: (open: boolean) => void;
-  mobileNavOpen: boolean;
-  setMobileNavOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
-  activeSemester: number;
-  setActiveSemester: (sem: number) => void;
-  switchSemester: (sem: number) => Promise<void>;
-  updateAcademicProfile: (fields: Partial<UserSession>) => Promise<void>;
-  refreshKey: number;
-  triggerRefresh: () => void;
-}
-
-const AppContext = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(() => {
@@ -48,15 +23,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [activeSemester, setActiveSemester] = useState(5);
+  const [activeSemester, setActiveSemester] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (raw) return JSON.parse(raw)?.semester || 1;
+    } catch {
+      // ignore
+    }
+    return 1;
+  });
   const [refreshKey, setRefreshKey] = useState(0);
 
   // On mount, verify the persisted token against the server.
   useEffect(() => {
-    if (!api.hasToken()) {
-      setAuthLoading(false);
-      return;
-    }
+    // authLoading starts false when there is no stored token
+    if (!api.hasToken()) return;
 
     api.getCurrentUser()
       .then((serverUser) => {
@@ -81,6 +62,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loginWithUser = useCallback((userData: UserSession) => {
     setUser(userData);
+    setActiveSemester(userData.semester || 1);
     try {
       localStorage.setItem(SESSION_KEY, JSON.stringify(userData));
     } catch (e) {
@@ -100,14 +82,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser(null);
     try {
       localStorage.removeItem(SESSION_KEY);
-      localStorage.removeItem('folio_session');
     } catch {
       // ignore
     }
     savedNotesService.clear();
   }, []);
 
-  const triggerRefresh = () => setRefreshKey((prev) => prev + 1);
+  const triggerRefresh = useCallback(() => setRefreshKey((prev) => prev + 1), []);
 
   const switchSemester = useCallback(async (newSem: number) => {
     setActiveSemester(newSem);
@@ -124,7 +105,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
     triggerRefresh();
-  }, [user]);
+  }, [user, triggerRefresh]);
 
   const updateAcademicProfile = useCallback(async (fields: Partial<UserSession>) => {
     if (user) {
@@ -148,37 +129,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
     triggerRefresh();
-  }, [user]);
+  }, [user, triggerRefresh]);
+
+  const value = useMemo<AppState>(() => ({
+    user,
+    isAuthenticated: !!user,
+    authLoading,
+    loginWithUser,
+    logout,
+    searchOpen,
+    setSearchOpen,
+    uploadOpen,
+    setUploadOpen,
+    mobileNavOpen,
+    setMobileNavOpen,
+    activeSemester,
+    setActiveSemester,
+    switchSemester,
+    updateAcademicProfile,
+    refreshKey,
+    triggerRefresh,
+  }), [user, authLoading, loginWithUser, logout, searchOpen, uploadOpen, mobileNavOpen, activeSemester, switchSemester, updateAcademicProfile, refreshKey, triggerRefresh]);
 
   return (
     <AppContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user,
-        authLoading,
-        loginWithUser,
-        logout,
-        searchOpen,
-        setSearchOpen,
-        uploadOpen,
-        setUploadOpen,
-        mobileNavOpen,
-        setMobileNavOpen,
-        activeSemester,
-        setActiveSemester,
-        switchSemester,
-        updateAcademicProfile,
-        refreshKey,
-        triggerRefresh,
-      }}
+      value={value}
     >
       {children}
     </AppContext.Provider>
   );
-}
-
-export function useApp() {
-  const ctx = useContext(AppContext);
-  if (!ctx) throw new Error('useApp must be used within AppProvider');
-  return ctx;
 }

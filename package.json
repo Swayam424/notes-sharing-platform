@@ -8,29 +8,31 @@
     "start": "node server/src/server.js",
     "server": "node server/src/server.js",
     "build": "tsc -b && vite build",
-    "postinstall": "npm run build",
-    "lint": "tsc -b",
-    "preview": "vite preview"
+    "lint": "oxlint src server/src",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "test": "node --test server/test/security.test.js",
+    "check": "npm run typecheck && npm run lint && npm test"
   },
   "engines": {
     "node": ">=22.5.0"
   },
   "dependencies": {
-    "@types/node": "^24.13.3",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
-    "@vitejs/plugin-react": "^6.1.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "lucide-react": "^1.47.0",
     "multer": "^2.4.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-router": "^8.4.0",
-    "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "react-router": "^8.4.0"
   },
   "devDependencies": {
-    "oxlint": "^1.81.0"
+    "oxlint": "^1.81.0",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0"
   }
 }

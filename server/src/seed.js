@@ -536,6 +536,8 @@ export function seedExtendedSubjects() {
 }
 
 export function seedDemoUsers() {
+  // Demo accounts use a public password: never create them in production unless explicitly requested
+  if (process.env.NODE_ENV === 'production' && process.env.SEED_DEMO_USERS !== 'true') return;
   const existingStudent = db.prepare('SELECT id FROM users WHERE email = ?').get('student@atelier.edu');
   const studentPass = hashPassword('password123');
   const modPass = hashPassword('password123');

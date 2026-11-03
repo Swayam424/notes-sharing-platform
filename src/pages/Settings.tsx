@@ -1,18 +1,19 @@
+import { useOnChange } from '../hooks/useOnChange';
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Palette, HardDrive, ShieldCheck, LogOut,
+  ShieldCheck, LogOut,
   SlidersHorizontal, Check, CheckCircle2, GraduationCap, School, BookOpen
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { useApp, type UserSession } from '../context/AppContext';
+import { useApp, type UserSession } from '../context/appState';
 import { api } from '../services/api';
-import { currentUser as fallbackUser, type Subject } from '../data/mockData';
+import type { Subject } from '../data/mockData';
 import { DEGREE_OPTIONS, STREAM_PRESETS, type DegreeOption } from '../data/degrees';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { user: appUser, logout, updateAcademicProfile } = useApp();
-  const [profile, setProfile] = useState<UserSession>(() => (appUser || fallbackUser) as UserSession);
+  const [profile, setProfile] = useState<UserSession>(appUser as UserSession); // route is auth-guarded
 
   // Edit Mode for Academic Profile
   const [isEditing, setIsEditing] = useState(false);
@@ -43,14 +44,12 @@ export default function SettingsPage() {
   }, [totalSemesters]);
 
   // Clamp semester if degree changes
-  useEffect(() => {
-    if (semester > totalSemesters) {
-      setSemester(totalSemesters);
-    }
-  }, [totalSemesters, semester]);
+  if (semester > totalSemesters) {
+    setSemester(totalSemesters);
+  }
 
   // Sync profile when appUser changes
-  useEffect(() => {
+  useOnChange(appUser, () => {
     if (appUser) {
       setProfile(appUser);
       setDegree(appUser.degree || 'B.Tech / B.E.');
@@ -61,7 +60,7 @@ export default function SettingsPage() {
         setEnrolledSubjects(appUser.enrolledSubjects);
       }
     }
-  }, [appUser]);
+  }, { onMount: true });
 
   // Load available subjects when stream or semester changes
   useEffect(() => {
@@ -131,15 +130,15 @@ export default function SettingsPage() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Settings & Academic Configuration</h1>
-        <p className="page-subtitle">Manage your study curriculum, enrolled roster, and platform preferences</p>
+        <h1 className="page-title">Settings</h1>
+        <p className="page-subtitle">Your course, subjects and account.</p>
       </div>
 
       {saveSuccess && (
         <div style={{
-          background: 'rgba(47, 82, 51, 0.1)',
-          border: '1px solid rgba(47, 82, 51, 0.25)',
-          color: 'var(--color-secondary, #2F5233)',
+          background: 'color-mix(in srgb, var(--color-secondary) 10%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--color-secondary) 25%, transparent)',
+          color: 'var(--color-secondary, var(--color-secondary))',
           padding: '12px 18px',
           borderRadius: '8px',
           marginBottom: 'var(--space-4)',
@@ -189,10 +188,10 @@ export default function SettingsPage() {
               <div style={{ display: 'flex', gap: 'var(--space-5)', alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{
                   width: '64px', height: '64px', borderRadius: 'var(--radius-md)',
-                  background: 'linear-gradient(135deg, rgba(217,93,57,0.15), rgba(47,82,51,0.15))',
+                  background: 'linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 15%, transparent), color-mix(in srgb, var(--color-secondary) 15%, transparent))',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontFamily: 'var(--font-display)', fontSize: 'var(--text-xl)', fontWeight: 'var(--weight-semibold)', color: 'var(--color-primary)',
-                  border: '1px solid var(--color-border, #E8E5DF)'
+                  border: '1px solid var(--color-border, var(--color-border))'
                 }}>
                   {profile.initials}
                 </div>
@@ -217,8 +216,8 @@ export default function SettingsPage() {
 
               {/* Enrolled Courses Summary */}
               {availableSubjects.length > 0 && (
-                <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--color-border-light, #F0EFEB)' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-muted, #706B63)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>
+                <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--color-border-light, var(--color-base))' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-muted, var(--color-muted))', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px' }}>
                     Active Course Roster (Semester {profile.semester}):
                   </div>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -227,16 +226,16 @@ export default function SettingsPage() {
                         key={s.id}
                         className="chip"
                         style={{
-                          background: 'var(--color-surface-alt, #F9F8F6)',
-                          border: '1px solid var(--color-border, #E8E5DF)',
-                          color: 'var(--color-deep, #1F2421)',
+                          background: 'var(--color-surface-alt, var(--color-base))',
+                          border: '1px solid var(--color-border, var(--color-border))',
+                          color: 'var(--color-deep, var(--color-deep))',
                           fontSize: '12px',
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '6px'
                         }}
                       >
-                        <span style={{ fontWeight: 600, color: 'var(--color-primary, #D95D39)' }}>{s.code}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--color-primary, var(--color-primary))' }}>{s.code}</span>
                         <span>{s.name}</span>
                       </span>
                     ))}
@@ -249,8 +248,8 @@ export default function SettingsPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {error && (
                 <div style={{
-                  background: 'rgba(217, 93, 57, 0.1)',
-                  color: 'var(--color-primary, #D95D39)',
+                  background: 'color-mix(in srgb, var(--color-primary) 10%, transparent)',
+                  color: 'var(--color-primary, var(--color-primary))',
                   padding: '10px 14px',
                   borderRadius: '6px',
                   fontSize: '13px'
@@ -275,16 +274,16 @@ export default function SettingsPage() {
                         style={{
                           padding: '10px 12px',
                           borderRadius: '8px',
-                          border: isSelected ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
-                          background: isSelected ? 'rgba(217, 93, 57, 0.08)' : 'var(--color-surface, #FFFFFF)',
+                          border: isSelected ? '1.5px solid var(--color-primary, var(--color-primary))' : '1px solid var(--color-border, var(--color-border))',
+                          background: isSelected ? 'color-mix(in srgb, var(--color-primary) 8%, transparent)' : 'var(--color-surface, #FFFFFF)',
                           cursor: 'pointer',
                           textAlign: 'left'
                         }}
                       >
-                        <div style={{ fontSize: '0.88rem', fontWeight: isSelected ? 600 : 500, color: isSelected ? 'var(--color-primary, #D95D39)' : 'var(--color-deep)' }}>
+                        <div style={{ fontSize: '0.88rem', fontWeight: isSelected ? 600 : 500, color: isSelected ? 'var(--color-primary, var(--color-primary))' : 'var(--color-deep)' }}>
                           {d.name}
                         </div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--color-muted, #706B63)', marginTop: '2px' }}>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--color-muted, var(--color-muted))', marginTop: '2px' }}>
                           {d.durationLabel}
                         </div>
                       </button>
@@ -312,18 +311,18 @@ export default function SettingsPage() {
                           gap: '10px',
                           padding: '10px 12px',
                           borderRadius: '8px',
-                          border: isSelected ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
-                          background: isSelected ? 'rgba(217, 93, 57, 0.08)' : 'var(--color-surface, #FFFFFF)',
+                          border: isSelected ? '1.5px solid var(--color-primary, var(--color-primary))' : '1px solid var(--color-border, var(--color-border))',
+                          background: isSelected ? 'color-mix(in srgb, var(--color-primary) 8%, transparent)' : 'var(--color-surface, #FFFFFF)',
                           cursor: 'pointer',
                           textAlign: 'left'
                         }}
                       >
                         <span style={{ fontSize: '18px' }}>{p.icon}</span>
                         <div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: isSelected ? 600 : 500, color: isSelected ? 'var(--color-primary, #D95D39)' : 'var(--color-deep)' }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: isSelected ? 600 : 500, color: isSelected ? 'var(--color-primary, var(--color-primary))' : 'var(--color-deep)' }}>
                             {p.name}
                           </div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--color-muted, #706B63)' }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--color-muted, var(--color-muted))' }}>
                             {p.shortCode}
                           </div>
                         </div>
@@ -339,7 +338,7 @@ export default function SettingsPage() {
                   <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-deep)' }}>
                     Current Semester (1 – {totalSemesters})
                   </label>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--color-muted, #706B63)' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-muted, var(--color-muted))' }}>
                     {selectedDegreeObj.years} Years Total
                   </span>
                 </div>
@@ -354,8 +353,8 @@ export default function SettingsPage() {
                         borderRadius: '6px',
                         fontSize: '13px',
                         fontWeight: s === semester ? 600 : 500,
-                        border: s === semester ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
-                        background: s === semester ? 'var(--color-primary, #D95D39)' : 'var(--color-surface, #FFFFFF)',
+                        border: s === semester ? '1.5px solid var(--color-primary, var(--color-primary))' : '1px solid var(--color-border, var(--color-border))',
+                        background: s === semester ? 'var(--color-primary, var(--color-primary))' : 'var(--color-surface, #FFFFFF)',
                         color: s === semester ? '#FFFFFF' : 'var(--color-deep)',
                         cursor: 'pointer'
                       }}
@@ -388,7 +387,7 @@ export default function SettingsPage() {
                     <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-deep)' }}>
                       Course Roster ({availableSubjects.length} subjects found)
                     </label>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--color-muted, #706B63)', marginLeft: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-muted, var(--color-muted))', marginLeft: '8px' }}>
                       Selected {enrolledSubjects.length} courses
                     </span>
                   </div>
@@ -424,8 +423,8 @@ export default function SettingsPage() {
                           justifyContent: 'space-between',
                           padding: '12px 14px',
                           borderRadius: '8px',
-                          border: isChecked ? '1.5px solid var(--color-primary, #D95D39)' : '1px solid var(--color-border, #E8E5DF)',
-                          background: isChecked ? 'rgba(217, 93, 57, 0.05)' : 'var(--color-surface, #FFFFFF)',
+                          border: isChecked ? '1.5px solid var(--color-primary, var(--color-primary))' : '1px solid var(--color-border, var(--color-border))',
+                          background: isChecked ? 'color-mix(in srgb, var(--color-primary) 5%, transparent)' : 'var(--color-surface, #FFFFFF)',
                           cursor: 'pointer',
                           transition: 'all 0.15s ease'
                         }}
@@ -437,7 +436,7 @@ export default function SettingsPage() {
                           <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-deep)', marginTop: '2px' }}>
                             {sub.name}
                           </div>
-                          <div style={{ fontSize: '11px', color: 'var(--color-secondary, #2F5233)', marginTop: '2px' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--color-secondary, var(--color-secondary))', marginTop: '2px' }}>
                             {sub.coverage}% syllabus covered
                           </div>
                         </div>
@@ -446,8 +445,8 @@ export default function SettingsPage() {
                           width: '20px',
                           height: '20px',
                           borderRadius: '5px',
-                          border: isChecked ? 'none' : '1.5px solid var(--color-border, #E8E5DF)',
-                          background: isChecked ? 'var(--color-primary, #D95D39)' : '#FFFFFF',
+                          border: isChecked ? 'none' : '1.5px solid var(--color-border, var(--color-border))',
+                          background: isChecked ? 'var(--color-primary, var(--color-primary))' : '#FFFFFF',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center'
@@ -484,55 +483,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Preferences */}
-      <div className="card" style={{ marginBottom: 'var(--space-5)' }}>
-        <div className="card-header" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <Palette size={16} strokeWidth={1.5} />
-          <h3 style={{ fontSize: 'var(--text-md)' }}>Appearance & Reading Mode</h3>
-        </div>
-        <div className="card-body">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--space-2) 0', borderBottom: '1px solid var(--color-border-light)' }}>
-            <div>
-              <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)' }}>Theme Palette</div>
-              <div className="text-xs text-muted">Warm Alabaster paper tones with terracotta accents</div>
-            </div>
-            <select className="select">
-              <option>Atelier Alabaster (Default)</option>
-              <option>Warm Parchment</option>
-              <option>Evergreen Studio</option>
-            </select>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--space-2) 0' }}>
-            <div>
-              <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)' }}>Document Study Mode</div>
-              <div className="text-xs text-muted">Default typography & contrast for note readers</div>
-            </div>
-            <select className="select">
-              <option>Crisp Paper White</option>
-              <option>Sepia Eyestrain Reduction</option>
-              <option>High Contrast Print</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Storage */}
-      <div className="card" style={{ marginBottom: 'var(--space-5)' }}>
-        <div className="card-header" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <HardDrive size={16} strokeWidth={1.5} />
-          <h3 style={{ fontSize: 'var(--text-md)' }}>Personal Study Storage</h3>
-        </div>
-        <div className="card-body">
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
-            <span className="text-sm">Cloud Sync & Saved Notes</span>
-            <span className="mono" style={{ fontSize: '11px' }}>128 MB / 500 MB</span>
-          </div>
-          <div className="progress" style={{ height: '6px' }}>
-            <div className="progress-fill high" style={{ width: '25.6%' }} />
-          </div>
-        </div>
-      </div>
-
       {/* Account Security & Session */}
       <div className="card" style={{ marginBottom: 'var(--space-5)' }}>
         <div className="card-header" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
@@ -555,7 +505,7 @@ export default function SettingsPage() {
             <button
               onClick={handleLogout}
               className="btn btn-secondary"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#D95D39', borderColor: 'rgba(217, 93, 57, 0.3)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-primary)', borderColor: 'color-mix(in srgb, var(--color-primary) 30%, transparent)' }}
             >
               <LogOut size={14} /> Sign Out
             </button>

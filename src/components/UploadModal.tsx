@@ -1,3 +1,4 @@
+import { useOnChange } from '../hooks/useOnChange';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -17,7 +18,7 @@ import {
   AlertCircle,
   Share2
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/appState';
 import { api } from '../services/api';
 import type { Subject, NoteResource } from '../data/mockData';
 
@@ -91,45 +92,38 @@ export default function UploadModal() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize author, department, semester from current session user
-  useEffect(() => {
+  useOnChange(user, () => {
     if (user) {
       if (user.name) setAuthorName(user.name);
       if (user.department) setDepartment(user.department);
       if (user.semester) setSemester(String(user.semester));
     }
-  }, [user]);
+  }, { onMount: true });
 
   // Load subjects when modal opens
   useEffect(() => {
     if (uploadOpen) {
       api.getSubjects().then(fetched => {
         setSubjects(fetched);
-        if (fetched.length > 0 && !selectedSubject) {
-          setSelectedSubject(fetched[0].id);
+        if (fetched.length > 0) {
+          setSelectedSubject(prev => prev || fetched[0].id);
         }
       }).catch(console.error);
     }
   }, [uploadOpen]);
 
-  // Update selected unit when subject changes
-  useEffect(() => {
-    if (selectedSubject) {
-      const sub = subjects.find(s => s.id === selectedSubject);
-      if (sub && sub.units.length > 0) {
-        setSelectedUnit(sub.units[0].id);
-        setSelectedTopicIds([]);
-        setPrimaryTopic('');
-        setCustomTopics([]);
-      }
-    }
-  }, [selectedSubject, subjects]);
+  // Pick the first unit when the subject (or the subject list) changes
+  useOnChange(`${selectedSubject}|${subjects.length}`, () => {
+    const sub = subjects.find(s => s.id === selectedSubject);
+    if (sub && sub.units.length > 0) setSelectedUnit(sub.units[0].id);
+  });
 
-  // Reset topics when unit changes
-  useEffect(() => {
+  // Reset topic choices when the unit changes
+  useOnChange(selectedUnit, () => {
     setSelectedTopicIds([]);
     setPrimaryTopic('');
     setCustomTopics([]);
-  }, [selectedUnit]);
+  });
 
   if (!uploadOpen) return null;
 
@@ -524,7 +518,7 @@ export default function UploadModal() {
                       borderRadius: 'var(--radius-md)',
                       border: '1px solid',
                       borderColor: resourceKind === 'note' ? 'var(--color-primary)' : 'var(--color-border)',
-                      background: resourceKind === 'note' ? 'rgba(200, 75, 40, 0.08)' : 'var(--color-bg)',
+                      background: resourceKind === 'note' ? 'color-mix(in srgb, var(--color-primary) 8%, transparent)' : 'var(--color-bg)',
                       color: resourceKind === 'note' ? 'var(--color-primary)' : 'var(--color-text)',
                       cursor: 'pointer',
                       fontWeight: resourceKind === 'note' ? 600 : 500,
@@ -550,7 +544,7 @@ export default function UploadModal() {
                       borderRadius: 'var(--radius-md)',
                       border: '1px solid',
                       borderColor: resourceKind === 'pyq' ? 'var(--color-primary)' : 'var(--color-border)',
-                      background: resourceKind === 'pyq' ? 'rgba(200, 75, 40, 0.08)' : 'var(--color-bg)',
+                      background: resourceKind === 'pyq' ? 'color-mix(in srgb, var(--color-primary) 8%, transparent)' : 'var(--color-bg)',
                       color: resourceKind === 'pyq' ? 'var(--color-primary)' : 'var(--color-text)',
                       cursor: 'pointer',
                       fontWeight: resourceKind === 'pyq' ? 600 : 500,

@@ -13,7 +13,8 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-const dbPath = path.join(dataDir, 'database.sqlite');
+const dbPath = process.env.DATABASE_PATH ? path.resolve(process.env.DATABASE_PATH) : path.join(dataDir, 'database.sqlite');
+fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 export const db = new DatabaseSync(dbPath);
 
 export function initDatabase() {

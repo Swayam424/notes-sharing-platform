@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { Search, FileText, FolderOpen, Clock, Compass, ArrowRight, Bookmark, Upload } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/appState';
 import { api } from '../services/api';
 import type { Subject, NoteResource } from '../data/mockData';
 
@@ -25,6 +25,26 @@ const staticPages: SearchResult[] = [
 
 export default function SearchPalette() {
   const { searchOpen, setSearchOpen } = useApp();
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(!searchOpen);
+      }
+      if (e.key === 'Escape' && searchOpen) {
+        setSearchOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [searchOpen, setSearchOpen]);
+
+  return searchOpen ? <PaletteDialog /> : null;
+}
+
+function PaletteDialog() {
+  const { setSearchOpen } = useApp();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [liveSubjects, setLiveSubjects] = useState<Subject[]>([]);
@@ -33,7 +53,7 @@ export default function SearchPalette() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (searchOpen) {
+    {
       Promise.all([
         api.getSubjects(),
         api.getNotes()
@@ -42,7 +62,7 @@ export default function SearchPalette() {
         setLiveNotes(nts);
       }).catch(console.error);
     }
-  }, [searchOpen]);
+  }, []);
 
   const results: SearchResult[] = (() => {
     if (!query.trim()) return staticPages;
@@ -75,31 +95,10 @@ export default function SearchPalette() {
     return matches.slice(0, 8);
   })();
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setSearchOpen(!searchOpen);
-      }
-      if (e.key === 'Escape' && searchOpen) {
-        setSearchOpen(false);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [searchOpen, setSearchOpen]);
 
   useEffect(() => {
-    if (searchOpen) {
-      setQuery('');
-      setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [searchOpen]);
-
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [query]);
+    inputRef.current?.focus();
+  }, []);
 
   const handleSelect = (result: SearchResult) => {
     navigate(result.path);
@@ -118,8 +117,6 @@ export default function SearchPalette() {
     }
   };
 
-  if (!searchOpen) return null;
-
   return (
     <div className="command-overlay" onClick={() => setSearchOpen(false)}>
       <div className="command-panel" onClick={e => e.stopPropagation()}>
@@ -131,7 +128,7 @@ export default function SearchPalette() {
             className="command-input"
             placeholder="Search topics, notes, subjects..."
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
             onKeyDown={handleKeyDown}
             id="command-palette-input"
           />

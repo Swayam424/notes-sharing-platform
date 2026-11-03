@@ -327,7 +327,7 @@ ${contextBlock ? `\nAVAILABLE PLATFORM RESOURCES FOR THIS QUERY (Optional refere
 // -------------------------------------------------------------
 // 4. Built-in Academic Knowledge Engine (Instant Concept Explanations)
 // -------------------------------------------------------------
-export function generateDirectAcademicExplanation(query, context, user) {
+export function generateDirectAcademicExplanation(query, context, _user) {
   const q = query.toLowerCase();
   const trimmed = query.trim();
 
@@ -1065,7 +1065,7 @@ export async function generateChatResponse({ message, history = [], user = null 
 
     for (const model of candidateModels) {
       try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
         const payload = {
           systemInstruction: {
             parts: [{ text: systemInstruction }],
@@ -1079,9 +1079,9 @@ export async function generateChatResponse({ message, history = [], user = null 
 
         const res = await fetch(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(15000),
         });
 
         const data = await res.json();

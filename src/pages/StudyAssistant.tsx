@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  Bot, Sparkles, Send, RefreshCw, Compass,
+  Bot, Send, RefreshCw, Compass,
   ArrowRight, ShieldCheck, CheckCircle2, Lightbulb
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/appState';
 import { api, type ChatAction, type ChatResponseData } from '../services/api';
 
 interface Message {
@@ -19,7 +19,7 @@ interface Message {
 
 const INITIAL_PROMPTS = [
   {
-    category: 'Core Concepts & Doubts',
+    category: 'Explain a concept',
     icon: Lightbulb,
     items: [
       'Explain LRU Page Replacement in Operating Systems',
@@ -30,7 +30,7 @@ const INITIAL_PROMPTS = [
     ]
   },
   {
-    category: 'Atelier Discovery',
+    category: 'Find material',
     icon: Compass,
     items: [
       'Which notes cover Operating Systems Unit 3?',
@@ -39,6 +39,10 @@ const INITIAL_PROMPTS = [
     ]
   }
 ];
+
+// Stable, unique message ids without reading the clock during render
+let messageSeq = 0;
+const nextMessageId = (prefix: string) => `${prefix}-${++messageSeq}`;
 
 export default function StudyAssistant() {
   const { user } = useApp();
@@ -63,7 +67,7 @@ export default function StudyAssistant() {
     if (!query || loading) return;
 
     const userMessage: Message = {
-      id: `user-${Date.now()}`,
+      id: nextMessageId('user'),
       role: 'user',
       content: query,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -82,7 +86,7 @@ export default function StudyAssistant() {
       const res: ChatResponseData = await api.sendChatMessage(query, historyPayload);
 
       const botMessage: Message = {
-        id: `bot-${Date.now()}`,
+        id: nextMessageId('bot'),
         role: 'assistant',
         content: res.reply,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -95,7 +99,7 @@ export default function StudyAssistant() {
     } catch (err: any) {
       const isRateLimit = err?.message?.toLowerCase()?.includes('limit') || err?.message?.toLowerCase()?.includes('wait');
       const errorMessage: Message = {
-        id: `err-${Date.now()}`,
+        id: nextMessageId('err'),
         role: 'assistant',
         content: isRateLimit
           ? (err.message || 'AI query limit reached. Please wait a few moments before sending another question.')
@@ -203,12 +207,15 @@ export default function StudyAssistant() {
               {label} <ArrowRight size={11} style={{ display: 'inline', marginLeft: 2 }} />
             </button>
           );
-        } else {
+        } else if (/^https?:\/\//i.test(url)) {
           parts.push(
             <a key={keyIdx++} href={url} target="_blank" rel="noopener noreferrer" className="assistant-inline-link">
               {label}
             </a>
           );
+        } else {
+          // Never render AI-supplied links with other schemes (javascript:, data:, …)
+          parts.push(<span key={keyIdx++}>{label}</span>);
         }
       }
       // Case 2: Bold **text**
@@ -233,21 +240,10 @@ export default function StudyAssistant() {
       {/* Top Banner / Studio Header */}
       <header className="assistant-header">
         <div className="assistant-header-left">
-          <div className="assistant-avatar-glow">
-            <Bot size={22} strokeWidth={1.8} />
-          </div>
           <div>
-            <div className="assistant-title-row">
-              <h1 className="assistant-title">Study Assistant</h1>
-              <span className="assistant-badge-gemini">
-                <Sparkles size={12} /> Gemini Powered
-              </span>
-              <span className="assistant-badge-guardrail">
-                <ShieldCheck size={12} /> Guardrails Active
-              </span>
-            </div>
-            <p className="assistant-subtitle">
-              Syllabus-grounded tutor for doubts, lecture notes discovery, and exam preparation.
+            <h1 className="page-title">Study Assistant</h1>
+            <p className="page-subtitle">
+              Ask about any topic in your syllabus. Answers link to the notes that cover it.
             </p>
           </div>
         </div>
@@ -261,7 +257,7 @@ export default function StudyAssistant() {
               title="Start a new chat session"
             >
               <RefreshCw size={14} />
-              <span>New Session</span>
+              <span>New chat</span>
             </button>
           )}
         </div>
@@ -272,25 +268,12 @@ export default function StudyAssistant() {
         {messages.length === 0 ? (
           <div className="assistant-welcome-view">
             <div className="assistant-welcome-card">
-              <div className="assistant-welcome-icon">
-                <Sparkles size={32} />
-              </div>
               <h2 className="assistant-welcome-heading">
-                Welcome back, {user?.name || 'Scholar'}!
+                What are you stuck on{user?.name ? `, ${user.name.split(' ')[0]}` : ''}?
               </h2>
               <p className="assistant-welcome-subtext">
-                Ask me any academic doubt from your semester syllabus, request lecture notes,
-                or get step-by-step concept explanations with real-world analogies.
+                It answers coursework questions only, and points you to the notes and past papers that cover each topic.
               </p>
-
-              {/* Guardrail badge */}
-              <div className="assistant-guardrail-banner">
-                <ShieldCheck size={15} style={{ color: 'var(--color-secondary)' }} />
-                <span>
-                  <strong>Strict Academic Scope:</strong> Configured to solve academic coursework,
-                  curriculum questions, and guide your studies on Atelier.
-                </span>
-              </div>
             </div>
 
             {/* Quick-Starter Prompt Cards */}

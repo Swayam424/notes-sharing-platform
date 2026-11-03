@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router';
 import { AppProvider } from './context/AppContext';
 import Sidebar from './components/Sidebar';
@@ -5,55 +6,39 @@ import TopBar from './components/TopBar';
 import MobileBottomNav from './components/MobileBottomNav';
 import SearchPalette from './components/SearchPalette';
 import UploadModal from './components/UploadModal';
-import LandingPage from './pages/LandingPage';
-import Dashboard from './pages/Dashboard';
-import MySubjects from './pages/MySubjects';
-import SubjectOverview from './pages/SubjectOverview';
-import NotesLibrary from './pages/NotesLibrary';
-import NoteDetail from './pages/NoteDetail';
-import MyLibrary from './pages/MyLibrary';
-import PYQArchive from './pages/PYQArchive';
-import PYQDetail from './pages/PYQDetail';
-import SyllabusCoverage from './pages/SyllabusCoverage';
-import Contributions from './pages/Contributions';
-import ModerationQueue from './pages/ModerationQueue';
-import AdminModeration from './pages/AdminModeration';
-import SettingsPage from './pages/Settings';
-import Onboarding from './pages/Onboarding';
-import StudyAssistant from './pages/StudyAssistant';
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const MySubjects = lazy(() => import('./pages/MySubjects'));
+const SubjectOverview = lazy(() => import('./pages/SubjectOverview'));
+const NotesLibrary = lazy(() => import('./pages/NotesLibrary'));
+const NoteDetail = lazy(() => import('./pages/NoteDetail'));
+const MyLibrary = lazy(() => import('./pages/MyLibrary'));
+const PYQArchive = lazy(() => import('./pages/PYQArchive'));
+const PYQDetail = lazy(() => import('./pages/PYQDetail'));
+const SyllabusCoverage = lazy(() => import('./pages/SyllabusCoverage'));
+const Contributions = lazy(() => import('./pages/Contributions'));
+const ModerationQueue = lazy(() => import('./pages/ModerationQueue'));
+const AdminModeration = lazy(() => import('./pages/AdminModeration'));
+const SettingsPage = lazy(() => import('./pages/Settings'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+const StudyAssistant = lazy(() => import('./pages/StudyAssistant'));
 
-import { useApp } from './context/AppContext';
+import { useApp } from './context/appState';
+
+function PageLoader({ label = 'Loading' }: { label?: string }) {
+  return (
+    <div className="page-loader" role="status" aria-live="polite">
+      <span className="page-loader__bar" />
+      <span className="visually-hidden">{label}</span>
+    </div>
+  );
+}
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, authLoading } = useApp();
 
-  if (authLoading) {
-    return (
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        background: 'var(--color-base, #F9F8F6)',
-        color: 'var(--color-deep, #1F2421)',
-        fontFamily: 'var(--font-body, Inter, sans-serif)',
-        gap: '14px'
-      }}>
-        <div style={{
-          width: '32px',
-          height: '32px',
-          border: '2.5px solid rgba(217, 93, 57, 0.2)',
-          borderTopColor: 'var(--color-primary, #D95D39)',
-          borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite'
-        }} />
-        <span style={{ fontSize: '13px', letterSpacing: '0.02em', color: 'var(--color-muted, #706B63)' }}>
-          Restoring academic studio session…
-        </span>
-      </div>
-    );
-  }
+  if (authLoading) return <PageLoader label="Restoring your session" />;
 
   if (!isAuthenticated) {
     return <Navigate to="/?auth=signin" replace />;
@@ -82,7 +67,7 @@ function RequireAdmin({ children }: { children: React.ReactNode }) {
 
   const isAuthorized = user && (user.role?.toLowerCase() === 'moderator' || user.role?.toLowerCase() === 'admin');
   if (!isAuthorized) {
-    return <Navigate to="/moderation" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -95,7 +80,9 @@ function AppShell() {
       <div className="app-main">
         <TopBar />
         <main className="app-content">
-          <Outlet />
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
         </main>
         <MobileBottomNav />
       </div>
@@ -109,6 +96,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AppProvider>
+        <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Scroll-Animated Landing Page Showcase */}
           <Route path="/" element={<LandingPage />} />
@@ -157,7 +145,9 @@ export default function App() {
             />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
+          <Route path="*" element={<NotFound />} />
         </Routes>
+        </Suspense>
       </AppProvider>
     </BrowserRouter>
   );

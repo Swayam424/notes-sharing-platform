@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import {
-  ArrowLeft, Home, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCw,
+  ArrowLeft, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCw,
   Bookmark, Download, Flag, FileText, Check, X,
   Maximize2, Minimize2, Sparkles, BookOpen, Sun, Moon,
   PanelLeftClose, PanelLeft, AlertCircle, RefreshCw,
@@ -12,10 +12,11 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { savedNotesService } from '../services/savedNotes';
-import { notes as fallbackNotes, subjects as fallbackSubjects, type NoteResource, type Subject, type NoteComment } from '../data/mockData';
+import type { NoteResource, Subject, NoteComment } from '../data/mockData';
+import { useOnChange } from '../hooks/useOnChange';
 import { getDocumentPages, type NotePageData } from '../data/noteContent';
 
-export const REPORT_REASONS = [
+const REPORT_REASONS = [
   {
     category: 'incorrect_info',
     label: 'Incorrect Information',
@@ -85,7 +86,7 @@ export default function NoteDetail() {
   // Peer Sharing & Author Profile State
   const [shareOpen, setShareOpen] = useState(false);
   const [authorModalOpen, setAuthorModalOpen] = useState(false);
-  const [allNotesList, setAllNotesList] = useState<NoteResource[]>(fallbackNotes);
+  const [allNotesList, setAllNotesList] = useState<NoteResource[]>([]);
 
   // Note Data & Loading/Error states
   const [note, setNote] = useState<NoteResource | null>(null);
@@ -113,21 +114,19 @@ export default function NoteDetail() {
 
   // Fetch all notes for author profiles
   useEffect(() => {
-    api.getNotes().then(setAllNotesList).catch(() => setAllNotesList(fallbackNotes));
+    api.getNotes().then(setAllNotesList).catch(console.error);
   }, []);
 
   // Compute author portfolio & metrics
-  const authorNotes = useMemo(() => {
-    if (!note?.author) return [];
-    return allNotesList.filter(n => n.author.toLowerCase() === note.author.toLowerCase());
-  }, [allNotesList, note?.author]);
+  const authorName = note?.author?.toLowerCase();
+  const authorNotes = authorName ? allNotesList.filter(n => n.author.toLowerCase() === authorName) : [];
 
-  const authorStats = useMemo(() => {
-    const totalNotes = authorNotes.length || 1;
-    const totalDownloads = authorNotes.reduce((sum, n) => sum + (n.downloads || 0), 0) || (note?.downloads || 64);
-    const totalUpvotes = authorNotes.reduce((sum, n) => sum + (n.upvotes || 0), 0) || (note?.upvotes || 22);
-    return { totalNotes, totalDownloads, totalUpvotes };
-  }, [authorNotes, note]);
+  // Real totals only: never pad an author's numbers
+  const authorStats = {
+    totalNotes: authorNotes.length,
+    totalDownloads: authorNotes.reduce((sum, n) => sum + (n.downloads || 0), 0),
+    totalUpvotes: authorNotes.reduce((sum, n) => sum + (n.upvotes || 0), 0),
+  };
 
   // Toast helper
   const showToast = (msg: string) => {
@@ -148,50 +147,44 @@ export default function NoteDetail() {
     showToast('Class group share text copied!');
   };
 
-  // Load Note & Subject Data
-  const loadData = useCallback(() => {
-    if (!noteId) return;
+  // Load Note & Subject Data (reloadKey lets the error state retry)
+  const [reloadKey, setReloadKey] = useState(0);
+  useOnChange(`${noteId}|${reloadKey}`, () => {
     setLoading(true);
     setLoadError(null);
+  });
 
-    // Initial check from fallback mock notes for instant render
-    const localNote = fallbackNotes.find(n => n.id === noteId);
-    if (localNote) {
-      setNote(localNote);
-      const localSubject = fallbackSubjects.find(s => s.id === localNote.subjectId);
-      if (localSubject) setSubject(localSubject);
-    }
-
-    // Live API fetch
-    api.getNote(noteId)
-      .then(fetchedNote => {
-        const mergedNote = localNote ? { ...localNote, ...fetchedNote } : fetchedNote;
-        setNote(mergedNote);
-
-        if (mergedNote.subjectId) {
-          return api.getSubject(mergedNote.subjectId).then(fetchedSub => {
-            setSubject(fetchedSub);
-            setLoading(false);
-          });
-        }
-        setLoading(false);
-      })
-      .catch(err => {
-        if (!localNote) {
-          setLoadError(err.message || 'Failed to retrieve note resource');
-        }
-        setLoading(false);
-      });
-  }, [noteId]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // Sync saved status and record note access timestamp
   useEffect(() => {
     if (!noteId) return;
+    let cancelled = false;
+    api.getNote(noteId)
+      .then(fetchedNote => {
+        if (cancelled) return;
+        setNote(fetchedNote);
+        if (fetchedNote.subjectId) {
+          return api.getSubject(fetchedNote.subjectId).then(fetchedSub => {
+            if (!cancelled) setSubject(fetchedSub);
+          });
+        }
+      })
+      .catch(err => {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Failed to retrieve note resource');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [noteId, reloadKey]);
+
+  // Sync saved status and record note access timestamp
+  useOnChange(noteId, () => {
+    if (!noteId) return;
     setIsSaved(savedNotesService.isSaved(noteId));
+    setCommentsLoading(true);
+  }, { onMount: true });
+
+  useEffect(() => {
+    if (!noteId) return;
     savedNotesService.recordNoteAccess(noteId);
 
     const unsubscribe = savedNotesService.subscribe((ids) => {
@@ -217,7 +210,6 @@ export default function NoteDetail() {
       setUpvotesCount(res.upvoteCount);
     }).catch(() => {});
 
-    setCommentsLoading(true);
     api.getNoteComments(noteId).then(list => {
       setComments(list);
     }).catch(() => {}).finally(() => setCommentsLoading(false));
@@ -226,9 +218,7 @@ export default function NoteDetail() {
   }, [noteId]);
 
   // Sync page input with currentPage
-  useEffect(() => {
-    setPageInput(currentPage.toString());
-  }, [currentPage]);
+  useOnChange(currentPage, () => setPageInput(currentPage.toString()));
 
   // Keyboard shortcuts for distraction-free reading
   useEffect(() => {
@@ -447,15 +437,11 @@ export default function NoteDetail() {
     }
   };
 
-  const returnLabel = useMemo(() => {
-    if (navState?.searchQuery) {
-      return `Results for “${navState.searchQuery}”`;
-    }
-    if (navState?.selectedSubject && navState.selectedSubject !== 'all') {
-      return 'Subject Notes';
-    }
-    return 'Notes Discovery';
-  }, [navState]);
+  const returnLabel = navState?.searchQuery
+    ? `Results for “${navState.searchQuery}”`
+    : navState?.selectedSubject && navState.selectedSubject !== 'all'
+      ? 'Subject notes'
+      : 'Discover notes';
 
   // -------------------------------------------------------------
   // 1. Loading State (Shimmering Academic Sheet)
@@ -479,7 +465,7 @@ export default function NoteDetail() {
 
         <div className="note-viewer-stage" style={{ justifyContent: 'center' }}>
           <div className="note-viewer-skeleton-sheet">
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '16px', borderBottom: '1px solid #ECEAE5' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '16px', borderBottom: '1px solid var(--color-border)' }}>
               <div className="skeleton-line" style={{ width: '220px', height: '14px' }} />
               <div className="skeleton-line" style={{ width: '160px', height: '14px' }} />
             </div>
@@ -510,7 +496,7 @@ export default function NoteDetail() {
         <div className="note-viewer-error-card">
           <div style={{
             width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(200, 50, 50, 0.1)',
-            color: 'var(--color-danger, #c84b28)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--color-danger, var(--color-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 16px'
           }}>
             <AlertCircle size={24} />
@@ -522,7 +508,7 @@ export default function NoteDetail() {
             {loadError}. This note might have been modified, unlisted, or moved.
           </p>
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button className="btn btn-primary" onClick={loadData}>
+            <button className="btn btn-primary" onClick={() => setReloadKey(k => k + 1)}>
               <RefreshCw size={14} /> Retry
             </button>
             <button className="btn btn-secondary" onClick={handleReturnToResults}>
@@ -660,16 +646,6 @@ export default function NoteDetail() {
           <div className="note-viewer-header-top">
             {/* Connected Return Buttons */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <button
-                className="note-viewer-return-btn"
-                onClick={() => navigate('/dashboard')}
-                aria-label="Return to Study Space workspace"
-                id="btn-return-home"
-              >
-                <Home size={15} />
-                <span>Study Space</span>
-              </button>
-
               <button
                 className="note-viewer-return-btn"
                 onClick={handleReturnToResults}
@@ -1108,7 +1084,7 @@ export default function NoteDetail() {
               borderRadius: 'var(--radius-md)',
               overflow: 'hidden',
               border: '1px solid var(--color-border)',
-              background: viewMode === 'dark' ? '#121513' : viewMode === 'sepia' ? '#FDF6E3' : '#FFFFFF',
+              background: viewMode === 'dark' ? '#121513' : viewMode === 'sepia' ? 'var(--color-base)' : '#FFFFFF',
               position: 'relative'
             }}
           >
@@ -1117,7 +1093,7 @@ export default function NoteDetail() {
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '8px 16px',
-              background: viewMode === 'dark' ? '#181D1A' : viewMode === 'sepia' ? '#F4ECD8' : '#F9F8F5',
+              background: viewMode === 'dark' ? '#181D1A' : viewMode === 'sepia' ? 'var(--color-base)' : '#F9F8F5',
               borderBottom: '1px solid var(--color-border)',
               fontSize: '12px'
             }}>

@@ -4,7 +4,7 @@ import {
   GraduationCap, BookOpen, CheckCircle2, ArrowRight, ArrowLeft,
   Sparkles, Check, School
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/appState';
 import { api } from '../services/api';
 import type { Subject } from '../data/mockData';
 import './onboarding.css';
@@ -37,11 +37,9 @@ export default function Onboarding() {
   }, [totalSemesters]);
 
   // When degree changes, clamp current semester if it exceeds the new total semesters
-  useEffect(() => {
-    if (semester > totalSemesters) {
-      setSemester(totalSemesters);
-    }
-  }, [totalSemesters, semester]);
+  if (semester > totalSemesters) {
+    setSemester(totalSemesters);
+  }
 
   // Subjects
   const [availableSubjects, setAvailableSubjects] = useState<Subject[]>([]);
@@ -145,10 +143,10 @@ export default function Onboarding() {
           </div>
           <div>
             <div className="onboarding-brand-title">
-              Atelier <span style={{ color: 'var(--color-primary, #D95D39)' }}>Notes</span>
+              Atelier
             </div>
             <div className="onboarding-brand-sub">
-              Academic Studio Personalization
+              Set up your course
             </div>
           </div>
         </div>
@@ -220,7 +218,7 @@ export default function Onboarding() {
 
               {/* Degree Selector */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, #1F2421)', marginBottom: '8px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, var(--color-deep))', marginBottom: '8px' }}>
                   Degree Program
                 </label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -250,7 +248,7 @@ export default function Onboarding() {
 
               {/* Stream / Branch Cards */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, #1F2421)', marginBottom: '8px' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, var(--color-deep))', marginBottom: '8px' }}>
                   Branch / Department
                 </label>
                 <div className="stream-grid">
@@ -269,11 +267,11 @@ export default function Onboarding() {
                           <div style={{
                             fontWeight: 600,
                             fontSize: '0.88rem',
-                            color: isSelected ? 'var(--color-primary, #D95D39)' : 'var(--color-deep, #1F2421)'
+                            color: isSelected ? 'var(--color-primary, var(--color-primary))' : 'var(--color-deep, var(--color-deep))'
                           }}>
                             {p.name}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--color-muted, #706B63)', marginTop: '4px', lineHeight: 1.35 }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-muted, var(--color-muted))', marginTop: '4px', lineHeight: 1.35 }}>
                             {p.desc}
                           </div>
                         </div>
@@ -291,7 +289,7 @@ export default function Onboarding() {
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: stream === 'other' ? 'var(--color-primary, #D95D39)' : 'var(--color-muted, #706B63)',
+                      color: stream === 'other' ? 'var(--color-primary, var(--color-primary))' : 'var(--color-muted, var(--color-muted))',
                       fontSize: '0.8rem',
                       cursor: 'pointer',
                       textDecoration: 'underline',
@@ -313,8 +311,8 @@ export default function Onboarding() {
                         padding: '10px 14px',
                         borderRadius: '8px',
                         background: '#FFFFFF',
-                        border: '1.5px solid var(--color-primary, #D95D39)',
-                        color: 'var(--color-deep, #1F2421)',
+                        border: '1.5px solid var(--color-primary, var(--color-primary))',
+                        color: 'var(--color-deep, var(--color-deep))',
                         fontSize: '0.88rem',
                         outline: 'none'
                       }}
@@ -328,10 +326,10 @@ export default function Onboarding() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, #1F2421)', margin: 0 }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, var(--color-deep))', margin: 0 }}>
                       Current Semester (1 – {totalSemesters})
                     </label>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--color-muted, #706B63)', fontWeight: 500 }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--color-muted, var(--color-muted))', fontWeight: 500 }}>
                       {selectedDegreeObj.years} Years • {totalSemesters} Semesters Total
                     </span>
                   </div>
@@ -350,7 +348,7 @@ export default function Onboarding() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, #1F2421)', marginBottom: '8px' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-deep, var(--color-deep))', marginBottom: '8px' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                       <School size={14} /> College / University
                     </span>
@@ -366,8 +364,8 @@ export default function Onboarding() {
                       padding: '11px 14px',
                       borderRadius: '8px',
                       background: 'var(--color-surface, #FFFFFF)',
-                      border: '1px solid var(--color-border, #E8E5DF)',
-                      color: 'var(--color-deep, #1F2421)',
+                      border: '1px solid var(--color-border, var(--color-border))',
+                      color: 'var(--color-deep, var(--color-deep))',
                       fontSize: '0.88rem',
                       outline: 'none'
                     }}
@@ -401,9 +399,9 @@ export default function Onboarding() {
                   type="button"
                   onClick={selectAllSubjects}
                   style={{
-                    background: 'var(--color-primary-light, #FDF0EC)',
-                    border: '1px solid var(--color-primary, #D95D39)',
-                    color: 'var(--color-primary, #D95D39)',
+                    background: 'var(--color-primary-light, var(--color-primary-light))',
+                    border: '1px solid var(--color-primary, var(--color-primary))',
+                    color: 'var(--color-primary, var(--color-primary))',
                     fontSize: '0.78rem',
                     fontWeight: 600,
                     padding: '8px 14px',
@@ -439,13 +437,13 @@ export default function Onboarding() {
                         <div>
                           <span style={{
                             display: 'inline-block',
-                            background: 'var(--color-surface-alt, #F2EFE9)',
+                            background: 'var(--color-surface-alt, var(--color-base))',
                             padding: '3px 8px',
                             borderRadius: '4px',
                             fontSize: '0.7rem',
                             fontWeight: 600,
                             letterSpacing: '0.04em',
-                            color: 'var(--color-deep, #1F2421)',
+                            color: 'var(--color-deep, var(--color-deep))',
                             fontFamily: 'var(--font-mono, monospace)'
                           }}>
                             {sub.code}
@@ -454,7 +452,7 @@ export default function Onboarding() {
                             margin: '8px 0 0',
                             fontSize: '0.96rem',
                             fontWeight: 600,
-                            color: isChecked ? 'var(--color-primary, #D95D39)' : 'var(--color-deep, #1F2421)'
+                            color: isChecked ? 'var(--color-primary, var(--color-primary))' : 'var(--color-deep, var(--color-deep))'
                           }}>
                             {sub.name}
                           </h3>
@@ -469,12 +467,12 @@ export default function Onboarding() {
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         fontSize: '0.75rem',
-                        color: 'var(--color-muted, #706B63)',
-                        borderTop: '1px solid var(--color-border-light, #F0EDE7)',
+                        color: 'var(--color-muted, var(--color-muted))',
+                        borderTop: '1px solid var(--color-border-light, var(--color-border))',
                         paddingTop: '8px'
                       }}>
                         <span>{sub.units.length} Units • {totalTopics} Topics</span>
-                        <span style={{ color: 'var(--color-secondary, #2F5233)', fontWeight: 600 }}>
+                        <span style={{ color: 'var(--color-secondary, var(--color-secondary))', fontWeight: 600 }}>
                           {sub.coverage}% Covered
                         </span>
                       </div>
@@ -485,18 +483,18 @@ export default function Onboarding() {
 
               {/* Roster Summary Banner */}
               <div style={{
-                background: 'var(--color-surface-alt, #F2EFE9)',
+                background: 'var(--color-surface-alt, var(--color-base))',
                 borderRadius: '8px',
                 padding: '12px 16px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                border: '1px solid var(--color-border, #E8E5DF)'
+                border: '1px solid var(--color-border, var(--color-border))'
               }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--color-deep, #1F2421)' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--color-deep, var(--color-deep))' }}>
                   Selected <strong>{selectedSubjects.length} of {availableSubjects.length}</strong> subjects for <strong>{selectedDegreeObj.name} • Semester {semester}</strong>
                 </span>
-                <span style={{ fontSize: '0.78rem', color: 'var(--color-muted, #706B63)' }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--color-muted, var(--color-muted))' }}>
                   Adjustable anytime in Settings
                 </span>
               </div>
@@ -508,7 +506,7 @@ export default function Onboarding() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderTop: '1px solid var(--color-border-light, #F0EDE7)',
+            borderTop: '1px solid var(--color-border-light, var(--color-border))',
             paddingTop: '1.5rem',
             marginTop: '2rem'
           }}>

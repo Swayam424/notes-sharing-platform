@@ -6,7 +6,7 @@ import {
   BookOpen, X, Lock, Eye, Ban, ArrowUpRight
 } from 'lucide-react';
 import { api } from '../services/api';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/appState';
 import type { ModerationItem } from '../data/mockData';
 
 export default function AdminModeration() {
@@ -37,23 +37,29 @@ export default function AdminModeration() {
 
   const fetchQueue = useCallback(async () => {
     if (!isAuthorized) return;
-    setLoading(true);
     try {
       const data = await api.getAdminModerationItems();
       setItems(data);
-      if (data.length > 0 && !selectedReportId) {
-        setSelectedReportId(data[0].id);
+      if (data.length > 0) {
+        setSelectedReportId(prev => prev || data[0].id);
       }
     } catch (err) {
       console.error('Failed to load admin moderation queue:', err);
     } finally {
       setLoading(false);
     }
-  }, [isAuthorized, selectedReportId]);
+  }, [isAuthorized]);
 
   useEffect(() => {
-    fetchQueue();
-  }, [fetchQueue]);
+    if (!isAuthorized) return;
+    api.getAdminModerationItems()
+      .then(data => {
+        setItems(data);
+        if (data.length > 0) setSelectedReportId(prev => prev || data[0].id);
+      })
+      .catch(err => console.error('Failed to load admin moderation queue:', err))
+      .finally(() => setLoading(false));
+  }, [isAuthorized]);
 
   // Compute counts
   const stats = useMemo(() => {
@@ -205,9 +211,9 @@ export default function AdminModeration() {
               Administrator Console
             </span>
           </div>
-          <h1 className="page-title">Moderation Workspace</h1>
+          <h1 className="page-title">Moderation</h1>
           <p className="page-subtitle">
-            Review reported notes, inspect academic evidence, and apply authoritative verdicts.
+            Review what students reported, check the evidence, and decide what stays up.
           </p>
         </div>
 
@@ -707,7 +713,7 @@ export default function AdminModeration() {
               </button>
               <button
                 className="btn"
-                style={decisionAction === 'quarantine' ? { background: 'var(--color-danger)', borderColor: 'var(--color-danger)', color: '#fff' } : { background: 'var(--color-primary)', borderColor: 'var(--color-primary)', color: '#fff' }}
+                style={decisionAction === 'quarantine' ? { background: 'var(--color-danger)', borderColor: 'var(--color-danger)', color: '#fff' } : { background: 'var(--color-deep)', borderColor: 'var(--color-deep)', color: '#fff' }}
                 onClick={handleDecisionSubmit}
                 disabled={submitting || (decisionAction === 'quarantine' && !adminNotes.trim())}
               >

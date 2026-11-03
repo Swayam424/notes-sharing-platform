@@ -19,7 +19,6 @@ import {
 import { api } from '../services/api';
 import { savedNotesService, type SavedNoteMeta } from '../services/savedNotes';
 import type { Subject } from '../data/mockData';
-import { notes as fallbackNotes, subjects as fallbackSubjects } from '../data/mockData';
 
 const FORMAT_OPTIONS = [
   'All Formats',
@@ -42,6 +41,9 @@ export default function MyLibrary() {
   const [savedIds, setSavedIds] = useState<string[]>(() => savedNotesService.getSavedIds());
   const [savedMeta, setSavedMeta] = useState<Record<string, SavedNoteMeta>>(() => savedNotesService.getSavedMeta());
   const [loading, setLoading] = useState(true);
+  // Captured once so relative times are stable across re-renders
+  const [now] = useState(() => Date.now());
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Filter & Search State
   const [resourceTypeFilter, setResourceTypeFilter] = useState<'all' | 'notes' | 'pyq'>('all');
@@ -58,8 +60,6 @@ export default function MyLibrary() {
 
   // Load Notes, PYQs, Subjects & Sync Server Saved Notes
   useEffect(() => {
-    setLoading(true);
-
     Promise.all([
       api.getNotes(),
       api.getPYQs(),
@@ -67,7 +67,6 @@ export default function MyLibrary() {
       savedNotesService.syncFromServer()
     ]).then(([fetchedNotes, fetchedPyqs, fetchedSubjects, syncedData]) => {
       const mergedMap = new Map<string, any>();
-      fallbackNotes.forEach(n => mergedMap.set(n.id, { ...n, resourceType: 'note' }));
       fetchedNotes.forEach(n => {
         const existing = mergedMap.get(n.id);
         mergedMap.set(n.id, { ...existing, ...n, resourceType: 'note' });
@@ -107,13 +106,12 @@ export default function MyLibrary() {
       });
 
       setAllNotes(Array.from(mergedMap.values()));
-      setSubjectsList(fetchedSubjects.length > 0 ? fetchedSubjects : fallbackSubjects);
+      setSubjectsList(fetchedSubjects);
       setSavedIds(syncedData.ids);
       setSavedMeta(syncedData.meta);
     }).catch(err => {
       console.error('Failed to load library data:', err);
-      setAllNotes(fallbackNotes);
-      setSubjectsList(fallbackSubjects);
+      setLoadError(err instanceof Error ? err.message : 'Could not load your library.');
     }).finally(() => {
       setLoading(false);
     });
@@ -217,7 +215,7 @@ export default function MyLibrary() {
     });
 
     return filtered;
-  }, [savedNotesList, searchQuery, selectedSubject, selectedUnit, selectedFormat, sortBy, savedMeta]);
+  }, [savedNotesList, searchQuery, selectedSubject, selectedUnit, selectedFormat, sortBy, savedMeta, resourceTypeFilter]);
 
   // Actions
   const handleOpenNote = async (noteId: string) => {
@@ -281,7 +279,7 @@ export default function MyLibrary() {
     const date = new Date(isoString);
     if (isNaN(date.getTime())) return isoString;
 
-    const diffMs = Date.now() - date.getTime();
+    const diffMs = now - date.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
 
@@ -294,6 +292,9 @@ export default function MyLibrary() {
 
   return (
     <div>
+      {loadError && (
+        <div className="state-banner state-banner--error" role="alert">{loadError}</div>
+      )}
       {/* Toast Notification */}
       {toastMessage && (
         <div style={{
@@ -345,22 +346,10 @@ export default function MyLibrary() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--color-primary-light)',
-                color: 'var(--color-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <Bookmark size={18} fill="currentColor" />
-              </div>
-              <h1 className="page-title" style={{ margin: 0 }}>My Library</h1>
+              <h1 className="page-title" style={{ margin: 0 }}>Saved</h1>
             </div>
             <p className="page-subtitle" style={{ margin: 'var(--space-1) 0 0' }}>
-              Your private study collection of saved lecture notes, revision summaries, and exam materials.
+              Notes and past papers you’ve bookmarked. Only you can see this list.
             </p>
 
             <div className="library-stats-pills">

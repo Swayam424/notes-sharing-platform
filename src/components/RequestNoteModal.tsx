@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Send, BookOpen, AlertCircle, Sparkles, CheckCircle2 } from 'lucide-react';
+import { X } from 'lucide-react';
 import { api, type NoteRequest } from '../services/api';
 import type { Subject } from '../data/mockData';
 
@@ -24,7 +24,6 @@ export default function RequestNoteModal({
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   if (!isOpen) return null;
 
@@ -33,18 +32,11 @@ export default function RequestNoteModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!subjectId) {
-      setError('Please select a course / subject.');
-      return;
-    }
-    if (!topicName.trim()) {
-      setError('Please specify the topic or lecture name you need notes for.');
-      return;
-    }
+    if (!subjectId) return setError('Choose a subject.');
+    if (!topicName.trim()) return setError('Tell classmates which topic you need.');
 
     setIsSubmitting(true);
     setError(null);
-
     try {
       const created = await api.createNoteRequest({
         subjectId,
@@ -52,168 +44,85 @@ export default function RequestNoteModal({
         topicName: topicName.trim(),
         description: description.trim() || undefined
       });
-
-      setSuccess(true);
-      setTimeout(() => {
-        onRequestCreated(created);
-        onClose();
-        setSuccess(false);
-        setTopicName('');
-        setDescription('');
-      }, 1000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to submit request. Please try again.');
+      onRequestCreated(created);
+      setTopicName('');
+      setDescription('');
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not post your request. Try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#FAF8F5] dark:bg-[#1E1E1E] text-[#2D2A26] dark:text-[#EDEDED] border border-[#E8E2D9] dark:border-[#333] rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E2D9] dark:border-[#2C2C2C] bg-[#F4EFEA] dark:bg-[#252525]">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[#C85A32]/10 dark:bg-[#C85A32]/20 flex items-center justify-center text-[#C85A32]">
-              <BookOpen className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-[#1F1C18] dark:text-white">
-                Request Notes from Classmates
-              </h2>
-              <p className="text-xs text-[#7A7265] dark:text-[#999]">
-                Crowdsource missing lecture notes or tricky derivations
-              </p>
-            </div>
+    <div className="sheet-overlay" onMouseDown={e => e.target === e.currentTarget && onClose()}>
+      <form className="sheet" role="dialog" aria-modal="true" aria-labelledby="request-title" onSubmit={handleSubmit}>
+        <div className="sheet__header">
+          <div>
+            <h2 className="sheet__title" id="request-title">Request notes</h2>
+            <p className="sheet__subtitle">Classmates who have them can upload or link a match.</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-[#7A7265] hover:text-[#1F1C18] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-          >
-            <X className="w-4 h-4" />
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
+            <X size={16} />
           </button>
         </div>
 
-        {/* Content */}
-        {success ? (
-          <div className="p-8 text-center flex flex-col items-center justify-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-semibold">Request Posted to Your Batch!</h3>
-            <p className="text-xs text-[#7A7265] dark:text-[#999] max-w-xs">
-              Peers will see this in the requested notes feed and can upload or link matching notes directly.
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {error && (
-              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {/* Subject Selector */}
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7265] dark:text-[#888] mb-1.5">
-                Target Subject / Course *
-              </label>
-              <select
-                value={subjectId}
-                onChange={e => {
-                  setSubjectId(e.target.value);
-                  setUnitId('');
-                }}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#282828] border border-[#DDD6CC] dark:border-[#404040] text-sm focus:outline-none focus:ring-2 focus:ring-[#C85A32]/40"
-              >
+        <div className="sheet__body">
+          <div className="field-row">
+            <label className="field">
+              <span className="field__label">Subject</span>
+              <select value={subjectId} onChange={e => { setSubjectId(e.target.value); setUnitId(''); }}>
                 {subjects.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.code ? `${s.code} — ` : ''}{s.name}
-                  </option>
+                  <option key={s.id} value={s.id}>{s.code ? `${s.code} · ` : ''}{s.name}</option>
                 ))}
               </select>
-            </div>
+            </label>
+            <label className="field">
+              <span className="field__label">Unit</span>
+              <select value={unitId} onChange={e => setUnitId(e.target.value)} disabled={units.length === 0}>
+                <option value="">Any unit</option>
+                {units.map((u, idx) => (
+                  <option key={u.id} value={u.id}>Unit {idx + 1}: {u.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
 
-            {/* Optional Unit Selector */}
-            {units.length > 0 && (
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7265] dark:text-[#888] mb-1.5">
-                  Unit (Optional)
-                </label>
-                <select
-                  value={unitId}
-                  onChange={e => setUnitId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#282828] border border-[#DDD6CC] dark:border-[#404040] text-sm focus:outline-none focus:ring-2 focus:ring-[#C85A32]/40"
-                >
-                  <option value="">Any / General Unit</option>
-                  {units.map((u, idx) => (
-                    <option key={u.id} value={u.id}>
-                      Unit {idx + 1}: {u.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+          <label className="field">
+            <span className="field__label">Topic</span>
+            <input
+              type="text"
+              value={topicName}
+              onChange={e => setTopicName(e.target.value)}
+              placeholder="e.g. Banker’s algorithm, worked example"
+              maxLength={140}
+              autoFocus
+              required
+            />
+          </label>
 
-            {/* Topic / Lecture Title */}
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7265] dark:text-[#888] mb-1.5">
-                Topic or Lecture Name *
-              </label>
-              <input
-                type="text"
-                value={topicName}
-                onChange={e => setTopicName(e.target.value)}
-                placeholder="e.g. CMOS Inverter Noise Margins / Tuesday Lecture"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#282828] border border-[#DDD6CC] dark:border-[#404040] text-sm focus:outline-none focus:ring-2 focus:ring-[#C85A32]/40"
-                required
-              />
-            </div>
+          <label className="field">
+            <span className="field__label">Details <span className="field__hint">optional</span></span>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="What exactly is missing? Derivations, diagrams, solved problems…"
+              rows={3}
+              maxLength={600}
+            />
+          </label>
 
-            {/* Description / Specific Request Details */}
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7265] dark:text-[#888] mb-1.5">
-                Specific Details (Optional)
-              </label>
-              <textarea
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                placeholder="e.g. Missed Friday's class, need legible diagrams and step-by-step mathematical steps."
-                rows={3}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#282828] border border-[#DDD6CC] dark:border-[#404040] text-sm focus:outline-none focus:ring-2 focus:ring-[#C85A32]/40 resize-none"
-              />
-            </div>
+          {error && <p className="form-error" role="alert">{error}</p>}
+        </div>
 
-            {/* Tips banner */}
-            <div className="p-3 rounded-xl bg-[#FAF0E6] dark:bg-[#2A231F] border border-[#F0DFD1] dark:border-[#3D3028] text-xs text-[#7A7265] dark:text-[#AAA] flex items-start gap-2.5">
-              <Sparkles className="w-4 h-4 text-[#C85A32] shrink-0 mt-0.5" />
-              <span>
-                Classmates enrolled in this subject will see your request in their feed and can link or upload matching notes with one click.
-              </span>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-xl text-xs font-medium text-[#7A7265] dark:text-[#AAA] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#C85A32] hover:bg-[#B34E28] text-white flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-60"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>{isSubmitting ? 'Posting...' : 'Post Note Request'}</span>
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
+        <div className="sheet__footer">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+            {isSubmitting ? 'Posting…' : 'Post request'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

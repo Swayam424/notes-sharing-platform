@@ -51,7 +51,7 @@ function notifyChange(): void {
     const ids = readStoredIds();
     const meta = readStoredMeta();
     window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { ids, meta } }));
-  } catch (e) {
+  } catch {
     // Ignore in non-browser environments
   }
 }

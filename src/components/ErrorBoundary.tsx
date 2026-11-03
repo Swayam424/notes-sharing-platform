@@ -47,9 +47,9 @@ export default class ErrorBoundary extends Component<Props, State> {
           alignItems: 'center',
           justifyContent: 'center',
           padding: '24px',
-          background: '#F4EFE8',
+          background: 'var(--color-base)',
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-          color: '#171A18',
+          color: 'var(--color-deep)',
           textAlign: 'center'
         }}>
           <div style={{
@@ -61,14 +61,14 @@ export default class ErrorBoundary extends Component<Props, State> {
             border: '1px solid rgba(255, 255, 255, 0.85)',
             borderRadius: '16px',
             padding: '32px 24px',
-            boxShadow: '0 12px 38px -6px rgba(70, 50, 30, 0.12)'
+            boxShadow: '0 12px 38px -6px color-mix(in srgb, var(--color-deep) 12%, transparent)'
           }}>
             <div style={{
               width: '48px',
               height: '48px',
               borderRadius: '50%',
-              background: 'rgba(200, 75, 40, 0.12)',
-              color: '#C84B28',
+              background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)',
+              color: 'var(--color-primary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -82,13 +82,13 @@ export default class ErrorBoundary extends Component<Props, State> {
               fontSize: '24px',
               fontWeight: 600,
               margin: '0 0 8px',
-              color: '#171A18'
+              color: 'var(--color-deep)'
             }}>
               Atelier Academic Studio
             </h1>
             <p style={{
               fontSize: '14px',
-              color: '#4A453C',
+              color: 'var(--color-deep)',
               lineHeight: 1.5,
               margin: '0 0 20px'
             }}>
@@ -102,7 +102,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 padding: '10px 12px',
                 fontSize: '12px',
                 fontFamily: 'monospace',
-                color: '#C84B28',
+                color: 'var(--color-primary)',
                 textAlign: 'left',
                 overflowX: 'auto',
                 margin: '0 0 24px'
@@ -115,7 +115,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 type="button"
                 onClick={this.handleReload}
                 style={{
-                  background: '#C84B28',
+                  background: 'var(--color-deep)',
                   color: '#FFFFFF',
                   border: 'none',
                   borderRadius: '9999px',
@@ -132,7 +132,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 onClick={this.handleReset}
                 style={{
                   background: 'transparent',
-                  color: '#4A453C',
+                  color: 'var(--color-deep)',
                   border: '1px solid rgba(0, 0, 0, 0.15)',
                   borderRadius: '9999px',
                   padding: '10px 20px',

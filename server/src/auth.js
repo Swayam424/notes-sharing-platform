@@ -22,3 +22,8 @@ export function verifyPassword(password, salt, storedHash) {
 export function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
+
+// Session tokens are stored hashed so a database leak doesn't expose live sessions
+export function hashToken(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex');
+}

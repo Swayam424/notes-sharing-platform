@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { Check, Minus, X, ChevronDown, ArrowRight, FileText } from 'lucide-react';
 import { api } from '../services/api';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../context/appState';
 import type { Subject, NoteResource } from '../data/mockData';
 
 export default function SyllabusCoverage() {
@@ -21,8 +21,8 @@ export default function SyllabusCoverage() {
     ]).then(([subs, nts]) => {
       setSubjectsList(subs);
       setNotesList(nts);
-      if (subs.length > 0 && (!selectedSubjectId || !subs.some(s => s.id === selectedSubjectId))) {
-        setSelectedSubjectId(subs[0].id);
+      if (subs.length > 0) {
+        setSelectedSubjectId(prev => (prev && subs.some(s => s.id === prev) ? prev : subs[0].id));
       }
     }).catch(console.error);
   }, [refreshKey, user?.stream, user?.semester]);
@@ -51,9 +51,9 @@ export default function SyllabusCoverage() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Syllabus Coverage Diagnostic</h1>
+        <h1 className="page-title">Syllabus coverage</h1>
         <p className="page-subtitle">
-          Audit your library against the official department syllabus
+          How much of each subject’s syllabus has notes, unit by unit.
         </p>
       </div>
 
@@ -69,7 +69,7 @@ export default function SyllabusCoverage() {
             <span className="mono" style={{
               marginLeft: 'var(--space-2)',
               fontSize: '10px',
-              color: s.coverage >= 75 ? 'var(--color-secondary)' : s.coverage >= 50 ? '#9A6D18' : 'var(--color-primary)',
+              color: s.coverage >= 75 ? 'var(--color-secondary)' : s.coverage >= 50 ? 'var(--color-warning-ink)' : 'var(--color-primary)',
             }}>
               {s.coverage}%
             </span>
@@ -82,18 +82,18 @@ export default function SyllabusCoverage() {
         <div className="card-body" style={{ display: 'flex', gap: 'var(--space-8)', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: '200px' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
-              <span className="mono" style={{ fontSize: '36px', fontWeight: 'var(--weight-bold)', color: subject.coverage >= 75 ? 'var(--color-secondary)' : 'var(--color-primary)' }}>
+              <span className="mono" style={{ fontSize: '40px', fontWeight: 600, letterSpacing: '-0.04em', fontFamily: 'var(--font-display)', color: 'var(--color-deep)' }}>
                 {subject.coverage}%
               </span>
-              <span className="text-sm text-muted">Current Verified Coverage</span>
+              <span className="text-sm text-muted">of topics have notes</span>
             </div>
             <div className="progress" style={{ height: '6px', marginBottom: 'var(--space-3)' }}>
-              <div className="progress-fill" style={{ width: `${subject.coverage}%`, background: subject.coverage >= 75 ? 'var(--color-secondary)' : 'var(--color-primary)' }} />
+              <div className="progress-fill" style={{ width: `${subject.coverage}%`, background: subject.coverage >= 75 ? 'var(--color-secondary)' : 'var(--color-deep)' }} />
             </div>
             <div style={{ display: 'flex', gap: 'var(--space-4)', fontSize: 'var(--text-xs)' }}>
               <span className="mono" style={{ color: 'var(--color-secondary)' }}>● {coveredTopics} Covered</span>
-              <span className="mono" style={{ color: '#9A6D18' }}>● {partialTopics} Partial</span>
-              <span className="mono" style={{ color: 'var(--color-primary)' }}>● {missingTopics} Missing</span>
+              <span className="mono" style={{ color: 'var(--color-warning-ink)' }}>● {partialTopics} Partial</span>
+              <span className="mono" style={{ color: 'var(--color-danger)' }}>● {missingTopics} Missing</span>
             </div>
           </div>
 
@@ -203,7 +203,7 @@ export default function SyllabusCoverage() {
                     <span style={{ fontWeight: 'var(--weight-semibold)', fontSize: 'var(--text-sm)' }}>{unit.name}</span>
                     <span className="mono" style={{
                       fontSize: '11px',
-                      color: uPercent >= 75 ? 'var(--color-secondary)' : uPercent >= 50 ? '#9A6D18' : 'var(--color-primary)',
+                      color: uPercent >= 75 ? 'var(--color-secondary)' : uPercent >= 50 ? 'var(--color-warning-ink)' : 'var(--color-primary)',
                     }}>
                       {uPercent}% ({uCovered}/{unit.topics.length})
                     </span>
@@ -214,7 +214,7 @@ export default function SyllabusCoverage() {
                       className="progress-fill"
                       style={{
                         width: `${uPercent}%`,
-                        background: uPercent >= 75 ? 'var(--color-secondary)' : 'var(--color-primary)',
+                        background: uPercent >= 75 ? 'var(--color-secondary)' : 'var(--color-deep)',
                       }}
                     />
                   </div>
@@ -222,11 +222,11 @@ export default function SyllabusCoverage() {
                   {/* Missing Topics in this unit */}
                   {uMissing > 0 && (
                     <div style={{
-                      background: 'var(--color-primary-light)',
+                      background: 'var(--color-highlight-soft)',
                       borderRadius: 'var(--radius-sm)',
                       padding: 'var(--space-2) var(--space-3)',
                       fontSize: 'var(--text-xs)',
-                      color: 'var(--color-primary)',
+                      color: 'var(--color-deep)',
                     }}>
                       <span style={{ fontWeight: 'var(--weight-semibold)' }}>Uncovered Gaps: </span>
                       {unit.topics.filter(t => t.status === 'missing').map(t => t.name).join(', ')}

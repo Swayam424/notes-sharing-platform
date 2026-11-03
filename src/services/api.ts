@@ -1,7 +1,4 @@
 import {
-  subjects as mockSubjects,
-  notes as mockNotes,
-  pyqEntries as mockPyqEntries,
   type Subject,
   type NoteResource,
   type PYQEntry,
@@ -45,6 +42,20 @@ async function authFetch(url: string, init: RequestInit = {}): Promise<Response>
     headers.set('Authorization', `Bearer ${token}`);
   }
   return fetch(url, { ...init, headers });
+}
+
+/** Extract a readable error from a failed response. */
+async function errorMessage(res: Response): Promise<string> {
+  try {
+    const body = await res.json();
+    if (body?.error) return body.error;
+  } catch {
+    // non-JSON body
+  }
+  if (res.status === 404) return 'Not found';
+  if (res.status === 401) return 'Please sign in to continue';
+  if (res.status === 403) return 'You do not have access to this';
+  return 'The server is unavailable. Please try again.';
 }
 
 // ---------- Types ----------
@@ -209,30 +220,24 @@ export const api = {
       const queryStr = params.toString() ? `?${params.toString()}` : '';
 
       const res = await authFetch(`/api/subjects${queryStr}`);
-      if (!res.ok) throw new Error('API unavailable');
+      if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to fetch subjects');
       return data.subjects;
-    } catch {
-      let filtered = mockSubjects;
-      if (filters?.semester) {
-        filtered = filtered.filter(s => s.semester === filters.semester);
-      }
-      return filtered.length > 0 ? filtered : mockSubjects;
+    } catch (err) {
+      throw err instanceof Error ? err : new Error(String(err));
     }
   },
 
   async getSubject(id: string): Promise<Subject> {
     try {
       const res = await authFetch(`/api/subjects/${id}`);
-      if (!res.ok) throw new Error('API unavailable');
+      if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to fetch subject');
       return data.subject;
-    } catch {
-      const found = mockSubjects.find(s => s.id === id);
-      if (!found) throw new Error('Subject not found');
-      return found;
+    } catch (err) {
+      throw err instanceof Error ? err : new Error(String(err));
     }
   },
 
@@ -246,39 +251,24 @@ export const api = {
       if (filters?.search) params.append('search', filters.search);
 
       const res = await authFetch(`/api/notes?${params.toString()}`);
-      if (!res.ok) throw new Error('API unavailable');
+      if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to fetch notes');
       return data.notes;
-    } catch {
-      return mockNotes.filter(n => {
-        if (filters?.subjectId && filters.subjectId !== 'all' && n.subjectId !== filters.subjectId) return false;
-        if (filters?.unitId && filters.unitId !== 'all' && n.unitId !== filters.unitId) return false;
-        if (filters?.format && filters.format !== 'all' && n.format.toLowerCase() !== filters.format.toLowerCase()) return false;
-        if (filters?.search) {
-          const q = filters.search.toLowerCase();
-          const matches =
-            n.title.toLowerCase().includes(q) ||
-            (n.primaryTopic && n.primaryTopic.toLowerCase().includes(q)) ||
-            (n.description && n.description.toLowerCase().includes(q));
-          if (!matches) return false;
-        }
-        return true;
-      });
+    } catch (err) {
+      throw err instanceof Error ? err : new Error(String(err));
     }
   },
 
   async getNote(id: string): Promise<NoteResource> {
     try {
       const res = await authFetch(`/api/notes/${id}`);
-      if (!res.ok) throw new Error('API unavailable');
+      if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to fetch note');
       return data.note;
-    } catch {
-      const found = mockNotes.find(n => n.id === id);
-      if (!found) throw new Error('Note not found');
-      return found;
+    } catch (err) {
+      throw err instanceof Error ? err : new Error(String(err));
     }
   },
 
@@ -316,7 +306,7 @@ export const api = {
   async getNoteUpvoteStatus(noteId: string): Promise<{ upvoted: boolean; upvoteCount: number }> {
     try {
       const res = await authFetch(`/api/notes/${noteId}/upvote-status`);
-      if (!res.ok) throw new Error('API unavailable');
+      if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();
       return { upvoted: !!data.upvoted, upvoteCount: data.upvotes || 0 };
     } catch {
@@ -327,7 +317,7 @@ export const api = {
   async toggleNoteUpvote(noteId: string): Promise<{ upvoted: boolean; upvoteCount: number }> {
     try {
       const res = await authFetch(`/api/notes/${noteId}/upvote`, { method: 'POST' });
-      if (!res.ok) throw new Error('API unavailable');
+      if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();
       return { upvoted: !!data.upvoted, upvoteCount: data.upvotes };
     } catch {
@@ -339,7 +329,7 @@ export const api = {
   async getNoteComments(noteId: string): Promise<NoteComment[]> {
     try {
       const res = await authFetch(`/api/notes/${noteId}/comments`);
-      if (!res.ok) throw new Error('API unavailable');
+      if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();
       return data.comments || [];
     } catch {
@@ -376,7 +366,7 @@ export const api = {
     try {
       const query = department && department !== 'all' ? `?department=${encodeURIComponent(department)}` : '';
       const res = await authFetch(`/api/contributors/leaderboard${query}`);
-      if (!res.ok) throw new Error('API unavailable');
+      if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();
       return data.leaderboard || [];
     } catch {
@@ -449,7 +439,7 @@ export const api = {
   async getSavedNotes(): Promise<{ success: boolean; savedNotes: any[] }> {
     try {
       const res = await authFetch('/api/user/saved-notes');
-      if (!res.ok) throw new Error('API unavailable');
+      if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();
       return data;
     } catch {
@@ -514,26 +504,24 @@ export const api = {
       }
       const qs = params.toString() ? `?${params.toString()}` : '';
       const res = await authFetch(`/api/pyqs${qs}`);
-      if (!res.ok) throw new Error('API unavailable');
+      if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to fetch PYQs');
       return data.pyqs;
-    } catch {
-      return mockPyqEntries;
+    } catch (err) {
+      throw err instanceof Error ? err : new Error(String(err));
     }
   },
 
   async getPYQ(id: string): Promise<PYQEntry> {
     try {
       const res = await authFetch(`/api/pyqs/${id}`);
-      if (!res.ok) throw new Error('API unavailable');
+      if (!res.ok) throw new Error(await errorMessage(res));
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Failed to fetch PYQ');
       return data.pyq;
-    } catch {
-      const found = mockPyqEntries.find((p: PYQEntry) => p.id === id);
-      if (!found) throw new Error('PYQ not found');
-      return found;
+    } catch (err) {
+      throw err instanceof Error ? err : new Error(String(err));
     }
   },
 

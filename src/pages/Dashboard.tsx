@@ -1,829 +1,251 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router';
-import {
-  ArrowRight, AlertTriangle, TrendingUp, Clock, FileText, Search,
-  Sparkles, Bookmark, Layers, X, ChevronRight,
-  ThumbsUp, MessageSquare, Upload,
-  Target, GraduationCap, SlidersHorizontal, BookOpen
-} from 'lucide-react';
-import { api, type DashboardData } from '../services/api';
-import { useApp } from '../context/AppContext';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router';
+import { ArrowRight, Bookmark, BookmarkCheck, Search, Upload } from 'lucide-react';
+import { api } from '../services/api';
+import { useApp } from '../context/appState';
 import { savedNotesService } from '../services/savedNotes';
-import { notes as fallbackNotes, subjects as fallbackSubjects, type Subject, type NoteResource } from '../data/mockData';
+import { useOnChange } from '../hooks/useOnChange';
+import type { Subject, NoteResource } from '../data/mockData';
 
-function CoverageRing({ value, size = 40 }: { value: number; size?: number }) {
-  const r = (size - 8) / 2;
-  const circ = 2 * Math.PI * r;
-  const offset = circ - (value / 100) * circ;
-  const color = value >= 75 ? 'var(--color-secondary)' : value >= 50 ? 'var(--color-warning)' : 'var(--color-primary)';
-
-  return (
-    <svg width={size} height={size} className="coverage-ring" aria-label={`${value}% coverage`}>
-      <circle className="coverage-ring-bg" cx={size/2} cy={size/2} r={r} />
-      <circle
-        className="coverage-ring-fill"
-        cx={size/2} cy={size/2} r={r}
-        stroke={color}
-        strokeDasharray={circ}
-        strokeDashoffset={offset}
-      />
-    </svg>
-  );
+function greetingFor(hour: number) {
+  if (hour < 5) return 'Up late';
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
 }
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, refreshKey, setUploadOpen } = useApp();
 
-  const [subjectsList, setSubjectsList] = useState<Subject[]>(fallbackSubjects);
-  const [notesList, setNotesList] = useState<NoteResource[]>(fallbackNotes);
-  const [dashboardStats, setDashboardStats] = useState<DashboardData | null>(null);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [notes, setNotes] = useState<NoteResource[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [savedIds, setSavedIds] = useState<string[]>(() => savedNotesService.getSavedIds());
+  const [hour] = useState(() => new Date().getHours());
 
-  // Enrolled subjects filter
-  const enrolledSubjectIds = user?.enrolledSubjects || [];
-  const displaySubjects = useMemo(() => {
-    if (!enrolledSubjectIds || enrolledSubjectIds.length === 0) {
-      return subjectsList;
-    }
-    const filtered = subjectsList.filter(s => enrolledSubjectIds.includes(s.id));
-    return filtered.length > 0 ? filtered : subjectsList;
-  }, [subjectsList, enrolledSubjectIds]);
-
-  // Dynamic quick topics derived from student's enrolled courses and syllabus
-  const quickTopics = useMemo(() => {
-    const names: string[] = [];
-    for (const subj of displaySubjects) {
-      for (const u of subj.units || []) {
-        for (const t of u.topics || []) {
-          if (t.name && !names.includes(t.name)) {
-            names.push(t.name);
-          }
-        }
-      }
-    }
-    if (names.length > 0) {
-      return names.slice(0, 7);
-    }
-    return ['Core Concepts', 'Unit 1 Overview', 'Formula Sheet', 'Exam Derivations'];
-  }, [displaySubjects]);
-
-  // In-page Topic Discovery State
-  const [topicSearch, setTopicSearch] = useState('');
-  const [activeTopicChip, setActiveTopicChip] = useState<string | null>(null);
-  const [savedNoteIds, setSavedNoteIds] = useState<string[]>(() => savedNotesService.getSavedIds());
+  useOnChange(`${refreshKey}|${user?.stream}|${user?.semester}`, () => {
+    setLoading(true);
+    setError(null);
+  });
 
   useEffect(() => {
-    const unsubscribe = savedNotesService.subscribe((ids) => {
-      setSavedNoteIds(ids);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    api.getSubjects({ stream: user?.stream, semester: user?.semester })
-      .then(setSubjectsList)
-      .catch(() => setSubjectsList(fallbackSubjects));
-
-    api.getNotes().then(liveNotes => {
-      const mergedMap = new Map<string, NoteResource>();
-      fallbackNotes.forEach(n => mergedMap.set(n.id, n));
-      liveNotes.forEach(n => {
-        const existing = mergedMap.get(n.id);
-        mergedMap.set(n.id, { ...existing, ...n });
-      });
-      setNotesList(Array.from(mergedMap.values()));
-    }).catch(() => setNotesList(fallbackNotes));
-
-    api.getDashboardData({ stream: user?.stream, semester: user?.semester })
-      .then(setDashboardStats)
-      .catch(console.error);
+    let cancelled = false;
+    Promise.all([
+      api.getSubjects({ stream: user?.stream, semester: user?.semester }),
+      api.getNotes(),
+    ])
+      .then(([subs, nts]) => {
+        if (cancelled) return;
+        setSubjects(subs);
+        setNotes(nts);
+      })
+      .catch(err => { if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load your dashboard.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [refreshKey, user?.stream, user?.semester]);
 
-  // Stream-specific notes filtered by student's active enrolled subjects
-  const enrolledSubjectIdSet = useMemo(() => new Set(displaySubjects.map(s => s.id)), [displaySubjects]);
-  const streamNotes = useMemo(() => {
-    const filtered = notesList.filter(n => enrolledSubjectIdSet.has(n.subjectId));
-    return filtered.length > 0 ? filtered : notesList;
-  }, [notesList, enrolledSubjectIdSet]);
+  useEffect(() => savedNotesService.subscribe(setSavedIds), []);
 
-  // Only display a note in "Continue Note Reading" if the student has actually opened one
+  // Enrolled subjects first; fall back to the whole semester when none are picked
+  const mySubjects = useMemo(() => {
+    const enrolled = user?.enrolledSubjects || [];
+    const picked = subjects.filter(s => enrolled.includes(s.id));
+    return picked.length > 0 ? picked : subjects;
+  }, [subjects, user?.enrolledSubjects]);
+
+  const mySubjectIds = useMemo(() => new Set(mySubjects.map(s => s.id)), [mySubjects]);
+  const myNotes = useMemo(() => notes.filter(n => mySubjectIds.has(n.subjectId)), [notes, mySubjectIds]);
+
   const lastReadId = savedNotesService.getLastReadNoteId();
-  const lastNote = lastReadId ? (notesList.find(n => n.id === lastReadId) || null) : null;
+  const lastNote = lastReadId ? notes.find(n => n.id === lastReadId) : undefined;
 
-  // Dynamic frequent exam topics calculated from the student's actual enrolled subjects
-  const dynamicFrequentTopics = useMemo(() => {
-    const list: { topicName: string; subjectName: string; appearances: number; streak: string }[] = [];
-    for (const subj of displaySubjects) {
-      for (const u of subj.units || []) {
+  // Topics that keep showing up in exams, by real PYQ counts only
+  const examFavourites = useMemo(() => {
+    const rows: { id: string; topic: string; subject: Subject; count: number; notes: number }[] = [];
+    for (const s of mySubjects) {
+      for (const u of s.units || []) {
         for (const t of u.topics || []) {
-          const app = t.pyqCount || (t.pyqYears ? t.pyqYears.length : 0) || 3;
-          list.push({
-            topicName: t.name,
-            subjectName: subj.name,
-            appearances: app,
-            streak: `Appeared ${app} yrs running`
-          });
+          const count = t.pyqCount || t.pyqYears?.length || 0;
+          if (count > 0) rows.push({ id: t.id, topic: t.name, subject: s, count, notes: t.noteCount || 0 });
         }
       }
     }
-    list.sort((a, b) => b.appearances - a.appearances);
-    return list.slice(0, 5);
-  }, [displaySubjects]);
+    return rows.sort((a, b) => b.count - a.count).slice(0, 6);
+  }, [mySubjects]);
 
-  const frequentTopics = dynamicFrequentTopics.length > 0
-    ? dynamicFrequentTopics
-    : (dashboardStats?.frequentExamTopics || [
-        { topicName: 'Key Exam Derivations', subjectName: displaySubjects[0]?.name || 'Core Subject', appearances: 5, streak: 'Appeared 5 yrs running' }
-      ]);
-
-  // Recent peer uploads adapted to stream notes
-  const recentUploadsList = useMemo(() => {
-    if (streamNotes.length > 0) {
-      return streamNotes.slice(0, 4).map(n => ({
-        id: n.id,
-        title: n.title,
-        author: n.author,
-        format: n.format,
-        subject: n.subjectName || displaySubjects.find(s => s.id === n.subjectId)?.name || 'Course Note',
-        unit: n.unitName || 'Unit 1',
-        timeAgo: 'Recently'
-      }));
-    }
-    return dashboardStats?.recentUploads || [];
-  }, [streamNotes, displaySubjects, dashboardStats]);
-
-  // Lowest coverage subject in active roster for the Midterm Gap Alert
-  const lowestCoverageSubject = useMemo(() => {
-    if (displaySubjects.length === 0) return null;
-    return [...displaySubjects].sort((a, b) => (a.coverage || 0) - (b.coverage || 0))[0];
-  }, [displaySubjects]);
-
-  const gapUnitAndTopic = useMemo(() => {
-    if (!lowestCoverageSubject) return null;
-    for (const u of lowestCoverageSubject.units || []) {
-      const gapTopic = u.topics?.find(t => t.status === 'missing' || t.status === 'partial');
-      if (gapTopic) {
-        return { unitName: u.name, topicName: gapTopic.name };
+  // The single most useful gap: the most-examined topic that has no notes
+  const topGap = useMemo(() => {
+    let best: { topic: string; subject: Subject; count: number } | null = null;
+    for (const s of mySubjects) {
+      for (const u of s.units || []) {
+        for (const t of u.topics || []) {
+          if (t.status !== 'missing') continue;
+          const count = t.pyqCount || t.pyqYears?.length || 0;
+          if (!best || count > best.count) best = { topic: t.name, subject: s, count };
+        }
       }
     }
-    const firstUnit = lowestCoverageSubject.units?.[0];
-    const firstTopic = firstUnit?.topics?.[0];
-    return {
-      unitName: firstUnit?.name || 'Unit 1',
-      topicName: firstTopic?.name || lowestCoverageSubject.name
-    };
-  }, [lowestCoverageSubject]);
+    return best;
+  }, [mySubjects]);
 
-  // Save / Bookmark Toggle
-  const toggleSave = async (noteId: string) => {
-    await savedNotesService.toggleSaveNote(noteId);
+  const recent = useMemo(
+    () => [...myNotes].sort((a, b) => (b.uploadDate || '').localeCompare(a.uploadDate || '')).slice(0, 5),
+    [myNotes]
+  );
+
+  const firstName = user?.name?.split(' ')[0] || 'there';
+
+  const onSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = query.trim();
+    navigate(q ? `/notes?q=${encodeURIComponent(q)}` : '/notes');
   };
 
-  // Filter notes on the landing page based on topic search or active chip
-  const matchingNotes = useMemo(() => {
-    const q = (topicSearch || activeTopicChip || '').trim().toLowerCase();
-    if (!q) {
-      return streamNotes.slice(0, 4);
-    }
-    const pool = streamNotes.length > 0 ? streamNotes : notesList;
-    const matched = pool.filter(n => {
-      const titleMatch = n.title.toLowerCase().includes(q);
-      const topicMatch = n.primaryTopic?.toLowerCase().includes(q) || false;
-      const topicsListMatch = n.topicNames?.some(t => t.toLowerCase().includes(q)) || false;
-      const descMatch = n.description?.toLowerCase().includes(q) || false;
-      const subjMatch = n.subjectName?.toLowerCase().includes(q) || n.subjectId?.toLowerCase().includes(q);
-      return titleMatch || topicMatch || topicsListMatch || descMatch || subjMatch;
-    });
-    if (matched.length === 0 && pool !== notesList) {
-      // Fallback search across all notes
-      return notesList.filter(n => {
-        const titleMatch = n.title.toLowerCase().includes(q);
-        const topicMatch = n.primaryTopic?.toLowerCase().includes(q) || false;
-        const topicsListMatch = n.topicNames?.some(t => t.toLowerCase().includes(q)) || false;
-        const descMatch = n.description?.toLowerCase().includes(q) || false;
-        const subjMatch = n.subjectName?.toLowerCase().includes(q) || n.subjectId?.toLowerCase().includes(q);
-        return titleMatch || topicMatch || topicsListMatch || descMatch || subjMatch;
-      });
-    }
-    return matched;
-  }, [streamNotes, notesList, topicSearch, activeTopicChip]);
-
   return (
-    <div className="landing-study-space" id="study-space-landing">
-      {/* 1. Page Header */}
-      <div className="page-header" style={{ marginBottom: 'var(--space-6)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span className="badge badge-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
-                <GraduationCap size={12} /> {user?.degree || 'B.Tech / B.E.'}
-              </span>
-              {user?.academicGoal && (
-                <span className="chip chip-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
-                  <Target size={11} /> {user.academicGoal}
-                </span>
-              )}
-            </div>
-            <h1 className="page-title">{user?.stream || 'Computer Science & Engineering'} Studio</h1>
-            <p className="page-subtitle">
-              Semester {user?.semester || 5} • {user?.college || 'Apex Institute of Technology'} • {displaySubjects.length} Active Enrolled Courses
-            </p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => navigate('/onboarding')}
-              title="Change your enrolled stream, semester, or subjects"
-              style={{ fontSize: '12px' }}
-            >
-              <SlidersHorizontal size={13} /> Tune Stream & Roster
-            </button>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => navigate('/notes')}
-              id="btn-goto-full-discovery"
-            >
-              <Layers size={14} /> Full Notes Discovery
-            </button>
-          </div>
+    <div className="dash">
+      <header className="dash-head">
+        <div>
+          <h1 className="page-title">{greetingFor(hour)}, {firstName}.</h1>
+          <p className="page-subtitle">
+            Semester {user?.semester} · {user?.stream || user?.department}
+          </p>
         </div>
-      </div>
+        <Link to="/settings" className="btn btn-ghost btn-sm">Edit courses</Link>
+      </header>
 
-      {/* ================================================================
-          2. UNIFIED TOPIC DISCOVERY & SEARCH BANNER (Connected with Landing)
-          ================================================================ */}
-      <section className="landing-discovery-banner" id="landing-discovery-section">
-        <div className="discovery-banner-inner">
-          <div className="discovery-banner-header">
-            <span className="mono discovery-banner-tag">
-              <Sparkles size={11} style={{ color: 'var(--color-primary)' }} />
-              TOPIC DISCOVERY & INSTANT NOTE VIEWER
-            </span>
-            <h2 className="discovery-banner-title">
-              What topic are you studying today?
-            </h2>
-            <p className="discovery-banner-subtitle">
-              Quickly find verified peer notes, formulas, and worked university exam numericals by topic.
-            </p>
-          </div>
+      <form className="dash-search" onSubmit={onSearch} role="search">
+        <Search size={18} aria-hidden="true" />
+        <input
+          type="search"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search a topic from your syllabus, e.g. deadlock avoidance"
+          aria-label="Search notes by topic"
+        />
+        <button type="submit" className="btn btn-primary btn-sm">Search</button>
+      </form>
 
-          {/* Search Box */}
-          <div className="discovery-search-wrapper">
-            <div className="discovery-search-box">
-              <Search className="search-icon" size={18} />
-              <input
-                type="text"
-                className="search-input"
-                placeholder={quickTopics.length > 0 ? `Search topics like ${quickTopics.slice(0, 3).join(', ')}...` : 'Search study topics...'}
-                value={topicSearch}
-                onChange={e => {
-                  setTopicSearch(e.target.value);
-                  if (activeTopicChip) setActiveTopicChip(null);
-                }}
-                id="landing-topic-search-input"
-              />
-              {topicSearch && (
-                <button
-                  className="search-clear-btn"
-                  onClick={() => setTopicSearch('')}
-                  title="Clear search"
-                  aria-label="Clear topic search"
-                >
-                  <X size={15} />
-                </button>
-              )}
-            </div>
+      {error && <div className="state-banner state-banner--error" role="alert">{error}</div>}
 
-            {/* Quick Topic Chips */}
-            <div className="landing-topic-chips" role="group" aria-label="Popular topic filters">
-              <span className="mono text-muted" style={{ fontSize: '11px', alignSelf: 'center', marginRight: '4px' }}>
-                POPULAR TOPICS:
-              </span>
-              {quickTopics.map(topic => {
-                const isActive = activeTopicChip === topic || topicSearch.toLowerCase() === topic.toLowerCase();
-                return (
-                  <button
-                    key={topic}
-                    className={`landing-topic-chip ${isActive ? 'active' : ''}`}
-                    onClick={() => {
-                      if (activeTopicChip === topic) {
-                        setActiveTopicChip(null);
-                        setTopicSearch('');
-                      } else {
-                        setActiveTopicChip(topic);
-                        setTopicSearch(topic);
-                      }
-                    }}
-                    id={`chip-${topic.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
-                  >
-                    {topic}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+      {lastNote && (
+        <Link to={`/notes/${lastNote.id}`} className="dash-resume">
+          <span className="eyebrow">Continue reading</span>
+          <span className="dash-resume__title">{lastNote.title}</span>
+          <span className="dash-resume__meta">{lastNote.subjectName} · {lastNote.unitName}</span>
+          <ArrowRight size={18} className="dash-resume__arrow" aria-hidden="true" />
+        </Link>
+      )}
 
-          {/* Connected Live Discovery Notes Results */}
-          <div className="landing-discovery-results">
-            <div className="discovery-results-header">
-              <span className="mono text-muted" style={{ fontSize: '11px' }}>
-                {topicSearch || activeTopicChip ? (
-                  <>SHOWING {matchingNotes.length} RESOURCES MATCHING “{topicSearch || activeTopicChip}”</>
-                ) : (
-                  <>FEATURED STUDY RESOURCES ({matchingNotes.length})</>
-                )}
-              </span>
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={() => navigate(`/notes${topicSearch ? `?q=${encodeURIComponent(topicSearch)}` : ''}`)}
-                style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}
-              >
-                View all in Notes Discovery <ArrowRight size={13} />
-              </button>
-            </div>
-
-            {matchingNotes.length > 0 ? (
-              <div className="landing-discovery-list">
-                {matchingNotes.slice(0, 4).map(note => {
-                  const isSaved = savedNoteIds.includes(note.id);
-                  const topicTag = note.primaryTopic || note.topicNames?.[0] || 'Core Notes';
-
-                  return (
-                    <article key={note.id} className="landing-note-item" id={`landing-note-${note.id}`}>
-                      {/* Left: Topic & Title */}
-                      <div className="landing-note-left">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                          <span className="note-topic-badge">
-                            {topicTag}
-                          </span>
-                          <span
-                            className="note-subject-pill"
-                            onClick={() => navigate(`/subjects/${note.subjectId}`)}
-                            title={`View ${note.subjectName} syllabus`}
-                          >
-                            {note.subjectCode || 'CS'} {note.subjectName}
-                          </span>
-                          <span className="text-muted" style={{ fontSize: '11px' }}>
-                            • {note.unitName}
-                          </span>
-                        </div>
-
-                        <h3
-                          className="landing-note-title"
-                          onClick={() => navigate(`/notes/${note.id}`)}
-                          title={`Open ${note.title}`}
-                        >
-                          {note.title}
-                        </h3>
-
-                        {note.description && (
-                          <p className="landing-note-desc">
-                            {note.description}
-                          </p>
-                        )}
-
-                        <div className="landing-note-meta">
-                          <span className="landing-note-author">
-                            <span className="landing-author-avatar">{note.authorInitials}</span>
-                            {note.author}
-                          </span>
-                          <span className="meta-sep">•</span>
-                          <span className="chip" style={{ fontSize: '10px' }}>{note.format}</span>
-                          <span className="meta-sep">•</span>
-                          <span>{note.pages} pages</span>
-                          {note.fileSizeFormatted && (
-                            <>
-                              <span className="meta-sep">•</span>
-                              <span className="mono">{note.fileSizeFormatted}</span>
-                            </>
-                          )}
-                          <span className="meta-sep">•</span>
-                          <span>{note.downloads} downloads</span>
-                          <span className="meta-sep">•</span>
-                          <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: (note.upvotes || 0) > 0 ? 'var(--color-primary)' : 'inherit' }}>
-                            <ThumbsUp size={11} fill={(note.upvotes || 0) > 0 ? 'currentColor' : 'none'} />
-                            {note.upvotes || 0} helpful
-                          </span>
-                          {note.commentCount !== undefined && note.commentCount > 0 && (
-                            <>
-                              <span className="meta-sep">•</span>
-                              <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                <MessageSquare size={11} /> {note.commentCount} discussion
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Right: Connected Actions (Save & Open Notes) */}
-                      <div className="landing-note-actions">
-                        <button
-                          className={`btn-save ${isSaved ? 'saved' : ''}`}
-                          onClick={() => toggleSave(note.id)}
-                          title={isSaved ? "Saved in collection" : "Save for later"}
-                          aria-label={isSaved ? "Saved" : "Save"}
-                        >
-                          <Bookmark size={13} fill={isSaved ? 'currentColor' : 'none'} />
-                          {isSaved ? 'Saved' : 'Save'}
-                        </button>
-
-                        <button
-                          className="btn-open-notes"
-                          onClick={() => navigate(`/notes/${note.id}`)}
-                          id={`landing-btn-open-${note.id}`}
-                          aria-label={`Open note document ${note.title}`}
-                        >
-                          Open Notes
-                          <ArrowRight size={13} />
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="landing-no-match">
-                <p>
-                  No notes found matching “{topicSearch}”. Try searching for{' '}
-                  {quickTopics.slice(0, 3).map((t, idx) => (
-                    <strong key={t}>
-                      {t}{idx < Math.min(quickTopics.length, 3) - 1 ? ', ' : ''}
-                    </strong>
-                  ))} or browse all notes.
-                </p>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => { setTopicSearch(''); setActiveTopicChip(null); }}
-                  style={{ marginTop: '8px' }}
-                >
-                  Clear topic search
-                </button>
-              </div>
-            )}
-          </div>
+      <section className="dash-section" aria-labelledby="subjects-h">
+        <div className="section-head">
+          <h2 id="subjects-h">Your subjects</h2>
+          <Link to="/syllabus" className="section-head__link">Coverage report</Link>
+        </div>
+        <div className="subject-grid">
+          {loading
+            ? [0, 1, 2, 3].map(i => <div key={i} className="skeleton skeleton--card" />)
+            : mySubjects.map(s => {
+              const gaps = s.units.flatMap(u => u.topics).filter(t => t.status === 'missing').length;
+              return (
+                <Link key={s.id} to={`/subjects/${s.id}`} className="subject-card">
+                  <span className="subject-card__code mono">{s.code}</span>
+                  <span className="subject-card__name">{s.name}</span>
+                  <span className="meter" aria-hidden="true"><span style={{ width: `${s.coverage}%` }} /></span>
+                  <span className="subject-card__meta">
+                    <span><strong>{s.coverage}%</strong> covered</span>
+                    {gaps > 0
+                      ? <span className="subject-card__gaps">{gaps} {gaps === 1 ? 'gap' : 'gaps'}</span>
+                      : <span>No gaps</span>}
+                  </span>
+                </Link>
+              );
+            })}
         </div>
       </section>
 
-      {/* ================================================================
-          3. ACTIVE FOCUS STRIP (All Subjects with Direct Syllabus Links)
-          ================================================================ */}
-      <div style={{ marginBottom: 'var(--space-6)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
-          <h3 style={{ fontSize: 'var(--text-base)', fontFamily: 'var(--font-display)', fontWeight: 'var(--weight-semibold)' }}>
-            Course Workspaces
-          </h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span className="mono text-muted" style={{ fontSize: '11px' }}>
-              {displaySubjects.length} ENROLLED COURSES • SEMESTER {user?.semester || 5}
-            </span>
-            <button
-              onClick={() => navigate('/onboarding')}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--color-primary)',
-                fontSize: '11px',
-                cursor: 'pointer',
-                padding: 0,
-                textDecoration: 'underline'
-              }}
-            >
-              Edit Courses
+      {topGap && (
+        <section className="callout" aria-label="Biggest gap in your notes">
+          <div>
+            <p className="eyebrow">Biggest gap</p>
+            <p className="callout__text">
+              <mark>{topGap.topic}</mark> ({topGap.subject.name})
+              {topGap.count > 0 ? ` has been asked in ${topGap.count} past ${topGap.count === 1 ? 'paper' : 'papers'} and` : ''} has no notes yet.
+            </p>
+          </div>
+          <div className="callout__actions">
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setUploadOpen(true)}>
+              <Upload size={14} /> Upload notes
             </button>
+            <Link to="/notes?tab=requests&newRequest=true" className="btn btn-secondary btn-sm">Request them</Link>
           </div>
-        </div>
+        </section>
+      )}
 
-        <div className="dashboard-focus-strip" id="focus-strip">
-          {displaySubjects.map(s => (
-            <div
-              key={s.id}
-              className="subject-tile"
-              onClick={() => navigate(`/subjects/${s.id}`)}
-              id={`subject-tile-${s.id}`}
-              title={`Open ${s.name} syllabus overview`}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
-                <CoverageRing value={s.coverage} />
-                <div>
-                  <div className="subject-tile-name">{s.name}</div>
-                  <div className="subject-tile-meta">{s.units.length} Units • {s.code}</div>
-                </div>
-              </div>
-              <div className="progress" style={{ height: '3px' }}>
-                <div
-                  className={`progress-fill ${s.coverage >= 75 ? 'high' : s.coverage >= 50 ? 'medium' : 'low'}`}
-                  style={{ width: `${s.coverage}%` }}
-                />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--space-2)' }}>
-                <span className="mono text-muted" style={{ fontSize: '11px' }}>
-                  {s.coverage}% covered
-                </span>
-                <span className="mono" style={{ fontSize: '10px', color: 'var(--color-primary)' }}>
-                  View Syllabus →
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ================================================================
-          4. ASYMMETRIC STUDY DESK (Cross-Connected Reading & Exam Radar)
-          ================================================================ */}
-      <div className="dashboard-split" id="study-desk">
-        {/* Left Column (65%) — Continue Reading & Course Status */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-          {/* Resume Deck (Direct Connection to Note Viewer or Study Starter for New Students) */}
-          {!lastNote ? (
-            <div className="card" id="resume-deck" style={{ borderColor: 'var(--color-primary-muted)' }}>
-              <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <BookOpen size={16} style={{ color: 'var(--color-primary)' }} />
-                  <h3 style={{ fontSize: 'var(--text-lg)' }}>Start Your Study Session</h3>
-                </div>
-                <span className="chip chip-secondary">
-                  Ready to Learn
-                </span>
-              </div>
-              <div className="card-body">
-                <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-muted)', margin: '0 0 16px', lineHeight: 1.6 }}>
-                  Welcome to your study space! You haven't opened any notes yet. Search for a topic from your syllabus or browse the notes library to begin reading.
-                </p>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <button className="btn btn-primary btn-sm" onClick={() => navigate('/notes')}>
-                    <Layers size={14} /> Browse Course Notes
-                  </button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => setUploadOpen(true)}>
-                    <Upload size={14} /> Upload Your Notes
-                  </button>
-                </div>
-              </div>
-            </div>
+      <div className="dash-columns">
+        <section className="dash-section" aria-labelledby="exam-h">
+          <div className="section-head">
+            <h2 id="exam-h">Asked most in exams</h2>
+            <Link to="/pyq" className="section-head__link">Past papers</Link>
+          </div>
+          {examFavourites.length === 0 && !loading ? (
+            <p className="empty-note">No past-paper data for your subjects yet.</p>
           ) : (
-            <div className="card" id="resume-deck" style={{ borderColor: 'var(--color-primary-muted)' }}>
-              <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Clock size={16} style={{ color: 'var(--color-primary)' }} />
-                  <h3 style={{ fontSize: 'var(--text-lg)' }}>Continue Note Reading</h3>
-                </div>
-                <span className="chip chip-secondary">
-                  Active Resource
-                </span>
-              </div>
-              <div className="card-body">
-                <div style={{ display: 'flex', gap: 'var(--space-5)', flexWrap: 'wrap' }}>
-                  {/* Document Preview Mini Thumbnail */}
-                  <div
-                    onClick={() => navigate(`/notes/${lastNote.id}`)}
-                    style={{
-                      width: '120px',
-                      height: '150px',
-                      background: '#FFF',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 'var(--radius-sm)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      padding: '12px 10px',
-                      gap: '6px',
-                      cursor: 'pointer',
-                      boxShadow: 'var(--shadow-card)',
-                      transition: 'transform var(--transition-fast)'
-                    }}
-                    title={`Open note ${lastNote.title}`}
-                  >
-                    <div style={{ height: '6px', width: '60%', background: 'var(--color-primary-light)', borderRadius: '1px' }} />
-                    <div style={{ height: '4px', width: '100%', background: '#ECEAE5', borderRadius: '1px' }} />
-                    <div style={{ height: '4px', width: '85%', background: '#ECEAE5', borderRadius: '1px' }} />
-                    <div style={{ height: '4px', width: '95%', background: '#ECEAE5', borderRadius: '1px' }} />
-                    <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span className="mono" style={{ fontSize: '9px', color: 'var(--color-muted)' }}>p. 1</span>
-                      <FileText size={12} style={{ color: 'var(--color-primary)' }} />
-                    </div>
-                  </div>
-
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <span className="note-topic-badge" style={{ fontSize: '10px' }}>
-                        {lastNote.primaryTopic || 'Concurrency & Deadlocks'}
+            <ol className="rank-list">
+              {examFavourites.map(t => (
+                <li key={t.id}>
+                  <Link to={`/notes?q=${encodeURIComponent(t.topic)}`} className="rank-row">
+                    <span className="rank-row__count mono">{t.count}×</span>
+                    <span className="rank-row__body">
+                      <span className="rank-row__title">{t.topic}</span>
+                      <span className="rank-row__meta">
+                        {t.subject.name} · {t.notes === 0 ? 'no notes' : `${t.notes} ${t.notes === 1 ? 'note' : 'notes'}`}
                       </span>
-                      <span className="mono text-muted" style={{ fontSize: '11px' }}>
-                        {lastNote.subjectCode || 'CS501'} • {lastNote.unitName || 'Unit 3'}
-                      </span>
-                    </div>
-
-                    <h4
-                      style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', cursor: 'pointer' }}
-                      onClick={() => navigate(`/notes/${lastNote.id}`)}
-                    >
-                      {lastNote.title}
-                    </h4>
-                    <div className="text-sm text-muted">by {lastNote.author} • {lastNote.format}</div>
-                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-deep-soft)', lineHeight: '1.5' }}>
-                      {lastNote.description || 'Comprehensive notes and numerical problems covering university exam syllabus.'}
-                    </p>
-
-                    <div className="mono text-muted" style={{ marginTop: 'auto', fontSize: '11px' }}>
-                      {lastNote.pages} Pages • {lastNote.downloads} student downloads
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="card-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="text-sm text-muted">Verified syllabus alignment</span>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => navigate(`/notes/${lastNote.id}`)}
-                  id="btn-resume-reading"
-                >
-                  Open in Document Viewer <ArrowRight size={14} />
-                </button>
-              </div>
-            </div>
+                    </span>
+                    <ArrowRight size={15} className="rank-row__arrow" aria-hidden="true" />
+                  </Link>
+                </li>
+              ))}
+            </ol>
           )}
+        </section>
 
-          {/* Syllabus Notes Coverage Gap with Direct Search Connection */}
-          <div className="card" style={{ borderColor: 'var(--color-primary-muted)' }} id="coverage-alert">
-            <div className="card-body" style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start' }}>
-              <div style={{
-                width: '36px', height: '36px', borderRadius: 'var(--radius-sm)',
-                background: 'var(--color-primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}>
-                <AlertTriangle size={18} style={{ color: 'var(--color-primary)' }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 'var(--weight-semibold)', marginBottom: 'var(--space-1)', fontSize: 'var(--text-base)' }}>
-                  Syllabus Notes Coverage Gap
-                </div>
-                <p className="text-sm" style={{ color: 'var(--color-muted)', marginBottom: 'var(--space-3)' }}>
-                  {lowestCoverageSubject ? (
-                    `${lowestCoverageSubject.name} ${gapUnitAndTopic?.unitName ? `(${gapUnitAndTopic.unitName}: ${gapUnitAndTopic.topicName})` : ''} has only ${lowestCoverageSubject.coverage || 42}% verified notes coverage in your peer library.`
-                  ) : (
-                    'Review your course units to identify missing peer notes and contribute.'
-                  )}
-                </p>
-                <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-                  <button
-                    className="btn btn-sm"
-                    style={{ color: 'var(--color-primary)', borderColor: 'var(--color-primary-muted)' }}
-                    onClick={() => {
-                      if (gapUnitAndTopic?.topicName) {
-                        setTopicSearch(gapUnitAndTopic.topicName);
-                        window.scrollTo({ top: 120, behavior: 'smooth' });
-                      }
-                    }}
-                  >
-                    <Search size={13} /> Discover {gapUnitAndTopic?.topicName || 'Gap Topic'} Notes
-                  </button>
-                  {lowestCoverageSubject && (
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => navigate(`/subjects/${lowestCoverageSubject.id}`)}
-                    >
-                      View {lowestCoverageSubject.code || lowestCoverageSubject.name} Syllabus <ChevronRight size={13} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
+        <section className="dash-section" aria-labelledby="recent-h">
+          <div className="section-head">
+            <h2 id="recent-h">New in your subjects</h2>
+            <Link to="/notes" className="section-head__link">All notes</Link>
           </div>
-
-          {/* Quick Subject Syllabus Links */}
-          <div className="card" id="quick-links">
-            <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ fontSize: 'var(--text-lg)' }}>Syllabus Breakdown</h3>
-              <span className="mono text-muted" style={{ fontSize: '11px' }}>CLICK SUBJECT TO VIEW UNITS</span>
-            </div>
-            <div className="card-body" style={{ padding: 0 }}>
-              {subjectsList.map(s => {
-                const totalTopics = s.units.reduce((acc, u) => acc + u.topics.length, 0);
-                const coveredTopics = s.units.reduce((acc, u) => acc + u.topics.filter(t => t.status === 'covered').length, 0);
-                const missingTopics = s.units.reduce((acc, u) => acc + u.topics.filter(t => t.status === 'missing').length, 0);
+          {recent.length === 0 && !loading ? (
+            <p className="empty-note">Nothing uploaded for your subjects yet. Be the first.</p>
+          ) : (
+            <ul className="note-list">
+              {recent.map(n => {
+                const saved = savedIds.includes(n.id);
                 return (
-                  <div
-                    key={s.id}
-                    className="topic-row"
-                    style={{ cursor: 'pointer', padding: 'var(--space-4) var(--space-5)' }}
-                    onClick={() => navigate(`/subjects/${s.id}`)}
-                    id={`subject-row-${s.id}`}
-                  >
-                    <div className="topic-row-content">
-                      <div className="topic-row-name" style={{ fontFamily: 'var(--font-display)' }}>{s.name}</div>
-                      <div className="mono text-muted" style={{ fontSize: '11px', marginTop: '2px' }}>
-                        {coveredTopics}/{totalTopics} topics covered
-                        {missingTopics > 0 && <span style={{ color: 'var(--color-primary)' }}> • {missingTopics} gap topics</span>}
-                      </div>
-                    </div>
-                    <div className="topic-row-meta">
-                      <div className="progress" style={{ width: '80px', height: '3px' }}>
-                        <div className={`progress-fill ${s.coverage >= 75 ? 'high' : s.coverage >= 50 ? 'medium' : 'low'}`} style={{ width: `${s.coverage}%` }} />
-                      </div>
-                      <span className="mono" style={{ fontSize: '11px', color: s.coverage >= 75 ? 'var(--color-secondary)' : s.coverage >= 50 ? '#9A6D18' : 'var(--color-primary)' }}>
-                        {s.coverage}%
+                  <li key={n.id} className="note-row">
+                    <Link to={`/notes/${n.id}`} className="note-row__main">
+                      <span className="note-row__title">{n.title}</span>
+                      <span className="note-row__meta">
+                        {n.subjectCode || n.subjectName} · {n.format} · {n.pages} pages · {n.author}
                       </span>
-                      <ArrowRight size={14} style={{ color: 'var(--color-muted)' }} />
-                    </div>
-                  </div>
+                    </Link>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      onClick={() => savedNotesService.toggleSaveNote(n.id)}
+                      aria-pressed={saved}
+                      aria-label={saved ? `Remove ${n.title} from saved` : `Save ${n.title}`}
+                    >
+                      {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+                    </button>
+                  </li>
                 );
               })}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column (35%) — Exam Radar & Recent Peer Notes */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-          {/* Trending Study Topics (Clicking any topic directly discovers notes for that topic!) */}
-          <div className="card" id="exam-radar">
-            <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                <TrendingUp size={16} strokeWidth={1.5} style={{ color: 'var(--color-primary)' }} />
-                <h3 style={{ fontSize: 'var(--text-md)' }}>Trending Study Topics</h3>
-              </div>
-              <span className="mono text-muted" style={{ fontSize: '10px' }}>MOST READ BY PEERS</span>
-            </div>
-            <div className="card-body" style={{ padding: 0 }}>
-              {frequentTopics.slice(0, 5).map((t, i) => (
-                <div
-                  key={i}
-                  className="topic-row exam-radar-clickable-row"
-                  style={{ padding: 'var(--space-3) var(--space-5)', cursor: 'pointer' }}
-                  onClick={() => {
-                    setTopicSearch(t.topicName);
-                    window.scrollTo({ top: 120, behavior: 'smooth' });
-                  }}
-                  title={`Find notes for ${t.topicName}`}
-                >
-                  <div style={{ width: '20px', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-muted)', textAlign: 'center' }}>
-                    {i + 1}
-                  </div>
-                  <div className="topic-row-content">
-                    <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)' }}>{t.topicName}</div>
-                    <div className="mono text-muted" style={{ fontSize: '10px' }}>{t.subjectName}</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span className="pyq-stamp" style={{ fontSize: '9px' }}>
-                      {t.appearances}yr
-                    </span>
-                    <ArrowRight size={12} className="radar-arrow-hover" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Recent Peer Uploads (Clicking opens note directly in Note Viewer!) */}
-          <div className="card" id="peer-uploads">
-            <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ fontSize: 'var(--text-md)' }}>Recent Peer Uploads</h3>
-              <span className="mono text-muted" style={{ fontSize: '10px' }}>CLICK TO READ</span>
-            </div>
-            <div className="card-body" style={{ padding: 0 }}>
-              {recentUploadsList.map((u, i) => (
-                <div
-                  key={i}
-                  className="topic-row peer-upload-clickable-row"
-                  style={{ padding: 'var(--space-3) var(--space-5)', cursor: 'pointer' }}
-                  onClick={() => navigate(`/notes/${u.id || 'n1'}`)}
-                  title={`Read note: ${u.title}`}
-                >
-                  <div style={{
-                    width: '32px', height: '32px', borderRadius: 'var(--radius-sm)',
-                    background: 'var(--color-primary-light)', color: 'var(--color-primary)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <FileText size={14} strokeWidth={1.5} />
-                  </div>
-                  <div className="topic-row-content">
-                    <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)' }}>{u.title}</div>
-                    <div className="mono text-muted" style={{ fontSize: '10px' }}>
-                      {u.author} • {u.subject}
-                    </div>
-                  </div>
-                  <ArrowRight size={13} style={{ color: 'var(--color-muted)' }} />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Community Notes Spotlight */}
-          <div className="card" style={{ background: 'var(--color-secondary-light)', border: '1px solid var(--color-secondary-muted)' }} id="smart-rec">
-            <div className="card-body" style={{ padding: 'var(--space-4) var(--space-5)' }}>
-              <div className="mono" style={{ fontSize: '10px', color: 'var(--color-secondary)', marginBottom: 'var(--space-2)', letterSpacing: '0.06em' }}>
-                COMMUNITY NOTES SPOTLIGHT
-              </div>
-              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-deep-soft)', lineHeight: '1.5' }}>
-                Explore verified student notes across {displaySubjects.length > 0 ? displaySubjects.slice(0, 4).map(s => s.name).join(', ') : 'your active courses'}.
-              </p>
-              <button
-                className="btn btn-sm"
-                style={{ marginTop: 'var(--space-3)', color: 'var(--color-secondary)', borderColor: 'var(--color-secondary-muted)' }}
-                onClick={() => navigate('/notes')}
-              >
-                Browse All Notes <ArrowRight size={14} />
-              </button>
-            </div>
-          </div>
-        </div>
+            </ul>
+          )}
+        </section>
       </div>
     </div>
   );
