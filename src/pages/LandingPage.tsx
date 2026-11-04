@@ -1,10 +1,11 @@
 import { useOnChange } from '../hooks/useOnChange';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { ArrowRight, X, Eye, EyeOff, Check } from 'lucide-react';
 import { useApp } from '../context/appState';
 import { api, type AuthUser } from '../services/api';
 import StudyBackdrop from '../components/StudyBackdrop';
+import { DEGREE_OPTIONS, STREAM_PRESETS, type DegreeOption } from '../data/degrees';
 import './landing.css';
 
 type AuthTab = 'signin' | 'signup';
@@ -28,7 +29,20 @@ export default function LandingPage() {
 
   const [authOpen, setAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState<AuthTab>('signin');
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    degree: 'B.Tech / B.E.',
+    stream: 'Computer Science & Engineering',
+    customStream: '',
+    semester: 5,
+    college: ''
+  });
+
+  const selectedDegreeObj: DegreeOption = useMemo(() => {
+    return DEGREE_OPTIONS.find(d => d.name === form.degree || d.id === form.degree) || DEGREE_OPTIONS[0];
+  }, [form.degree]);
   const [authError, setAuthError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -58,14 +72,23 @@ export default function LandingPage() {
     if (isAuthenticated) return navigate('/dashboard');
     setAuthTab(tab);
     setAuthError(null);
-    setForm({ name: '', email: '', password: '' });
+    setForm({
+      name: '',
+      email: '',
+      password: '',
+      degree: 'B.Tech / B.E.',
+      stream: 'Computer Science & Engineering',
+      customStream: '',
+      semester: 5,
+      college: ''
+    });
     setAuthOpen(true);
   };
 
   const fillDemoAccount = async (demoEmail: string, demoPass: string) => {
     setAuthTab('signin');
     setAuthError(null);
-    setForm({ name: '', email: demoEmail, password: demoPass });
+    setForm(prev => ({ ...prev, email: demoEmail, password: demoPass }));
     setSubmitting(true);
     try {
       const result = await api.login(demoEmail, demoPass);
@@ -95,9 +118,24 @@ export default function LandingPage() {
     }
 
     setSubmitting(true);
+    if (authTab === 'signup' && form.stream === 'other' && !form.customStream.trim()) {
+      setAuthError('Please specify your academic branch or specialization.');
+      return;
+    }
+
     try {
+      const effectiveStream = form.stream === 'other' ? form.customStream.trim() : form.stream;
       const result: { user: AuthUser } = authTab === 'signup'
-        ? await api.signup({ name: form.name.trim(), email: form.email.trim(), password: form.password })
+        ? await api.signup({
+            name: form.name.trim(),
+            email: form.email.trim(),
+            password: form.password,
+            degree: form.degree,
+            stream: effectiveStream,
+            department: effectiveStream,
+            semester: form.semester,
+            college: form.college.trim() || 'University Institute of Technology'
+          })
         : await api.login(form.email.trim(), form.password);
       loginWithUser(result.user);
       setAuthOpen(false);
@@ -275,7 +313,7 @@ export default function LandingPage() {
                   {authTab === 'signin' ? 'Welcome back' : 'Create your study space'}
                 </h2>
                 <p className="sheet__subtitle">
-                  {authTab === 'signin' ? 'Sign in to pick up where you left off.' : 'Takes a minute. You’ll choose your course next.'}
+                  {authTab === 'signin' ? 'Sign in to pick up where you left off.' : 'Choose your degree, department & course roster.'}
                 </p>
               </div>
               <button type="button" className="icon-button" onClick={() => setAuthOpen(false)} aria-label="Close">
@@ -290,18 +328,24 @@ export default function LandingPage() {
 
             <form className="sheet__body" onSubmit={handleSubmit}>
               {authTab === 'signup' && (
-                <label className="field">
-                  <span className="field__label">Full name</span>
-                  <input
-                    type="text"
-                    autoComplete="name"
-                    required
-                    maxLength={80}
-                    placeholder="e.g. Swayam Mallick"
-                    value={form.name}
-                    onChange={e => setForm({ ...form, name: e.target.value })}
-                  />
-                </label>
+                <>
+                  <div className="lp-auth__section-header">
+                    <span className="lp-auth__section-tag">1</span>
+                    <span className="lp-auth__section-title">Account Details</span>
+                  </div>
+                  <label className="field">
+                    <span className="field__label">Full name</span>
+                    <input
+                      type="text"
+                      autoComplete="name"
+                      required
+                      maxLength={80}
+                      placeholder="e.g. Swayam Mallick"
+                      value={form.name}
+                      onChange={e => setForm({ ...form, name: e.target.value })}
+                    />
+                  </label>
+                </>
               )}
               <label className="field">
                 <span className="field__label">Email</span>
@@ -355,6 +399,96 @@ export default function LandingPage() {
                   </div>
                 )}
               </label>
+
+              {authTab === 'signup' && (
+                <>
+                  <div className="lp-auth__section-header" style={{ marginTop: '8px' }}>
+                    <span className="lp-auth__section-tag">2</span>
+                    <span className="lp-auth__section-title">Academic Program & Course</span>
+                  </div>
+
+                  <div className="field-row">
+                    <label className="field">
+                      <span className="field__label">Degree Program</span>
+                      <select
+                        value={form.degree}
+                        onChange={e => {
+                          const newDeg = e.target.value;
+                          const degObj = DEGREE_OPTIONS.find(d => d.name === newDeg) || DEGREE_OPTIONS[0];
+                          setForm({
+                            ...form,
+                            degree: newDeg,
+                            semester: Math.min(form.semester, degObj.totalSemesters)
+                          });
+                        }}
+                      >
+                        {DEGREE_OPTIONS.map(d => (
+                          <option key={d.id} value={d.name}>{d.name} ({d.durationLabel})</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="field">
+                      <span className="field__label">Branch / Department</span>
+                      <select
+                        value={form.stream}
+                        onChange={e => setForm({ ...form, stream: e.target.value })}
+                      >
+                        {STREAM_PRESETS.map(s => (
+                          <option key={s.id} value={s.name}>{s.name} ({s.shortCode})</option>
+                        ))}
+                        <option value="other">Other / Custom Branch</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  {form.stream === 'other' && (
+                    <label className="field">
+                      <span className="field__label">Specify Your Branch / Department</span>
+                      <input
+                        type="text"
+                        placeholder="e.g. Chemical Engineering, Biotechnology..."
+                        value={form.customStream}
+                        onChange={e => setForm({ ...form, customStream: e.target.value })}
+                        required
+                      />
+                    </label>
+                  )}
+
+                  <div className="field-row">
+                    <label className="field">
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span className="field__label">Current Semester</span>
+                        <span style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
+                          S1–S{selectedDegreeObj.totalSemesters}
+                        </span>
+                      </div>
+                      <div className="lp-sem-selector">
+                        {Array.from({ length: selectedDegreeObj.totalSemesters }, (_, i) => i + 1).map(sem => (
+                          <button
+                            key={sem}
+                            type="button"
+                            className={`lp-sem-btn ${form.semester === sem ? 'active' : ''}`}
+                            onClick={() => setForm({ ...form, semester: sem })}
+                          >
+                            S{sem}
+                          </button>
+                        ))}
+                      </div>
+                    </label>
+
+                    <label className="field">
+                      <span className="field__label">College / University</span>
+                      <input
+                        type="text"
+                        placeholder="e.g. Apex Institute of Technology"
+                        value={form.college}
+                        onChange={e => setForm({ ...form, college: e.target.value })}
+                      />
+                    </label>
+                  </div>
+                </>
+              )}
 
               {authError && (
                 <div className="form-error-box" role="alert">

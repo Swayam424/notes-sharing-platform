@@ -25,7 +25,7 @@ export default function Onboarding() {
   const [degree, setDegree] = useState(user?.degree || 'B.Tech / B.E.');
   const [stream, setStream] = useState(user?.stream || 'Computer Science & Engineering');
   const [customStream, setCustomStream] = useState('');
-  const [semester, setSemester] = useState<number>(user?.semester && user.semester !== 5 ? user.semester : 1);
+  const [semester, setSemester] = useState<number>(user?.semester || 5);
   const [college, setCollege] = useState(user?.college && user.college !== 'Apex Institute of Technology' ? user.college : '');
 
   const selectedDegreeObj = useMemo(() => {
@@ -232,7 +232,7 @@ export default function Onboarding() {
                   <Sparkles size={12} /> Step 1 of 2: Academic Profile
                 </span>
                 <h1 className="step-title">
-                  What stream are you studying?
+                  Confirm your course & department
                 </h1>
                 <p className="step-subtitle">
                   We curate your note feeds, topic syllabus coverage, and university PYQ papers specifically to your branch.

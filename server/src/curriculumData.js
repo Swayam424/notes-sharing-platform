@@ -746,6 +746,178 @@ export const extendedCurricula = [
         ]
       }
     ]
-  }
-];
+  },
 
+  // --------------------------------------------------------------------------
+  // 13. First Year Engineering (Semesters 1 & 2 Core)
+  // --------------------------------------------------------------------------
+  {
+    id: 'cs-m1',
+    name: 'Engineering Mathematics - I (Calculus & Linear Algebra)',
+    code: 'MA101',
+    semester: 1,
+    department: 'Computer Science & Engineering',
+    scheme: '2022–2026 Scheme',
+    coverage: 88,
+    units: [
+      {
+        id: 'csm1-u1',
+        name: 'Unit 1: Linear Algebra & Matrix Eigenvalues',
+        topics: [
+          { id: 'csm1-t1', name: 'Rank of Matrix, Row Echelon Form & System of Linear Equations', status: 'covered', noteCount: 6, pyqCount: 4, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['Test for consistency and solve the non-homogeneous linear system.', 'Find rank using row transformations.'] },
+          { id: 'csm1-t2', name: 'Eigenvalues, Eigenvectors & Cayley-Hamilton Theorem', status: 'covered', noteCount: 8, pyqCount: 5, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['State and verify Cayley-Hamilton theorem for a 3x3 matrix and find its inverse.', 'Find eigenvalues and eigenvectors.'] },
+          { id: 'csm1-t3', name: 'Diagonalization & Quadratic Forms Reduction', status: 'covered', noteCount: 4, pyqCount: 3, pyqYears: [2023, 2024], pyqQuestions: ['Reduce quadratic form to canonical form using orthogonal transformation.'] },
+        ]
+      },
+      {
+        id: 'csm1-u2',
+        name: 'Unit 2: Differential Calculus & Taylor Series',
+        topics: [
+          { id: 'csm1-t4', name: 'Rolle’s, Mean Value Theorems & Indeterminate Forms', status: 'covered', noteCount: 5, pyqCount: 4, pyqYears: [2022, 2024], pyqQuestions: ['Apply L’Hopital’s rule for indeterminate form 0^0 and infinity - infinity.'] },
+          { id: 'csm1-t5', name: 'Partial Differentiation, Euler’s Theorem & Jacobians', status: 'covered', noteCount: 7, pyqCount: 5, pyqYears: [2023, 2024, 2025], pyqQuestions: ['Verify Euler’s theorem for homogeneous function u(x, y).', 'Calculate Jacobian J(u, v / x, y).'] },
+          { id: 'csm1-t6', name: 'Taylor & Maclaurin Series for Two Variables', status: 'covered', noteCount: 4, pyqCount: 3, pyqYears: [2023, 2025], pyqQuestions: ['Expand f(x, y) = e^x sin(y) in powers of x and y up to second degree.'] },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'cs-pps',
+    name: 'Programming for Problem Solving (C Programming)',
+    code: 'CS101',
+    semester: 1,
+    department: 'Computer Science & Engineering',
+    scheme: '2022–2026 Scheme',
+    coverage: 92,
+    units: [
+      {
+        id: 'cspps-u1',
+        name: 'Unit 1: Problem Solving Basics & Control Structures',
+        topics: [
+          { id: 'cspps-t1', name: 'Flowcharts, Pseudocode & Compilation Pipeline', status: 'covered', noteCount: 5, pyqCount: 3, pyqYears: [2022, 2023, 2024], pyqQuestions: ['Explain preprocessing, compiling, assembling and linking phases in GCC.'] },
+          { id: 'cspps-t2', name: 'Data Types, Operators, Precedence & Type Casting', status: 'covered', noteCount: 4, pyqCount: 3, pyqYears: [2023, 2024], pyqQuestions: ['Explain implicit vs explicit type casting with code examples.'] },
+          { id: 'cspps-t3', name: 'Conditionals (if-else, switch) & Iteration (for, while, do-while)', status: 'covered', noteCount: 6, pyqCount: 5, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['Write a C program to check Armstrong numbers using while loop.'] },
+        ]
+      },
+      {
+        id: 'cspps-u2',
+        name: 'Unit 2: Arrays, Strings, Functions & Pointers',
+        topics: [
+          { id: 'cspps-t4', name: '1D & 2D Arrays, Matrix Operations & String Handling', status: 'covered', noteCount: 7, pyqCount: 4, pyqYears: [2022, 2023, 2025], pyqQuestions: ['Implement matrix multiplication in C with bounds checking.'] },
+          { id: 'cspps-t5', name: 'Call by Value vs Reference & Recursion', status: 'covered', noteCount: 6, pyqCount: 4, pyqYears: [2023, 2024, 2025], pyqQuestions: ['Write recursive C function for Tower of Hanoi and Fibonacci sequence.'] },
+          { id: 'cspps-t6', name: 'Pointer Arithmetic, Dynamic Memory (malloc, calloc, free)', status: 'covered', noteCount: 8, pyqCount: 5, pyqYears: [2022, 2024, 2025], pyqQuestions: ['Explain dangling pointer, memory leak and how free() prevents heap fragmentation.'] },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'cs-beee',
+    name: 'Basic Electrical & Electronics Engineering',
+    code: 'EE101',
+    semester: 1,
+    department: 'Computer Science & Engineering',
+    scheme: '2022–2026 Scheme',
+    coverage: 78,
+    units: [
+      {
+        id: 'csbeee-u1',
+        name: 'Unit 1: DC Network Theorems & AC Fundamentals',
+        topics: [
+          { id: 'csbeee-t1', name: 'KVL, KCL & Node/Mesh Voltage Analysis', status: 'covered', noteCount: 5, pyqCount: 4, pyqYears: [2022, 2023, 2024], pyqQuestions: ['Find branch currents using nodal analysis in the given dual-source circuit.'] },
+          { id: 'csbeee-t2', name: 'Thevenin, Norton & Maximum Power Transfer Theorems', status: 'covered', noteCount: 7, pyqCount: 5, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['State and derive Thevenin equivalent voltage and resistance across load resistor RL.'] },
+          { id: 'csbeee-t3', name: 'Single Phase AC Sinusoids, RMS, Power Factor & Resonance', status: 'covered', noteCount: 6, pyqCount: 4, pyqYears: [2023, 2024, 2025], pyqQuestions: ['Derive resonant frequency and Q-factor in series RLC circuit.'] },
+        ]
+      },
+      {
+        id: 'csbeee-u2',
+        name: 'Unit 2: Semiconductor Diodes, Transistors & Op-Amps',
+        topics: [
+          { id: 'csbeee-t4', name: 'PN Junction Diode V-I Characteristics & Rectifiers', status: 'covered', noteCount: 5, pyqCount: 4, pyqYears: [2023, 2024], pyqQuestions: ['Draw bridge rectifier circuit and derive efficiency and ripple factor.'] },
+          { id: 'csbeee-t5', name: 'BJT Configurations (CE, CB, CC) & Biasing', status: 'covered', noteCount: 6, pyqCount: 3, pyqYears: [2024, 2025], pyqQuestions: ['Explain input and output characteristics of CE transistor amplifier.'] },
+          { id: 'csbeee-t6', name: 'Ideal Op-Amp, Inverting & Non-Inverting Configurations', status: 'covered', noteCount: 4, pyqCount: 3, pyqYears: [2023, 2025], pyqQuestions: ['Derive closed-loop voltage gain for inverting operational amplifier.'] },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'cs-m2',
+    name: 'Engineering Mathematics - II (ODE & Complex Variables)',
+    code: 'MA201',
+    semester: 2,
+    department: 'Computer Science & Engineering',
+    scheme: '2022–2026 Scheme',
+    coverage: 85,
+    units: [
+      {
+        id: 'csm2-u1',
+        name: 'Unit 1: Differential Equations & Laplace Transforms',
+        topics: [
+          { id: 'csm2-t1', name: 'Higher Order Linear ODEs with Constant Coefficients', status: 'covered', noteCount: 6, pyqCount: 4, pyqYears: [2022, 2023, 2024], pyqQuestions: ['Solve (D^2 - 4D + 4)y = e^(2x) + sin(3x) using complementary function and PI.'] },
+          { id: 'csm2-t2', name: 'Laplace & Inverse Laplace Transforms with Convolution', status: 'covered', noteCount: 8, pyqCount: 5, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['Find inverse Laplace transform using Convolution Theorem.', 'Solve ODE using Laplace method.'] },
+        ]
+      },
+      {
+        id: 'csm2-u2',
+        name: 'Unit 2: Complex Analysis & Cauchy Theorems',
+        topics: [
+          { id: 'csm2-t3', name: 'Analytic Functions, Cauchy-Riemann Equations & Harmonic Conjugates', status: 'covered', noteCount: 6, pyqCount: 4, pyqYears: [2023, 2024, 2025], pyqQuestions: ['Show that u = x^3 - 3xy^2 is harmonic and find its conjugate v.'] },
+          { id: 'csm2-t4', name: 'Cauchy Integral Formula & Residue Theorem', status: 'covered', noteCount: 7, pyqCount: 5, pyqYears: [2022, 2024, 2025], pyqQuestions: ['Evaluate contour integral using Cauchy’s Residue Theorem around unit circle.'] },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'cs-python',
+    name: 'Python Programming & Problem Solving',
+    code: 'CS201',
+    semester: 2,
+    department: 'Computer Science & Engineering',
+    scheme: '2022–2026 Scheme',
+    coverage: 90,
+    units: [
+      {
+        id: 'cspy-u1',
+        name: 'Unit 1: Python Core, Data Structures & Comprehensions',
+        topics: [
+          { id: 'cspy-t1', name: 'Lists, Tuples, Dictionaries, Sets & Comprehensions', status: 'covered', noteCount: 7, pyqCount: 4, pyqYears: [2023, 2024, 2025], pyqQuestions: ['Demonstrate dictionary comprehensions and slicing operations with examples.'] },
+          { id: 'cspy-t2', name: 'Functions, Variable Arguments (*args, **kwargs) & Lambdas', status: 'covered', noteCount: 6, pyqCount: 4, pyqYears: [2022, 2024, 2025], pyqQuestions: ['Explain higher-order functions: map, filter, reduce with lambda expressions.'] },
+        ]
+      },
+      {
+        id: 'cspy-u2',
+        name: 'Unit 2: OOP, File Handling & NumPy Arrays',
+        topics: [
+          { id: 'cspy-t3', name: 'Classes, Objects, Inheritance & Dunder Methods', status: 'covered', noteCount: 6, pyqCount: 5, pyqYears: [2023, 2024, 2025], pyqQuestions: ['Implement multiple inheritance with Method Resolution Order (MRO) example.'] },
+          { id: 'cspy-t4', name: 'File I/O, Exception Handling & NumPy Matrix Ops', status: 'covered', noteCount: 5, pyqCount: 3, pyqYears: [2024, 2025], pyqQuestions: ['Demonstrate try-except-finally block and NumPy broadcasting with 2D arrays.'] },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'cs-dld',
+    name: 'Digital Logic & Computer Design',
+    code: 'CS202',
+    semester: 2,
+    department: 'Computer Science & Engineering',
+    scheme: '2022–2026 Scheme',
+    coverage: 86,
+    units: [
+      {
+        id: 'csdld-u1',
+        name: 'Unit 1: Number Systems, Boolean Algebra & K-Maps',
+        topics: [
+          { id: 'csdld-t1', name: 'Radix Conversions, 1s/2s Complements & Binary Codes (BCD, Gray)', status: 'covered', noteCount: 5, pyqCount: 3, pyqYears: [2022, 2023], pyqQuestions: ['Convert decimal 42.625 to binary, octal and hexadecimal representation.'] },
+          { id: 'csdld-t2', name: 'K-Map Minimization (4-Variable & 5-Variable) with Don’t Cares', status: 'covered', noteCount: 8, pyqCount: 5, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['Minimize F(A,B,C,D) = Σm(0,2,5,7,8,10,13,15) + d(1,6) using 4-variable K-Map.'] },
+        ]
+      },
+      {
+        id: 'csdld-u2',
+        name: 'Unit 2: Combinational & Sequential Circuits',
+        topics: [
+          { id: 'csdld-t3', name: 'Adders, Subtractors, Decoders & Multiplexers', status: 'covered', noteCount: 7, pyqCount: 4, pyqYears: [2023, 2024, 2025], pyqQuestions: ['Design 4-bit carry lookahead adder and compare gate delay with ripple adder.'] },
+          { id: 'csdld-t4', name: 'Flip-Flops (SR, JK, D, T), Race-around Condition & Master-Slave', status: 'covered', noteCount: 8, pyqCount: 5, pyqYears: [2022, 2023, 2024, 2025], pyqQuestions: ['Explain race-around condition in JK flip-flop and show how Master-Slave solves it.'] },
+        ]
+      }
+    ]
+  }
+
+];

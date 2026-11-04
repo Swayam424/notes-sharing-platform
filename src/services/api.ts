@@ -151,6 +151,8 @@ export const api = {
     college?: string;
     department?: string;
     semester?: number;
+    stream?: string;
+    degree?: string;
   }): Promise<{ token: string; user: AuthUser }> {
     const data = await postAuth('/api/auth/signup', fields, 'Could not create your account');
     setToken(data.token);
@@ -164,6 +166,8 @@ export const api = {
     college?: string;
     department?: string;
     semester?: number;
+    stream?: string;
+    degree?: string;
   }): Promise<{ token: string; user: AuthUser }> {
     return this.signup(fields);
   },

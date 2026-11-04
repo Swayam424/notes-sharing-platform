@@ -466,8 +466,14 @@ app.get('/api/subjects', (req, res) => {
 
     const effectiveStream = stream || department;
     if (effectiveStream && effectiveStream.trim() && effectiveStream !== 'all') {
-      query += ' AND (LOWER(department) LIKE ? OR LOWER(?) LIKE LOWER(department))';
-      params.push(`%${effectiveStream.trim().toLowerCase()}%`, effectiveStream.trim().toLowerCase());
+      const isIT = effectiveStream.trim().toLowerCase().includes('information technology') || effectiveStream.trim().toLowerCase() === 'it';
+      if (isIT) {
+        query += " AND (LOWER(department) LIKE ? OR LOWER(department) LIKE '%computer science%')";
+        params.push('%information technology%');
+      } else {
+        query += ' AND (LOWER(department) LIKE ? OR LOWER(?) LIKE LOWER(department))';
+        params.push(`%${effectiveStream.trim().toLowerCase()}%`, effectiveStream.trim().toLowerCase());
+      }
     }
 
     if (semester && semester !== 'all') {
@@ -483,7 +489,15 @@ app.get('/api/subjects', (req, res) => {
 
     // If specific stream/semester returned 0 subjects, fall back smoothly
     if (subjects.length === 0 && (effectiveStream || semester)) {
-      if (semester) {
+      if (effectiveStream && effectiveStream !== 'all') {
+        const isIT = effectiveStream.trim().toLowerCase().includes('information technology') || effectiveStream.trim().toLowerCase() === 'it';
+        if (isIT) {
+          subjects = db.prepare("SELECT * FROM subjects WHERE (LOWER(department) LIKE '%information technology%' OR LOWER(department) LIKE '%computer science%') ORDER BY semester ASC, code ASC").all();
+        } else {
+          subjects = db.prepare('SELECT * FROM subjects WHERE (LOWER(department) LIKE ? OR LOWER(?) LIKE LOWER(department)) ORDER BY semester ASC, code ASC').all(`%${effectiveStream.trim().toLowerCase()}%`, effectiveStream.trim().toLowerCase());
+        }
+      }
+      if (subjects.length === 0 && semester && semester !== 'all') {
         subjects = db.prepare('SELECT * FROM subjects WHERE semester = ? ORDER BY code ASC').all(parseInt(semester, 10));
       }
       if (subjects.length === 0) {
@@ -2643,10 +2657,41 @@ const handleSignup = (req, res) => {
     const initials = cleanName.split(/\s+/).filter(Boolean).map(p => p[0]).join('').toUpperCase().slice(0, 2) || 'ST';
     const now = new Date().toISOString();
 
-    const defaultEnrolled = JSON.stringify(['os', 'dbms', 'cn', 'toc', 'se']);
-    const defaultDepartment = department ? department.trim() : 'Computer Science';
-    const defaultStream = stream ? stream.trim() : 'Computer Science & Engineering';
-    const defaultCollege = college ? college.trim() : 'University Institute of Technology';
+    const cleanDegree = typeof degree === 'string' && degree.trim() ? degree.trim() : 'B.Tech / B.E.';
+    const cleanStream = typeof stream === 'string' && stream.trim() ? stream.trim() : (typeof department === 'string' && department.trim() ? department.trim() : 'Computer Science & Engineering');
+    const cleanDepartment = typeof department === 'string' && department.trim() ? department.trim() : cleanStream;
+    const cleanCollege = typeof college === 'string' && college.trim() ? college.trim() : 'University Institute of Technology';
+    const cleanSemester = Math.min(10, Math.max(1, parseInt(semester, 10) || 1));
+
+    // Dynamic initial subjects enrollment matching stream & semester
+    let initialEnrolledIds = [];
+    try {
+      const isIT = cleanStream.toLowerCase().includes('information technology') || cleanStream.toLowerCase() === 'it';
+      const matching = db.prepare(`
+        SELECT id FROM subjects
+        WHERE (LOWER(department) LIKE ? OR LOWER(?) LIKE LOWER(department) ${isIT ? "OR LOWER(department) LIKE '%computer science%'" : ''})
+          AND semester = ?
+      `).all(`%${cleanStream.toLowerCase()}%`, cleanStream.toLowerCase(), cleanSemester);
+      if (matching.length > 0) {
+        initialEnrolledIds = matching.map(m => m.id);
+      }
+    } catch {}
+    if (initialEnrolledIds.length === 0) {
+      try {
+        const fallbackSameDept = db.prepare(`
+          SELECT id FROM subjects
+          WHERE (LOWER(department) LIKE ? OR LOWER(?) LIKE LOWER(department))
+          LIMIT 5
+        `).all(`%${cleanStream.toLowerCase()}%`, cleanStream.toLowerCase());
+        if (fallbackSameDept.length > 0) {
+          initialEnrolledIds = fallbackSameDept.map(m => m.id);
+        }
+      } catch {}
+    }
+    if (initialEnrolledIds.length === 0) {
+      initialEnrolledIds = ['cs-m1', 'cs-pps', 'cs-beee'];
+    }
+    const defaultEnrolled = JSON.stringify(initialEnrolledIds);
 
     db.prepare(`
       INSERT INTO users (
@@ -2661,12 +2706,12 @@ const handleSignup = (req, res) => {
       salt,
       sanitizeString(cleanName),
       initials,
-      sanitizeString(defaultCollege),
-      sanitizeString(defaultDepartment),
-      sanitizeString(defaultStream),
-      sanitizeString(degree || 'B.Tech / B.E.'),
+      sanitizeString(cleanCollege),
+      sanitizeString(cleanDepartment),
+      sanitizeString(cleanStream),
+      sanitizeString(cleanDegree),
       defaultEnrolled,
-      Math.min(8, Math.max(1, parseInt(semester, 10) || 1)),
+      cleanSemester,
       now
     );
 
