@@ -1,7 +1,7 @@
 import { useOnChange } from '../hooks/useOnChange';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { ArrowRight, X } from 'lucide-react';
+import { ArrowRight, X, Eye, EyeOff, Check } from 'lucide-react';
 import { useApp } from '../context/appState';
 import { api, type AuthUser } from '../services/api';
 import StudyBackdrop from '../components/StudyBackdrop';
@@ -31,6 +31,7 @@ export default function LandingPage() {
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [authError, setAuthError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
 
   // ?auth=signin|signup (from protected routes) opens the dialog, then is stripped from the URL
@@ -61,9 +62,38 @@ export default function LandingPage() {
     setAuthOpen(true);
   };
 
+  const fillDemoAccount = async (demoEmail: string, demoPass: string) => {
+    setAuthTab('signin');
+    setAuthError(null);
+    setForm({ name: '', email: demoEmail, password: demoPass });
+    setSubmitting(true);
+    try {
+      const result = await api.login(demoEmail, demoPass);
+      loginWithUser(result.user);
+      setAuthOpen(false);
+      navigate(result.user.onboardingCompleted ? '/dashboard' : '/onboarding');
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Sign in failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
+
+    if (authTab === 'signup') {
+      if (!form.name.trim()) {
+        setAuthError('Please enter your full name.');
+        return;
+      }
+      if (form.password.length < 6) {
+        setAuthError('Password must be at least 6 characters.');
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const result: { user: AuthUser } = authTab === 'signup'
@@ -262,31 +292,132 @@ export default function LandingPage() {
               {authTab === 'signup' && (
                 <label className="field">
                   <span className="field__label">Full name</span>
-                  <input type="text" autoComplete="name" required maxLength={80} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+                  <input
+                    type="text"
+                    autoComplete="name"
+                    required
+                    maxLength={80}
+                    placeholder="e.g. Swayam Mallick"
+                    value={form.name}
+                    onChange={e => setForm({ ...form, name: e.target.value })}
+                  />
                 </label>
               )}
               <label className="field">
                 <span className="field__label">Email</span>
-                <input type="email" autoComplete="email" required value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+                <input
+                  type="email"
+                  autoComplete="email"
+                  required
+                  placeholder="name@college.edu"
+                  value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                />
               </label>
               <label className="field">
                 <span className="field__label">Password</span>
-                <input
-                  type="password"
-                  autoComplete={authTab === 'signup' ? 'new-password' : 'current-password'}
-                  required
-                  minLength={authTab === 'signup' ? 8 : undefined}
-                  value={form.password}
-                  onChange={e => setForm({ ...form, password: e.target.value })}
-                />
-                {authTab === 'signup' && <span className="field__hint">At least 8 characters, with a letter and a number.</span>}
+                <div className="field__password-wrap">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete={authTab === 'signup' ? 'new-password' : 'current-password'}
+                    required
+                    minLength={authTab === 'signup' ? 6 : undefined}
+                    value={form.password}
+                    onChange={e => setForm({ ...form, password: e.target.value })}
+                    placeholder={authTab === 'signup' ? 'At least 6 characters' : 'Enter your password'}
+                  />
+                  <button
+                    type="button"
+                    className="field__toggle-visibility"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {authTab === 'signup' && (
+                  <div className="field__hint" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                    <span style={{
+                      color: form.password.length >= 6 ? 'var(--color-secondary, #2E7D32)' : 'var(--color-muted)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '12px',
+                      fontWeight: form.password.length >= 6 ? 600 : 400
+                    }}>
+                      {form.password.length >= 6 ? (
+                        <><Check size={13} strokeWidth={2.5} /> Password meets requirements</>
+                      ) : (
+                        '• Minimum 6 characters'
+                      )}
+                    </span>
+                  </div>
+                )}
               </label>
-              {authError && <p className="form-error" role="alert">{authError}</p>}
+
+              {authError && (
+                <div className="form-error-box" role="alert">
+                  <p className="form-error">{authError}</p>
+                  {authError.toLowerCase().includes('already exists') && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ marginTop: '8px', width: '100%' }}
+                      onClick={() => {
+                        setAuthTab('signin');
+                        setAuthError(null);
+                      }}
+                    >
+                      Switch to Sign In →
+                    </button>
+                  )}
+                  {(authError.toLowerCase().includes('create an account') || authError.toLowerCase().includes('no account exists')) && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ marginTop: '8px', width: '100%' }}
+                      onClick={() => {
+                        setAuthTab('signup');
+                        setAuthError(null);
+                      }}
+                    >
+                      Create an Account →
+                    </button>
+                  )}
+                </div>
+              )}
+
               <button type="submit" className="btn btn-primary btn-lg" disabled={submitting} style={{ width: '100%' }}>
                 {submitting ? 'One moment…' : authTab === 'signin' ? 'Sign in' : 'Create account'}
               </button>
+
               {authTab === 'signin' && (
-                <p className="field__hint" style={{ textAlign: 'center' }}>Forgot your password? Ask a moderator at your college to reset it.</p>
+                <div className="lp-auth__demo-box">
+                  <div className="lp-auth__demo-divider">
+                    <span>Or quick sign in with demo accounts</span>
+                  </div>
+                  <div className="lp-auth__demo-grid">
+                    <button
+                      type="button"
+                      className="lp-auth__demo-pill"
+                      disabled={submitting}
+                      onClick={() => fillDemoAccount('student@atelier.edu', 'password123')}
+                    >
+                      <span className="demo-pill__badge">Student</span>
+                      <span className="demo-pill__name">Nishant (Sem 5)</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="lp-auth__demo-pill"
+                      disabled={submitting}
+                      onClick={() => fillDemoAccount('moderator@atelier.edu', 'password123')}
+                    >
+                      <span className="demo-pill__badge mod">Moderator</span>
+                      <span className="demo-pill__name">Priya (Admin)</span>
+                    </button>
+                  </div>
+                </div>
               )}
             </form>
           </div>

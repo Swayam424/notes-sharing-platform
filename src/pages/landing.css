@@ -281,3 +281,112 @@
   .lp-topic__years { display: none; }
   .lp-footer { flex-direction: column; align-items: flex-start; }
 }
+
+/* ---------- Auth Password Toggle & Demo Box ---------- */
+.field__password-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.field__password-wrap input {
+  width: 100%;
+  padding-right: 42px !important;
+}
+.field__toggle-visibility {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  padding: 6px;
+  color: var(--color-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm, 6px);
+  transition: color var(--transition-fast, 150ms);
+}
+.field__toggle-visibility:hover {
+  color: var(--color-deep);
+}
+
+.form-error-box {
+  background: var(--color-danger-light, #FCEAEA);
+  border: 1px solid rgba(196, 84, 84, 0.3);
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 14px;
+}
+.form-error-box .form-error {
+  margin: 0;
+  color: var(--color-danger, #C45454);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.lp-auth__demo-box {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-light, #E8E5DF);
+}
+.lp-auth__demo-divider {
+  text-align: center;
+  margin-bottom: 10px;
+}
+.lp-auth__demo-divider span {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+.lp-auth__demo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.lp-auth__demo-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: all var(--transition-fast, 150ms);
+  text-align: left;
+}
+.lp-auth__demo-pill:hover {
+  background: var(--color-surface-alt);
+  border-color: var(--color-deep);
+  transform: translateY(-1px);
+}
+.lp-auth__demo-pill:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+.demo-pill__badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--color-accent, #8A6D3B);
+  background: rgba(138, 109, 59, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 3px;
+}
+.demo-pill__badge.mod {
+  color: #2E7D32;
+  background: rgba(46, 125, 50, 0.1);
+}
+.demo-pill__name {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-deep);
+}
+

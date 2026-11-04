@@ -203,10 +203,14 @@ const loginBruteForceLimiter = createRateLimiter({
 
 // Account creation is throttled per IP to stop signup spam.
 const signupRateLimiter = createRateLimiter({
-  windowMs: 60 * 60 * 1000,
-  maxRequests: 20,
+  windowMs: 15 * 60 * 1000,
+  maxRequests: process.env.NODE_ENV === 'production' ? 50 : 500,
+  countOnlyFailures: true,
+  delayAfter: 5,
+  delayStepMs: 250,
+  maxDelayMs: 2000,
   keyGenerator: (_req, ip) => `signup:${ip}`,
-  message: 'Too many accounts created from this network. Please wait before signing up again.'
+  message: 'Too many signup attempts. Please wait a few moments before trying again.'
 });
 
 // Password changes are already behind a valid session; only wrong-current-password
@@ -2617,16 +2621,17 @@ const handleSignup = (req, res) => {
     if (!email || !password || !name) {
       return res.status(400).json({ success: false, error: 'Name, email, and password are required' });
     }
-    if (typeof email !== 'string' || typeof name !== 'string' || name.trim().length > 80) {
-      return res.status(400).json({ success: false, error: 'Invalid signup details' });
+    const cleanName = typeof name === 'string' ? name.trim() : '';
+    if (!cleanName || cleanName.length > 80) {
+      return res.status(400).json({ success: false, error: 'Please enter a valid full name' });
     }
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(cleanEmail)) {
       return res.status(400).json({ success: false, error: 'Please provide a valid email address' });
     }
-    if (typeof password !== 'string' || password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters and include a letter and a number' });
+    if (typeof password !== 'string' || password.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
     }
     const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail);
     if (existing) {
@@ -2635,7 +2640,7 @@ const handleSignup = (req, res) => {
 
     const { salt, hash } = hashPassword(password);
     const userId = 'user-' + crypto.randomUUID();
-    const initials = name.trim().split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2) || 'ST';
+    const initials = cleanName.split(/\s+/).filter(Boolean).map(p => p[0]).join('').toUpperCase().slice(0, 2) || 'ST';
     const now = new Date().toISOString();
 
     const defaultEnrolled = JSON.stringify(['os', 'dbms', 'cn', 'toc', 'se']);
@@ -2648,13 +2653,13 @@ const handleSignup = (req, res) => {
         id, email, password_hash, salt, name, initials, role, college, department,
         stream, degree, academic_goal, enrolled_subjects, onboarding_completed, semester, created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, 'student', ?, ?, ?, ?, '', ?, 1, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, 'student', ?, ?, ?, ?, '', ?, 0, ?, ?)
     `).run(
       userId,
       cleanEmail,
       hash,
       salt,
-      sanitizeString(name),
+      sanitizeString(cleanName),
       initials,
       sanitizeString(defaultCollege),
       sanitizeString(defaultDepartment),
@@ -2833,8 +2838,8 @@ app.post('/api/user/change-password', passwordChangeLimiter, (req, res) => {
       return res.status(400).json({ success: false, error: 'Current password and new password are required.' });
     }
 
-    if (typeof newPassword !== 'string' || newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
-      return res.status(400).json({ success: false, error: 'New password must be at least 8 characters and include a letter and a number.' });
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters.' });
     }
 
     const userRecord = db.prepare('SELECT * FROM users WHERE id = ?').get(authUser.id);

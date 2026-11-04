@@ -88,6 +88,27 @@ export default function Onboarding() {
     setStep(1);
   };
 
+  const handleSkip = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await api.completeOnboarding({
+        degree: user?.degree || 'B.Tech / B.E.',
+        stream: user?.stream || 'Computer Science & Engineering',
+        college: user?.college || 'University Institute of Technology',
+        semester: user?.semester || 1,
+        enrolledSubjects: ['os', 'dbms', 'cn', 'toc', 'se'],
+        academicGoal: ''
+      });
+      loginWithUser(res.user);
+      navigate('/dashboard', { replace: true });
+    } catch {
+      navigate('/dashboard', { replace: true });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFinish = async () => {
     setError(null);
     setLoading(true);
@@ -522,7 +543,15 @@ export default function Onboarding() {
                 <ArrowLeft size={16} /> Back to Stream
               </button>
             ) : (
-              <div />
+              <button
+                type="button"
+                onClick={handleSkip}
+                disabled={loading}
+                className="nav-btn-back"
+                style={{ fontSize: '0.85rem', color: 'var(--color-muted)' }}
+              >
+                Skip for now (use defaults)
+              </button>
             )}
 
             {step === 1 ? (
