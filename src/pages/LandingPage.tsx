@@ -37,7 +37,8 @@ export default function LandingPage() {
     stream: 'Computer Science & Engineering',
     customStream: '',
     semester: 5,
-    college: ''
+    college: '',
+    role: 'student' as 'student' | 'moderator'
   });
 
   const selectedDegreeObj: DegreeOption = useMemo(() => {
@@ -69,7 +70,10 @@ export default function LandingPage() {
   }, [authOpen, authTab]);
 
   const openAuth = (tab: AuthTab) => {
-    if (isAuthenticated) return navigate('/dashboard');
+    if (isAuthenticated) {
+      const isMod = user?.role?.toLowerCase() === 'moderator' || user?.role?.toLowerCase() === 'admin';
+      return navigate(isMod ? '/admin/moderation' : '/dashboard');
+    }
     setAuthTab(tab);
     setAuthError(null);
     setForm({
@@ -80,27 +84,13 @@ export default function LandingPage() {
       stream: 'Computer Science & Engineering',
       customStream: '',
       semester: 5,
-      college: ''
+      college: '',
+      role: 'student' as 'student' | 'moderator'
     });
     setAuthOpen(true);
   };
 
-  const fillDemoAccount = async (demoEmail: string, demoPass: string) => {
-    setAuthTab('signin');
-    setAuthError(null);
-    setForm(prev => ({ ...prev, email: demoEmail, password: demoPass }));
-    setSubmitting(true);
-    try {
-      const result = await api.login(demoEmail, demoPass);
-      loginWithUser(result.user);
-      setAuthOpen(false);
-      navigate(result.user.onboardingCompleted ? '/dashboard' : '/onboarding');
-    } catch (err) {
-      setAuthError(err instanceof Error ? err.message : 'Sign in failed. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,12 +124,19 @@ export default function LandingPage() {
             stream: effectiveStream,
             department: effectiveStream,
             semester: form.semester,
-            college: form.college.trim() || 'University Institute of Technology'
+            college: form.college.trim() || 'University Institute of Technology',
+            role: form.role
           })
         : await api.login(form.email.trim(), form.password);
       loginWithUser(result.user);
       setAuthOpen(false);
-      navigate(result.user.onboardingCompleted ? '/dashboard' : '/onboarding');
+
+      const isMod = result.user.role?.toLowerCase() === 'moderator' || result.user.role?.toLowerCase() === 'admin';
+      if (isMod) {
+        navigate('/admin/moderation');
+      } else {
+        navigate(result.user.onboardingCompleted ? '/dashboard' : '/onboarding');
+      }
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Something went wrong. Try again.');
     } finally {
@@ -161,8 +158,17 @@ export default function LandingPage() {
           </nav>
           <div className="lp-nav__actions">
             {isAuthenticated ? (
-              <button type="button" className="btn btn-primary btn-sm" onClick={() => navigate('/dashboard')}>
-                Open study space <ArrowRight size={14} />
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  const isMod = user?.role?.toLowerCase() === 'moderator' || user?.role?.toLowerCase() === 'admin';
+                  navigate(isMod ? '/admin/moderation' : '/dashboard');
+                }}
+              >
+                {user?.role?.toLowerCase() === 'moderator' || user?.role?.toLowerCase() === 'admin'
+                  ? 'Open Mod Desk'
+                  : 'Open study space'} <ArrowRight size={14} />
               </button>
             ) : (
               <>
@@ -331,7 +337,33 @@ export default function LandingPage() {
                 <>
                   <div className="lp-auth__section-header">
                     <span className="lp-auth__section-tag">1</span>
-                    <span className="lp-auth__section-title">Account Details</span>
+                    <span className="lp-auth__section-title">Account Details &amp; Role</span>
+                  </div>
+                  <div className="field">
+                    <span className="field__label">Account Role</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px' }}>
+                      <button
+                        type="button"
+                        className={`degree-pill-btn ${form.role === 'student' ? 'active' : ''}`}
+                        onClick={() => setForm({ ...form, role: 'student' })}
+                        style={{ padding: '8px 12px', justifyContent: 'center' }}
+                      >
+                        <span>Student</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`degree-pill-btn ${form.role === 'moderator' ? 'active' : ''}`}
+                        onClick={() => setForm({ ...form, role: 'moderator' })}
+                        style={{ padding: '8px 12px', justifyContent: 'center' }}
+                      >
+                        <span>Moderator / Staff</span>
+                      </button>
+                    </div>
+                    <span style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '4px', display: 'block' }}>
+                      {form.role === 'moderator'
+                        ? '🛡️ Gives access to flagged note inspection and community moderation desk.'
+                        : '📚 Student access to notes, past papers, AI assistant, and weekly activity tracker.'}
+                    </span>
                   </div>
                   <label className="field">
                     <span className="field__label">Full name</span>
@@ -525,34 +557,6 @@ export default function LandingPage() {
               <button type="submit" className="btn btn-primary btn-lg" disabled={submitting} style={{ width: '100%' }}>
                 {submitting ? 'One moment…' : authTab === 'signin' ? 'Sign in' : 'Create account'}
               </button>
-
-              {authTab === 'signin' && (
-                <div className="lp-auth__demo-box">
-                  <div className="lp-auth__demo-divider">
-                    <span>Or quick sign in with demo accounts</span>
-                  </div>
-                  <div className="lp-auth__demo-grid">
-                    <button
-                      type="button"
-                      className="lp-auth__demo-pill"
-                      disabled={submitting}
-                      onClick={() => fillDemoAccount('student@atelier.edu', 'password123')}
-                    >
-                      <span className="demo-pill__badge">Student</span>
-                      <span className="demo-pill__name">Nishant (Sem 5)</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="lp-auth__demo-pill"
-                      disabled={submitting}
-                      onClick={() => fillDemoAccount('moderator@atelier.edu', 'password123')}
-                    >
-                      <span className="demo-pill__badge mod">Moderator</span>
-                      <span className="demo-pill__name">Priya (Admin)</span>
-                    </button>
-                  </div>
-                </div>
-              )}
             </form>
           </div>
         </div>

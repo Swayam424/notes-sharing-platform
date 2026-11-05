@@ -35,8 +35,8 @@ const PORT = process.env.PORT || 3001;
 //
 // Hard-disabled whenever NODE_ENV=production, so this cannot ship to a deployed
 // site even if the flag is left in place. Remove this block before going live.
-const PASSWORD_CHECK_DISABLED =
-  process.env.NODE_ENV !== 'production' && process.env.AUTH_REQUIRE_PASSWORD !== 'true';
+// Strict password verification enforced: every account requires its correct password
+const PASSWORD_CHECK_DISABLED = false;
 
 // Initialize & seed DB on startup
 initDatabase();
@@ -2727,7 +2727,7 @@ app.get('/api/user/profile', (req, res) => {
 
 const handleSignup = (req, res) => {
   try {
-    const { email, password, name, college, department, semester, stream, degree } = req.body;
+    const { email, password, name, college, department, semester, stream, degree, role } = req.body;
     if (!email || !password || !name) {
       return res.status(400).json({ success: false, error: 'Name, email, and password are required' });
     }
@@ -2789,12 +2789,15 @@ const handleSignup = (req, res) => {
     }
     const defaultEnrolled = JSON.stringify(initialEnrolledIds);
 
+    const userRole = (typeof role === 'string' && (role.toLowerCase() === 'moderator' || role.toLowerCase() === 'admin')) ? 'moderator' : 'student';
+    const onboardingDone = userRole === 'moderator' ? 1 : 0;
+
     db.prepare(`
       INSERT INTO users (
         id, email, password_hash, salt, name, initials, role, college, department,
         stream, degree, academic_goal, enrolled_subjects, onboarding_completed, semester, created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, 'student', ?, ?, ?, ?, '', ?, 0, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?)
     `).run(
       userId,
       cleanEmail,
@@ -2802,11 +2805,13 @@ const handleSignup = (req, res) => {
       salt,
       sanitizeString(cleanName),
       initials,
+      userRole,
       sanitizeString(cleanCollege),
       sanitizeString(cleanDepartment),
       sanitizeString(cleanStream),
       sanitizeString(cleanDegree),
       defaultEnrolled,
+      onboardingDone,
       cleanSemester,
       now
     );
