@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router';
-import { LayoutDashboard, FolderOpen, FileText, Bot, Menu } from 'lucide-react';
+import { LayoutDashboard, FileText, Bookmark, Bot, Menu } from 'lucide-react';
 import { useApp } from '../context/appState';
 
 export default function MobileBottomNav() {
@@ -25,18 +25,6 @@ export default function MobileBottomNav() {
       </NavLink>
 
       <NavLink
-        to="/subjects"
-        className={`mobile-bottom-item ${isNavActive('/subjects') ? 'active' : ''}`}
-        id="mobile-nav-subjects"
-        onClick={() => setMobileNavOpen(false)}
-      >
-        <div className="mobile-bottom-icon-wrap">
-          <FolderOpen size={20} strokeWidth={1.75} />
-        </div>
-        <span className="mobile-bottom-label">Subjects</span>
-      </NavLink>
-
-      <NavLink
         to="/notes"
         className={`mobile-bottom-item ${isNavActive('/notes') ? 'active' : ''}`}
         id="mobile-nav-notes"
@@ -46,6 +34,18 @@ export default function MobileBottomNav() {
           <FileText size={20} strokeWidth={1.75} />
         </div>
         <span className="mobile-bottom-label">Notes</span>
+      </NavLink>
+
+      <NavLink
+        to="/library"
+        className={`mobile-bottom-item ${isNavActive('/library') ? 'active' : ''}`}
+        id="mobile-nav-saved"
+        onClick={() => setMobileNavOpen(false)}
+      >
+        <div className="mobile-bottom-icon-wrap">
+          <Bookmark size={20} strokeWidth={1.75} />
+        </div>
+        <span className="mobile-bottom-label">Saved</span>
       </NavLink>
 
       <NavLink
@@ -76,4 +76,3 @@ export default function MobileBottomNav() {
     </nav>
   );
 }
-

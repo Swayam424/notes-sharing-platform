@@ -19,7 +19,6 @@ const staticPages: SearchResult[] = [
   { type: 'page', label: 'My Library (Saved Notes)', meta: 'Personal Study Collection', path: '/library', icon: Bookmark },
   { type: 'page', label: 'My Uploads', meta: 'Contributed Resources', path: '/uploads', icon: Upload },
   { type: 'page', label: 'PYQ Archive', meta: 'Page', path: '/pyq', icon: Clock },
-  { type: 'page', label: 'Syllabus Coverage', meta: 'Page', path: '/syllabus', icon: Compass },
   { type: 'page', label: 'Moderation Queue', meta: 'Page', path: '/moderation', icon: FileText },
 ];
 
@@ -126,7 +125,7 @@ function PaletteDialog() {
             ref={inputRef}
             type="text"
             className="command-input"
-            placeholder="Search topics, notes, subjects..."
+            placeholder="Search notes by title, topic, or keyword..."
             value={query}
             onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
             onKeyDown={handleKeyDown}

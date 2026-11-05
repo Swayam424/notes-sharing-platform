@@ -1,12 +1,11 @@
 import { useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import {
-  FolderOpen, FileText, Clock, Compass,
+  FileText, Clock,
   Upload, Flag, Settings, LayoutDashboard, LogOut, Bookmark, ShieldAlert, Bot, X
 } from 'lucide-react';
 import { useApp } from '../context/appState';
 import { getStreamShortCode } from '../data/degrees';
-import StudyBackdrop from './StudyBackdrop';
 
 type NavItem = { to: string; icon: typeof FileText; label: string; badge?: string };
 
@@ -15,7 +14,6 @@ const sections: { label: string; items: NavItem[] }[] = [
     label: 'Study',
     items: [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/subjects', icon: FolderOpen, label: 'Subjects' },
       { to: '/assistant', icon: Bot, label: 'Study Assistant', badge: 'AI' },
     ],
   },
@@ -25,7 +23,6 @@ const sections: { label: string; items: NavItem[] }[] = [
       { to: '/notes', icon: FileText, label: 'Discover notes' },
       { to: '/library', icon: Bookmark, label: 'Saved' },
       { to: '/pyq', icon: Clock, label: 'Past papers' },
-      { to: '/syllabus', icon: Compass, label: 'Syllabus coverage' },
     ],
   },
   {
@@ -100,32 +97,46 @@ export default function Sidebar() {
               {section.items.map(renderItem)}
             </div>
           ))}
+
           {isStaff && (
             <div className="sidebar-section">
               <div className="sidebar-section-label">Staff</div>
-              {renderItem({ to: '/admin/moderation', icon: ShieldAlert, label: 'Moderation console' })}
+              <NavLink
+                to="/admin/moderation"
+                className={`sidebar-nav-item ${isActive('/admin/moderation') ? 'active' : ''}`}
+                aria-current={isActive('/admin/moderation') ? 'page' : undefined}
+              >
+                <ShieldAlert className="sidebar-nav-icon" size={17} strokeWidth={1.75} aria-hidden="true" />
+                <span>Mod desk</span>
+              </NavLink>
             </div>
           )}
         </nav>
 
-        <div className="sidebar-doodles">
-          <StudyBackdrop variant="subtle" />
-        </div>
-
-        {user && (
-          <div className="sidebar-footer">
+        <div className="sidebar-footer">
+          {user ? (
             <div className="sidebar-user">
-              <div className="sidebar-avatar" aria-hidden="true">{user.initials}</div>
-              <div className="sidebar-user-info">
-                <span className="sidebar-user-name">{user.name}</span>
-                <span className="sidebar-user-role">{user.college}</span>
+              <span className="user-avatar" aria-hidden="true">{user.initials}</span>
+              <div className="sidebar-user__meta">
+                <span className="sidebar-user__name">{user.name}</span>
+                <span className="sidebar-user__sub mono">{user.college || user.role}</span>
               </div>
-              <button type="button" className="icon-button" onClick={handleLogout} aria-label="Sign out" title="Sign out">
+              <button
+                type="button"
+                className="icon-button"
+                onClick={handleLogout}
+                title="Sign out"
+                aria-label="Sign out"
+              >
                 <LogOut size={16} />
               </button>
             </div>
-          </div>
-        )}
+          ) : (
+            <NavLink to="/?auth=signin" className="sidebar-nav-item">
+              <span>Sign in</span>
+            </NavLink>
+          )}
+        </div>
       </aside>
     </>
   );

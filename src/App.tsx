@@ -8,14 +8,11 @@ import SearchPalette from './components/SearchPalette';
 import UploadModal from './components/UploadModal';
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
-const MySubjects = lazy(() => import('./pages/MySubjects'));
-const SubjectOverview = lazy(() => import('./pages/SubjectOverview'));
 const NotesLibrary = lazy(() => import('./pages/NotesLibrary'));
 const NoteDetail = lazy(() => import('./pages/NoteDetail'));
 const MyLibrary = lazy(() => import('./pages/MyLibrary'));
 const PYQArchive = lazy(() => import('./pages/PYQArchive'));
 const PYQDetail = lazy(() => import('./pages/PYQDetail'));
-const SyllabusCoverage = lazy(() => import('./pages/SyllabusCoverage'));
 const Contributions = lazy(() => import('./pages/Contributions'));
 const ModerationQueue = lazy(() => import('./pages/ModerationQueue'));
 const AdminModeration = lazy(() => import('./pages/AdminModeration'));
@@ -122,15 +119,15 @@ export default function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="assistant" element={<StudyAssistant />} />
             <Route path="workspace" element={<Navigate to="/dashboard" replace />} />
-            <Route path="subjects" element={<MySubjects />} />
-            <Route path="subjects/:subjectId" element={<SubjectOverview />} />
+            <Route path="subjects" element={<Navigate to="/notes" replace />} />
+            <Route path="subjects/:subjectId" element={<Navigate to="/notes" replace />} />
             <Route path="notes" element={<NotesLibrary />} />
             <Route path="notes/:noteId" element={<NoteDetail />} />
             <Route path="library" element={<MyLibrary />} />
             <Route path="saved-notes" element={<Navigate to="/library" replace />} />
             <Route path="pyq" element={<PYQArchive />} />
             <Route path="pyq/:pyqId" element={<PYQDetail />} />
-            <Route path="syllabus" element={<SyllabusCoverage />} />
+            <Route path="syllabus" element={<Navigate to="/dashboard" replace />} />
             <Route path="uploads" element={<Contributions />} />
             <Route path="contributions" element={<Contributions />} />
             <Route path="moderation" element={<ModerationQueue />} />

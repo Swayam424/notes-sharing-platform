@@ -1109,6 +1109,16 @@ app.get('/api/notes/:id/download', (req, res) => {
     // Increment download count
     db.prepare('UPDATE notes SET downloads = downloads + 1 WHERE id = ?').run(note.id);
 
+    // Record timestamped download for weekly tracking
+    try {
+      const dlUser = getUserFromRequest(req);
+      db.prepare('INSERT INTO note_downloads (note_id, user_id, downloaded_at) VALUES (?, ?, ?)').run(
+        note.id,
+        dlUser?.id || null,
+        new Date().toISOString()
+      );
+    } catch { /* ignore download log error */ }
+
     const safeFilePath = getSafeUploadPath(note.file_path);
     const sampleFilePath = getSafeUploadPath('sample_lecture_notes.pdf');
     const safeTitle = (note.title || 'note').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -2504,6 +2514,80 @@ app.post('/api/moderation', (req, res) => {
 });
 
 // -------------------------------------------------------------
+// 4.9 Weekly Metrics & Activity Hub API
+// (Tracks notes uploaded and downloaded every calendar week; resets to 0 every Monday)
+// -------------------------------------------------------------
+function getWeeklyTimeRange() {
+  const now = new Date();
+  const day = now.getDay(); // 0 is Sunday, 1 is Monday...
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+
+  const startOfWeekIso = monday.toISOString();
+  const startOfWeekDate = startOfWeekIso.split('T')[0];
+  const endOfWeekIso = sunday.toISOString();
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const weekLabel = `${monthNames[monday.getMonth()]} ${monday.getDate()} – ${monthNames[sunday.getMonth()]} ${sunday.getDate()}`;
+
+  return {
+    monday,
+    sunday,
+    startOfWeekIso,
+    startOfWeekDate,
+    endOfWeekIso,
+    weekLabel
+  };
+}
+
+app.get('/api/stats/weekly', (req, res) => {
+  try {
+    const { startOfWeekIso, startOfWeekDate, endOfWeekIso, weekLabel } = getWeeklyTimeRange();
+    const user = getUserFromRequest(req);
+
+    // Weekly uploads (notes uploaded on or after Monday 00:00:00 of current week)
+    const weeklyUploads = db.prepare('SELECT COUNT(*) as count FROM notes WHERE upload_date >= ?').get(startOfWeekDate)?.count || 0;
+
+    // Weekly downloads (downloads logged on or after Monday 00:00:00 of current week)
+    const weeklyDownloads = db.prepare('SELECT COUNT(*) as count FROM note_downloads WHERE downloaded_at >= ?').get(startOfWeekIso)?.count || 0;
+
+    // User personal weekly stats
+    let userWeeklyUploads = 0;
+    let userWeeklyDownloads = 0;
+    if (user?.id) {
+      userWeeklyUploads = db.prepare('SELECT COUNT(*) as count FROM notes WHERE user_id = ? AND upload_date >= ?').get(user.id, startOfWeekDate)?.count || 0;
+      userWeeklyDownloads = db.prepare('SELECT COUNT(*) as count FROM note_downloads WHERE user_id = ? AND downloaded_at >= ?').get(user.id, startOfWeekIso)?.count || 0;
+    }
+
+    const totalNotes = db.prepare('SELECT COUNT(*) as count FROM notes').get()?.count || 0;
+    const totalDownloads = (db.prepare('SELECT SUM(downloads) as count FROM notes').get()?.count || 0) +
+      (db.prepare('SELECT COUNT(*) as count FROM note_downloads').get()?.count || 0);
+
+    res.json({
+      success: true,
+      weeklyUploads,
+      weeklyDownloads,
+      userWeeklyUploads,
+      userWeeklyDownloads,
+      startOfWeek: startOfWeekIso,
+      endOfWeek: endOfWeekIso,
+      weekLabel,
+      resetsOn: 'Every Monday at 00:00',
+      totalNotes,
+      totalDownloads
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: publicError(err) });
+  }
+});
+
+// -------------------------------------------------------------
 // 5. Dashboard Aggregation & Stats API
 // -------------------------------------------------------------
 app.get('/api/stats/dashboard', (req, res) => {
@@ -2599,6 +2683,10 @@ app.get('/api/stats/dashboard', (req, res) => {
     const totalNotes = db.prepare('SELECT COUNT(*) as count FROM notes').get().count;
     const totalSubjects = db.prepare('SELECT COUNT(*) as count FROM subjects').get().count;
 
+    const { startOfWeekIso, startOfWeekDate, endOfWeekIso, weekLabel } = getWeeklyTimeRange();
+    const weeklyUploads = db.prepare('SELECT COUNT(*) as count FROM notes WHERE upload_date >= ?').get(startOfWeekDate)?.count || 0;
+    const weeklyDownloads = db.prepare('SELECT COUNT(*) as count FROM note_downloads WHERE downloaded_at >= ?').get(startOfWeekIso)?.count || 0;
+
     res.json({
       success: true,
       frequentExamTopics,
@@ -2606,6 +2694,14 @@ app.get('/api/stats/dashboard', (req, res) => {
       stats: {
         totalNotes,
         totalSubjects
+      },
+      weekly: {
+        weeklyUploads,
+        weeklyDownloads,
+        startOfWeek: startOfWeekIso,
+        endOfWeek: endOfWeekIso,
+        weekLabel,
+        resetsOn: 'Every Monday at 00:00'
       }
     });
   } catch (err) {

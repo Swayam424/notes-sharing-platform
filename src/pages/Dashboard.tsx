@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { ArrowRight, Bookmark, BookmarkCheck, Search, Upload } from 'lucide-react';
-import { api } from '../services/api';
+import {
+  ArrowRight, Bookmark, BookmarkCheck, Search, Upload,
+  Download, Calendar, Sparkles, BookOpen
+} from 'lucide-react';
+import { api, type WeeklyStats } from '../services/api';
 import { useApp } from '../context/appState';
 import { savedNotesService } from '../services/savedNotes';
 import { useOnChange } from '../hooks/useOnChange';
-import type { Subject, NoteResource } from '../data/mockData';
+import type { NoteResource } from '../data/mockData';
 
 function greetingFor(hour: number) {
   if (hour < 5) return 'Up late';
@@ -18,8 +21,9 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { user, refreshKey, setUploadOpen } = useApp();
 
-  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [weeklyStats, setWeeklyStats] = useState<WeeklyStats | null>(null);
   const [notes, setNotes] = useState<NoteResource[]>([]);
+  const [examTopics, setExamTopics] = useState<{ topicName: string; subjectName: string; appearances: number; streak: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -34,67 +38,38 @@ export default function Dashboard() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      api.getSubjects({ stream: user?.stream, semester: user?.semester }),
+      api.getWeeklyStats(),
       api.getNotes(),
+      api.getDashboardData({ stream: user?.stream, semester: user?.semester }).catch(() => null),
     ])
-      .then(([subs, nts]) => {
+      .then(([stats, nts, dashData]) => {
         if (cancelled) return;
-        setSubjects(subs);
+        setWeeklyStats(stats);
         setNotes(nts);
+        if (dashData?.frequentExamTopics) {
+          setExamTopics(dashData.frequentExamTopics);
+        }
       })
-      .catch(err => { if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load your dashboard.'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .catch(err => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load your dashboard.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => { cancelled = true; };
   }, [refreshKey, user?.stream, user?.semester]);
 
   useEffect(() => savedNotesService.subscribe(setSavedIds), []);
 
-  // Enrolled subjects first; fall back to the whole semester when none are picked
-  const mySubjects = useMemo(() => {
-    const enrolled = user?.enrolledSubjects || [];
-    const picked = subjects.filter(s => enrolled.includes(s.id));
-    return picked.length > 0 ? picked : subjects;
-  }, [subjects, user?.enrolledSubjects]);
-
-  const mySubjectIds = useMemo(() => new Set(mySubjects.map(s => s.id)), [mySubjects]);
-  const myNotes = useMemo(() => notes.filter(n => mySubjectIds.has(n.subjectId)), [notes, mySubjectIds]);
-
   const lastReadId = savedNotesService.getLastReadNoteId();
   const lastNote = lastReadId ? notes.find(n => n.id === lastReadId) : undefined;
 
-  // Topics that keep showing up in exams, by real PYQ counts only
-  const examFavourites = useMemo(() => {
-    const rows: { id: string; topic: string; subject: Subject; count: number; notes: number }[] = [];
-    for (const s of mySubjects) {
-      for (const u of s.units || []) {
-        for (const t of u.topics || []) {
-          const count = t.pyqCount || t.pyqYears?.length || 0;
-          if (count > 0) rows.push({ id: t.id, topic: t.name, subject: s, count, notes: t.noteCount || 0 });
-        }
-      }
-    }
-    return rows.sort((a, b) => b.count - a.count).slice(0, 6);
-  }, [mySubjects]);
-
-  // The single most useful gap: the most-examined topic that has no notes
-  const topGap = useMemo(() => {
-    let best: { topic: string; subject: Subject; count: number } | null = null;
-    for (const s of mySubjects) {
-      for (const u of s.units || []) {
-        for (const t of u.topics || []) {
-          if (t.status !== 'missing') continue;
-          const count = t.pyqCount || t.pyqYears?.length || 0;
-          if (!best || count > best.count) best = { topic: t.name, subject: s, count };
-        }
-      }
-    }
-    return best;
-  }, [mySubjects]);
-
-  const recent = useMemo(
-    () => [...myNotes].sort((a, b) => (b.uploadDate || '').localeCompare(a.uploadDate || '')).slice(0, 5),
-    [myNotes]
-  );
+  // Recent notes across the platform / department
+  const recentNotes = useMemo(() => {
+    return [...notes]
+      .sort((a, b) => (b.uploadDate || '').localeCompare(a.uploadDate || ''))
+      .slice(0, 6);
+  }, [notes]);
 
   const firstName = user?.name?.split(' ')[0] || 'there';
 
@@ -104,16 +79,32 @@ export default function Dashboard() {
     navigate(q ? `/notes?q=${encodeURIComponent(q)}` : '/notes');
   };
 
+  const handleDownload = (note: NoteResource, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const element = document.createElement('a');
+    element.setAttribute('href', api.getDownloadUrl(note.id));
+    element.setAttribute('download', `${note.title.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+
+    // Refresh weekly stats immediately after download
+    setTimeout(() => {
+      api.getWeeklyStats().then(setWeeklyStats).catch(() => {});
+    }, 400);
+  };
+
   return (
     <div className="dash">
       <header className="dash-head">
         <div>
           <h1 className="page-title">{greetingFor(hour)}, {firstName}.</h1>
           <p className="page-subtitle">
-            Semester {user?.semester} · {user?.stream || user?.department}
+            {user?.degree || 'B.Tech / B.E.'} · {user?.stream || user?.department || 'Engineering'} · Sem {user?.semester || 1}
+            {user?.college && ` · ${user.college}`}
           </p>
         </div>
-        <Link to="/settings" className="btn btn-ghost btn-sm">Edit courses</Link>
+        <Link to="/settings" className="btn btn-ghost btn-sm">Edit profile</Link>
       </header>
 
       <form className="dash-search" onSubmit={onSearch} role="search">
@@ -122,8 +113,8 @@ export default function Dashboard() {
           type="search"
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Search a topic from your syllabus, e.g. deadlock avoidance"
-          aria-label="Search notes by topic"
+          placeholder="Search notes by title, topic, or subject name..."
+          aria-label="Search notes"
         />
         <button type="submit" className="btn btn-primary btn-sm">Search</button>
       </form>
@@ -134,74 +125,179 @@ export default function Dashboard() {
         <Link to={`/notes/${lastNote.id}`} className="dash-resume">
           <span className="eyebrow">Continue reading</span>
           <span className="dash-resume__title">{lastNote.title}</span>
-          <span className="dash-resume__meta">{lastNote.subjectName} · {lastNote.unitName}</span>
+          <span className="dash-resume__meta">
+            {lastNote.subjectName || lastNote.department} · {lastNote.primaryTopic || lastNote.unitName || 'Notes'}
+          </span>
           <ArrowRight size={18} className="dash-resume__arrow" aria-hidden="true" />
         </Link>
       )}
 
-      <section className="dash-section" aria-labelledby="subjects-h">
-        <div className="section-head">
-          <h2 id="subjects-h">Your subjects</h2>
-          <Link to="/syllabus" className="section-head__link">Coverage report</Link>
+      {/* Weekly Activity Hub (Replacing rigid subjects & progress) */}
+      <section className="weekly-hub" aria-labelledby="weekly-h">
+        <div className="section-head" style={{ alignItems: 'center' }}>
+          <div>
+            <h2 id="weekly-h" style={{ margin: 0 }}>Weekly Activity</h2>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--color-muted)' }}>
+              Weekly uploads and downloads across the platform. Resets every Monday.
+            </p>
+          </div>
+          <div className="weekly-head-badge">
+            <Calendar size={13} aria-hidden="true" />
+            <span>{weeklyStats?.weekLabel || 'Current Week'}</span>
+          </div>
         </div>
-        <div className="subject-grid">
-          {loading
-            ? [0, 1, 2, 3].map(i => <div key={i} className="skeleton skeleton--card" />)
-            : mySubjects.map(s => {
-              const gaps = s.units.flatMap(u => u.topics).filter(t => t.status === 'missing').length;
-              return (
-                <Link key={s.id} to={`/subjects/${s.id}`} className="subject-card">
-                  <span className="subject-card__code mono">{s.code}</span>
-                  <span className="subject-card__name">{s.name}</span>
-                  <span className="meter" aria-hidden="true"><span style={{ width: `${s.coverage}%` }} /></span>
-                  <span className="subject-card__meta">
-                    <span><strong>{s.coverage}%</strong> covered</span>
-                    {gaps > 0
-                      ? <span className="subject-card__gaps">{gaps} {gaps === 1 ? 'gap' : 'gaps'}</span>
-                      : <span>No gaps</span>}
-                  </span>
-                </Link>
-              );
-            })}
+
+        <div className="weekly-grid">
+          {/* Card 1: Uploads This Week */}
+          <div className="weekly-card">
+            <div className="weekly-card__header">
+              <span className="weekly-card__label">Uploaded this week</span>
+              <div className="weekly-card__icon weekly-card__icon--upload">
+                <Upload size={18} />
+              </div>
+            </div>
+            <div className="weekly-card__stat">
+              {loading ? '...' : (weeklyStats?.weeklyUploads ?? 0)}
+              <small>notes</small>
+            </div>
+            <p className="weekly-card__desc">
+              Shared by students this calendar week.
+            </p>
+            <div className="weekly-card__footer">
+              <span>Resets every Monday 00:00</span>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setUploadOpen(true)}
+                style={{ height: '28px', padding: '0 10px', fontSize: '11px' }}
+              >
+                <Upload size={12} /> Upload
+              </button>
+            </div>
+          </div>
+
+          {/* Card 2: Downloads This Week */}
+          <div className="weekly-card">
+            <div className="weekly-card__header">
+              <span className="weekly-card__label">Downloaded this week</span>
+              <div className="weekly-card__icon weekly-card__icon--download">
+                <Download size={18} />
+              </div>
+            </div>
+            <div className="weekly-card__stat">
+              {loading ? '...' : (weeklyStats?.weeklyDownloads ?? 0)}
+              <small>downloads</small>
+            </div>
+            <p className="weekly-card__desc">
+              Study documents accessed by peers this week.
+            </p>
+            <div className="weekly-card__footer">
+              <span>Tracked Mon – Sun</span>
+              <Link
+                to="/notes"
+                className="btn btn-secondary btn-sm"
+                style={{ height: '28px', padding: '0 10px', fontSize: '11px' }}
+              >
+                <BookOpen size={12} /> Browse
+              </Link>
+            </div>
+          </div>
+
+          {/* Card 3: Your Personal Weekly Activity */}
+          <div className="weekly-card">
+            <div className="weekly-card__header">
+              <span className="weekly-card__label">Your activity this week</span>
+              <div className="weekly-card__icon weekly-card__icon--user">
+                <Sparkles size={18} />
+              </div>
+            </div>
+            <div className="weekly-card__stat" style={{ fontSize: '1.6rem' }}>
+              {loading ? '...' : `${weeklyStats?.userWeeklyUploads ?? 0} up · ${weeklyStats?.userWeeklyDownloads ?? 0} down`}
+            </div>
+            <p className="weekly-card__desc">
+              Your personal contributions and downloads for this week.
+            </p>
+            <div className="weekly-card__footer">
+              <span>{weeklyStats?.totalNotes || notes.length} total library notes</span>
+              <Link
+                to="/uploads"
+                className="btn btn-ghost btn-sm"
+                style={{ height: '28px', padding: '0 10px', fontSize: '11px' }}
+              >
+                My uploads
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 
-      {topGap && (
-        <section className="callout" aria-label="Biggest gap in your notes">
-          <div>
-            <p className="eyebrow">Biggest gap</p>
-            <p className="callout__text">
-              <mark>{topGap.topic}</mark> ({topGap.subject.name})
-              {topGap.count > 0 ? ` has been asked in ${topGap.count} past ${topGap.count === 1 ? 'paper' : 'papers'} and` : ''} has no notes yet.
-            </p>
-          </div>
-          <div className="callout__actions">
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => setUploadOpen(true)}>
-              <Upload size={14} /> Upload notes
-            </button>
-            <Link to="/notes?tab=requests&newRequest=true" className="btn btn-secondary btn-sm">Request them</Link>
-          </div>
-        </section>
-      )}
-
+      {/* Main Content Columns: Recent Notes & Exam Trends */}
       <div className="dash-columns">
+        {/* Recent Community Notes */}
+        <section className="dash-section" aria-labelledby="recent-h">
+          <div className="section-head">
+            <h2 id="recent-h">Recent notes</h2>
+            <Link to="/notes" className="section-head__link">All notes</Link>
+          </div>
+          {recentNotes.length === 0 && !loading ? (
+            <p className="empty-note">No notes uploaded yet. Be the first to share one.</p>
+          ) : (
+            <ul className="note-list">
+              {recentNotes.map(n => {
+                const saved = savedIds.includes(n.id);
+                return (
+                  <li key={n.id} className="note-row">
+                    <Link to={`/notes/${n.id}`} className="note-row__main">
+                      <span className="note-row__title">{n.title}</span>
+                      <span className="note-row__meta">
+                        {n.subjectName || n.department || 'Course Material'} · {n.format} · {n.pages} pages · {n.author}
+                      </span>
+                    </Link>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        onClick={e => handleDownload(n, e)}
+                        title="Download note"
+                        aria-label={`Download ${n.title}`}
+                      >
+                        <Download size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        onClick={() => savedNotesService.toggleSaveNote(n.id)}
+                        aria-pressed={saved}
+                        aria-label={saved ? `Remove ${n.title} from saved` : `Save ${n.title}`}
+                      >
+                        {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        {/* Exam Focus Topics */}
         <section className="dash-section" aria-labelledby="exam-h">
           <div className="section-head">
-            <h2 id="exam-h">Asked most in exams</h2>
+            <h2 id="exam-h">Frequently examined topics</h2>
             <Link to="/pyq" className="section-head__link">Past papers</Link>
           </div>
-          {examFavourites.length === 0 && !loading ? (
-            <p className="empty-note">No past-paper data for your subjects yet.</p>
+          {examTopics.length === 0 && !loading ? (
+            <p className="empty-note">No past-paper data available yet.</p>
           ) : (
             <ol className="rank-list">
-              {examFavourites.map(t => (
-                <li key={t.id}>
-                  <Link to={`/notes?q=${encodeURIComponent(t.topic)}`} className="rank-row">
-                    <span className="rank-row__count mono">{t.count}×</span>
+              {examTopics.slice(0, 6).map((t, idx) => (
+                <li key={`${t.topicName}-${idx}`}>
+                  <Link to={`/notes?q=${encodeURIComponent(t.topicName)}`} className="rank-row">
+                    <span className="rank-row__count mono">{t.appearances}×</span>
                     <span className="rank-row__body">
-                      <span className="rank-row__title">{t.topic}</span>
+                      <span className="rank-row__title">{t.topicName}</span>
                       <span className="rank-row__meta">
-                        {t.subject.name} · {t.notes === 0 ? 'no notes' : `${t.notes} ${t.notes === 1 ? 'note' : 'notes'}`}
+                        {t.subjectName} · {t.streak || `Appeared in ${t.appearances} exam papers`}
                       </span>
                     </span>
                     <ArrowRight size={15} className="rank-row__arrow" aria-hidden="true" />
@@ -209,41 +305,6 @@ export default function Dashboard() {
                 </li>
               ))}
             </ol>
-          )}
-        </section>
-
-        <section className="dash-section" aria-labelledby="recent-h">
-          <div className="section-head">
-            <h2 id="recent-h">New in your subjects</h2>
-            <Link to="/notes" className="section-head__link">All notes</Link>
-          </div>
-          {recent.length === 0 && !loading ? (
-            <p className="empty-note">Nothing uploaded for your subjects yet. Be the first.</p>
-          ) : (
-            <ul className="note-list">
-              {recent.map(n => {
-                const saved = savedIds.includes(n.id);
-                return (
-                  <li key={n.id} className="note-row">
-                    <Link to={`/notes/${n.id}`} className="note-row__main">
-                      <span className="note-row__title">{n.title}</span>
-                      <span className="note-row__meta">
-                        {n.subjectCode || n.subjectName} · {n.format} · {n.pages} pages · {n.author}
-                      </span>
-                    </Link>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      onClick={() => savedNotesService.toggleSaveNote(n.id)}
-                      aria-pressed={saved}
-                      aria-label={saved ? `Remove ${n.title} from saved` : `Save ${n.title}`}
-                    >
-                      {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
           )}
         </section>
       </div>

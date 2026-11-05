@@ -114,6 +114,19 @@ export interface AuthUser {
   created_at?: string;
 }
 
+export interface WeeklyStats {
+  weeklyUploads: number;
+  weeklyDownloads: number;
+  userWeeklyUploads: number;
+  userWeeklyDownloads: number;
+  startOfWeek: string;
+  endOfWeek: string;
+  weekLabel: string;
+  resetsOn: string;
+  totalNotes: number;
+  totalDownloads: number;
+}
+
 export interface DashboardData {
   frequentExamTopics: {
     topicName: string;
@@ -663,6 +676,13 @@ export const api = {
   },
 
   // -------------------- Dashboard --------------------
+  async getWeeklyStats(): Promise<WeeklyStats> {
+    const res = await authFetch('/api/stats/weekly');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Failed to fetch weekly stats');
+    return data;
+  },
+
   async getDashboardData(params?: { stream?: string; semester?: number }): Promise<DashboardData> {
     const query = new URLSearchParams();
     if (params?.stream) query.set('stream', params.stream);
