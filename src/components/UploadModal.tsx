@@ -16,11 +16,35 @@ import {
   Layers,
   Sparkles,
   AlertCircle,
-  Share2
+  Share2,
+  Globe,
+  Users,
+  ShieldCheck
 } from 'lucide-react';
 import { useApp } from '../context/appState';
-import { api } from '../services/api';
+import { api, type NoteRequest } from '../services/api';
 import type { Subject, NoteResource } from '../data/mockData';
+
+const POPULAR_COURSES = [
+  'Operating Systems',
+  'Data Structures & Algorithms',
+  'Database Management Systems',
+  'Computer Networks',
+  'Software Engineering',
+  'Machine Learning',
+  'Object-Oriented Programming',
+  'Digital Electronics',
+  'Engineering Mathematics'
+];
+
+const COMMON_MODULES = [
+  'Unit 1: Fundamentals',
+  'Unit 2: Core Architecture',
+  'Unit 3: Advanced Topics',
+  'Unit 4: Applications & Practice',
+  'Complete Syllabus Notes',
+  'Exam Cheatsheet & Formulas'
+];
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -66,6 +90,13 @@ export default function UploadModal() {
   const [docType, setDocType] = useState('Handwritten PDF');
   const [pagesCount, setPagesCount] = useState('12');
 
+  const [courseTitle, setCourseTitle] = useState('');
+  const [unitTitle, setUnitTitle] = useState('');
+  const [visibility, setVisibility] = useState<'public' | 'direct_request' | 'private'>('public');
+  const [fulfilledRequestId, setFulfilledRequestId] = useState('');
+  const [integrityConfirmed, setIntegrityConfirmed] = useState(true);
+  const [openRequests, setOpenRequests] = useState<NoteRequest[]>([]);
+
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedUnit, setSelectedUnit] = useState('');
@@ -100,7 +131,7 @@ export default function UploadModal() {
     }
   }, { onMount: true });
 
-  // Load subjects when modal opens
+  // Load subjects & open requests when modal opens
   useEffect(() => {
     if (uploadOpen) {
       api.getSubjects().then(fetched => {
@@ -108,6 +139,10 @@ export default function UploadModal() {
         if (fetched.length > 0) {
           setSelectedSubject(prev => prev || fetched[0].id);
         }
+      }).catch(console.error);
+
+      api.getNoteRequests({ status: 'open' }).then(reqs => {
+        setOpenRequests(reqs);
       }).catch(console.error);
     }
   }, [uploadOpen]);
@@ -195,29 +230,6 @@ export default function UploadModal() {
     }
   };
 
-  const handleTopicToggle = (topicId: string, topicName: string) => {
-    if (selectedTopicIds.includes(topicId)) {
-      const next = selectedTopicIds.filter(id => id !== topicId);
-      setSelectedTopicIds(next);
-      // If we deselected the primary topic, fallback to another selected topic
-      if (primaryTopic === topicName) {
-        if (next.length > 0) {
-          const fallback = availableTopics.find(t => t.id === next[0]);
-          setPrimaryTopic(fallback?.name || '');
-        } else {
-          setPrimaryTopic('');
-        }
-      }
-    } else {
-      const next = [...selectedTopicIds, topicId];
-      setSelectedTopicIds(next);
-      // If no primary topic set yet, designate this one
-      if (!primaryTopic) {
-        setPrimaryTopic(topicName);
-      }
-    }
-  };
-
   const handleSetPrimary = (topicName: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setPrimaryTopic(topicName);
@@ -253,13 +265,12 @@ export default function UploadModal() {
       return !!fileName && !fileError && (resourceKind === 'pyq' || !!customTitle.trim());
     }
     if (step === 2) {
-      if (resourceKind === 'pyq') {
-        return !!selectedSubject;
-      }
-      return !!selectedSubject && !!selectedUnit && (selectedTopicIds.length > 0 || customTopics.length > 0);
+      const hasSubject = !!courseTitle.trim() || !!selectedSubject;
+      const hasUnit = !!unitTitle.trim() || !!selectedUnit;
+      return hasSubject && hasUnit;
     }
     if (step === 3) {
-      return !!authorName.trim() && !uploading;
+      return !!authorName.trim() && integrityConfirmed && !uploading;
     }
     return false;
   };
@@ -346,17 +357,24 @@ export default function UploadModal() {
         formData.append('file', file);
       }
       formData.append('title', customTitle.trim() || fileName);
-      formData.append('author', authorName.trim() || user?.name || 'Anonymous Scholar');
-      formData.append('subjectId', selectedSubject);
-      formData.append('unitId', selectedUnit);
+      formData.append('author', authorName.trim() || user?.name || 'Scholar');
+      formData.append('subjectId', selectedSubject || '');
+      formData.append('subjectName', courseTitle.trim() || currentSubject?.name || '');
+      formData.append('courseTitle', courseTitle.trim() || currentSubject?.name || '');
+      formData.append('unitId', selectedUnit || '');
+      formData.append('unitName', unitTitle.trim() || currentUnit?.name || '');
       formData.append('topicIds', JSON.stringify(selectedTopicIds));
-      formData.append('primaryTopic', primaryTopic || (availableTopics[0]?.name ?? ''));
+      formData.append('primaryTopic', primaryTopic || customTopics[0] || unitTitle.trim() || (availableTopics[0]?.name ?? 'Lecture Notes'));
       formData.append('description', description.trim());
       formData.append('tags', JSON.stringify(tags));
       formData.append('department', department.trim());
       formData.append('semester', semester);
       formData.append('format', docType);
       formData.append('pages', pagesCount || '12');
+      formData.append('visibility', visibility === 'private' ? 'private' : 'public');
+      if (fulfilledRequestId) {
+        formData.append('fulfilledRequestId', fulfilledRequestId);
+      }
 
       setUploadStatusMessage('Indexing syllabus topics and linking to course...');
       const response = await api.uploadNote(formData);
@@ -445,8 +463,8 @@ export default function UploadModal() {
             </h3>
             <p className="text-muted" style={{ fontSize: 'var(--text-xs)', margin: '2px 0 0 0' }}>
               {step === 1 && 'Step 1 of 3: Select document & primary format'}
-              {step === 2 && 'Step 2 of 3: Map to subject syllabus & primary topic'}
-              {step === 3 && 'Step 3 of 3: Context, tags & discoverability'}
+              {step === 2 && 'Step 2 of 3: Course title & module / topic details'}
+              {step === 3 && 'Step 3 of 3: Visibility, context & academic integrity'}
               {step === 4 && 'Resource is now live in the course library'}
             </p>
           </div>
@@ -743,7 +761,7 @@ export default function UploadModal() {
             </div>
           )}
 
-          {/* STEP 2: TOPIC-FIRST & SYLLABUS ANCHORING */}
+          {/* STEP 2: COURSE & TOPIC SPECIFICATION */}
           {step === 2 && (
             <div>
               <div style={{
@@ -759,186 +777,259 @@ export default function UploadModal() {
                 <Sparkles size={18} style={{ color: 'var(--color-secondary)', flexShrink: 0, marginTop: '2px' }} />
                 <div>
                   <h4 style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-secondary)' }}>
-                    Topic-First Discovery Anchor
+                    Universal Course & Topic Organization
                   </h4>
                   <p style={{ margin: '2px 0 0 0', fontSize: 'var(--text-xs)', color: 'var(--color-deep-soft)' }}>
-                    Students search by academic topic rather than file names. Select all topics this document covers, and designate one <strong>Primary Topic</strong>.
+                    Enter your course name and topic freely. You are not constrained by fixed college curriculums—students anywhere can discover and benefit from your notes!
                   </p>
                 </div>
               </div>
 
-              {/* Subject & Unit Selectors */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-                <div>
-                  <label className="input-label" htmlFor="subject-select">Subject</label>
-                  <select
-                    id="subject-select"
-                    className="select"
-                    style={{ width: '100%' }}
-                    value={selectedSubject}
-                    onChange={e => setSelectedSubject(e.target.value)}
-                  >
-                    {subjects.map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.code} — {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* Course / Subject Name */}
+              <div style={{ marginBottom: 'var(--space-4)' }}>
+                <label className="input-label" htmlFor="course-title-input">
+                  Course / Subject Name <span style={{ color: 'var(--color-primary)' }}>*</span>
+                </label>
+                <input
+                  id="course-title-input"
+                  className="input"
+                  type="text"
+                  placeholder="e.g. Operating Systems, Data Structures, Applied Physics..."
+                  value={courseTitle}
+                  onChange={e => setCourseTitle(e.target.value)}
+                  style={{ fontSize: 'var(--text-sm)', width: '100%' }}
+                />
 
-                <div>
-                  <label className="input-label" htmlFor="unit-select">Unit / Module</label>
-                  <select
-                    id="unit-select"
-                    className="select"
-                    style={{ width: '100%' }}
-                    value={selectedUnit}
-                    onChange={e => setSelectedUnit(e.target.value)}
-                    disabled={!currentSubject}
-                  >
-                    {currentSubject?.units.map((u, i) => (
-                      <option key={u.id} value={u.id}>
-                        Unit {i + 1}: {u.name}
-                      </option>
+                {/* Popular Course Chips */}
+                <div style={{ marginTop: 'var(--space-2)' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--color-muted)', display: 'block', marginBottom: '4px' }}>
+                    Quick suggestions:
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {POPULAR_COURSES.map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        className={`chip ${courseTitle === c ? 'chip-primary' : ''}`}
+                        style={{ cursor: 'pointer', fontSize: '11px' }}
+                        onClick={() => setCourseTitle(c)}
+                      >
+                        {c}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
               </div>
 
-              {/* Topic Selector Box */}
+              {/* Unit / Module Title */}
+              <div style={{ marginBottom: 'var(--space-4)' }}>
+                <label className="input-label" htmlFor="unit-title-input">
+                  Unit / Module / Section <span style={{ color: 'var(--color-primary)' }}>*</span>
+                </label>
+                <input
+                  id="unit-title-input"
+                  className="input"
+                  type="text"
+                  placeholder="e.g. Unit 2: Process Scheduling & Deadlocks, Midterm Notes..."
+                  value={unitTitle}
+                  onChange={e => setUnitTitle(e.target.value)}
+                  style={{ fontSize: 'var(--text-sm)', width: '100%' }}
+                />
+
+                {/* Common Module Chips */}
+                <div style={{ marginTop: 'var(--space-2)' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--color-muted)', display: 'block', marginBottom: '4px' }}>
+                    Common structures:
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {COMMON_MODULES.map(m => (
+                      <button
+                        key={m}
+                        type="button"
+                        className={`chip ${unitTitle === m ? 'chip-primary' : ''}`}
+                        style={{ cursor: 'pointer', fontSize: '11px' }}
+                        onClick={() => setUnitTitle(m)}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Key Concept / Primary Topic */}
+              <div style={{ marginBottom: 'var(--space-4)' }}>
+                <label className="input-label" htmlFor="primary-topic-input">
+                  Primary Concept / Topic Highlight <span style={{ fontSize: '11px', color: 'var(--color-muted)' }}>(Optional for search ranking)</span>
+                </label>
+                <input
+                  id="primary-topic-input"
+                  className="input"
+                  type="text"
+                  placeholder="e.g. Virtual Memory & Inverted Page Tables"
+                  value={primaryTopic}
+                  onChange={e => setPrimaryTopic(e.target.value)}
+                  style={{ fontSize: 'var(--text-sm)', width: '100%' }}
+                />
+              </div>
+
+              {/* Specific Subtopics Tagging */}
               <div className="topic-selector-container">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)', color: 'var(--color-deep)' }}>
-                    Syllabus Topics in this Unit
-                  </span>
-                  <span className="mono text-muted" style={{ fontSize: '11px' }}>
-                    {selectedTopicIds.length} of {availableTopics.length} covered
-                  </span>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-deep)', fontWeight: 600 }}>
+                  Specific Topics / Concepts Covered
+                </span>
+                <p style={{ margin: '2px 0 var(--space-2)', fontSize: '11px', color: 'var(--color-muted)' }}>
+                  Add key topics covered in these notes so peers searching for exact questions or formulas can find them.
+                </p>
+
+                <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="e.g. Banker's Algorithm, Round Robin scheduling"
+                    value={customTopicInput}
+                    onChange={e => setCustomTopicInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomTopic();
+                      }
+                    }}
+                    style={{ fontSize: 'var(--text-sm)' }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleAddCustomTopic}
+                  >
+                    <Plus size={14} /> Add
+                  </button>
                 </div>
 
-                <div className="topic-chips-grid">
-                  {availableTopics.map(topic => {
-                    const isSelected = selectedTopicIds.includes(topic.id);
-                    const isPrimary = primaryTopic === topic.name;
-
-                    return (
-                      <div
-                        key={topic.id}
-                        className={`topic-chip-card ${isSelected ? 'selected' : ''} ${isPrimary ? 'is-primary' : ''}`}
-                        onClick={() => handleTopicToggle(topic.id, topic.name)}
-                      >
-                        <span>{topic.name}</span>
-                        {isSelected && (
+                {customTopics.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
+                    {customTopics.map(ct => {
+                      const isPrimary = primaryTopic === ct;
+                      return (
+                        <div
+                          key={ct}
+                          className={`topic-chip-card selected ${isPrimary ? 'is-primary' : ''}`}
+                          onClick={() => setPrimaryTopic(ct)}
+                        >
+                          <span>{ct}</span>
                           <span
                             className="topic-star-action"
-                            title={isPrimary ? 'Primary Topic' : 'Set as Primary Topic for search'}
-                            onClick={e => handleSetPrimary(topic.name, e)}
+                            title="Primary Topic"
+                            onClick={e => handleSetPrimary(ct, e)}
                           >
-                            <Star
-                              size={13}
-                              fill={isPrimary ? 'currentColor' : 'none'}
-                              strokeWidth={2}
-                            />
+                            <Star size={13} fill={isPrimary ? 'currentColor' : 'none'} />
                           </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {availableTopics.length === 0 && (
-                  <p className="text-muted" style={{ fontSize: 'var(--text-xs)', padding: 'var(--space-2) 0' }}>
-                    No topics defined yet for this unit. You can enter a custom topic below.
-                  </p>
-                )}
-
-                {/* Custom / Special Topic Input */}
-                <div style={{ marginTop: 'var(--space-4)', borderTop: '1px solid var(--color-border-light)', paddingTop: 'var(--space-3)' }}>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-muted)' }}>
-                    Covering a specific sub-topic or practical concept not listed above?
-                  </span>
-                  <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-                    <input
-                      className="input"
-                      type="text"
-                      placeholder="e.g. Red-Black Tree Deletion proofs"
-                      value={customTopicInput}
-                      onChange={e => setCustomTopicInput(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddCustomTopic();
-                        }
-                      }}
-                      style={{ fontSize: 'var(--text-sm)' }}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={handleAddCustomTopic}
-                    >
-                      <Plus size={14} /> Add Topic
-                    </button>
+                          <X
+                            size={12}
+                            style={{ marginLeft: '4px', cursor: 'pointer' }}
+                            onClick={e => {
+                              e.stopPropagation();
+                              setCustomTopics(prev => prev.filter(t => t !== ct));
+                              if (primaryTopic === ct) setPrimaryTopic('');
+                            }}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
-
-                  {customTopics.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-                      {customTopics.map(ct => {
-                        const isPrimary = primaryTopic === ct;
-                        return (
-                          <div
-                            key={ct}
-                            className={`topic-chip-card selected ${isPrimary ? 'is-primary' : ''}`}
-                            onClick={() => setPrimaryTopic(ct)}
-                          >
-                            <span>{ct}</span>
-                            <span
-                              className="topic-star-action"
-                              title="Primary Topic"
-                              onClick={e => handleSetPrimary(ct, e)}
-                            >
-                              <Star size={13} fill={isPrimary ? 'currentColor' : 'none'} />
-                            </span>
-                            <X
-                              size={12}
-                              style={{ marginLeft: '4px', cursor: 'pointer' }}
-                              onClick={e => {
-                                e.stopPropagation();
-                                setCustomTopics(prev => prev.filter(t => t !== ct));
-                                if (primaryTopic === ct) setPrimaryTopic('');
-                              }}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
-
-              {primaryTopic && (
-                <div style={{
-                  marginTop: 'var(--space-3)',
-                  padding: 'var(--space-2) var(--space-3)',
-                  background: 'var(--color-primary-light)',
-                  border: '1px solid var(--color-primary-muted)',
-                  borderRadius: 'var(--radius-sm)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-2)'
-                }}>
-                  <Star size={14} fill="var(--color-primary)" color="var(--color-primary)" />
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-deep)' }}>
-                    Designated Primary Topic: <strong>{primaryTopic}</strong>
-                  </span>
-                </div>
-              )}
             </div>
           )}
 
-          {/* STEP 3: ACADEMIC CONTEXT & DISCOVERABILITY */}
+          {/* STEP 3: CONTEXT, SHARING & INTEGRITY */}
           {step === 3 && (
             <div>
+              {/* Sharing & Visibility Choice */}
+              <div style={{ marginBottom: 'var(--space-4)' }}>
+                <label className="input-label">Publishing & Visibility Destination</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                  {/* Option 1: Community Library */}
+                  <div
+                    onClick={() => { setVisibility('public'); setFulfilledRequestId(''); }}
+                    style={{
+                      border: visibility === 'public' && !fulfilledRequestId ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: 'var(--space-3)',
+                      cursor: 'pointer',
+                      background: visibility === 'public' && !fulfilledRequestId ? 'var(--color-primary-light)' : 'var(--color-surface)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <Globe size={16} color="var(--color-primary)" />
+                      <strong style={{ fontSize: 'var(--text-sm)', color: 'var(--color-deep)' }}>
+                        Community Library
+                      </strong>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '11px', color: 'var(--color-muted)' }}>
+                      Published for all students to discover, download, and study. (Recommended)
+                    </p>
+                  </div>
+
+                  {/* Option 2: Fulfill a Request */}
+                  <div
+                    onClick={() => {
+                      setVisibility('public');
+                      if (openRequests.length > 0 && !fulfilledRequestId) {
+                        setFulfilledRequestId(openRequests[0].id);
+                      }
+                    }}
+                    style={{
+                      border: fulfilledRequestId ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: 'var(--space-3)',
+                      cursor: 'pointer',
+                      background: fulfilledRequestId ? 'var(--color-primary-light)' : 'var(--color-surface)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <Users size={16} color="var(--color-primary)" />
+                      <strong style={{ fontSize: 'var(--text-sm)', color: 'var(--color-deep)' }}>
+                        Fulfill Peer Request
+                      </strong>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '11px', color: 'var(--color-muted)' }}>
+                      Answering a classmate's request. Automatically credits you and notifies the requester!
+                    </p>
+                  </div>
+                </div>
+
+                {/* If Fulfill Peer Request selected, show request picker */}
+                {fulfilledRequestId && openRequests.length > 0 && (
+                  <div style={{
+                    marginTop: 'var(--space-3)',
+                    padding: 'var(--space-3)',
+                    background: 'var(--color-base)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)'
+                  }}>
+                    <label className="input-label" htmlFor="request-select">
+                      Select which request you are answering:
+                    </label>
+                    <select
+                      id="request-select"
+                      className="select"
+                      style={{ width: '100%', fontSize: 'var(--text-sm)' }}
+                      value={fulfilledRequestId}
+                      onChange={e => setFulfilledRequestId(e.target.value)}
+                    >
+                      {openRequests.map(req => (
+                        <option key={req.id} value={req.id}>
+                          {req.subjectName ? `${req.subjectName}: ` : ''}{req.topicName} (requested by {req.requesterName})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
               {/* Department & Semester */}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 'var(--space-3)' }}>
                 <div>
@@ -1039,9 +1130,33 @@ export default function UploadModal() {
                 />
               </div>
 
+              {/* Academic Quality & Legibility Checkbox */}
+              <div style={{
+                marginTop: 'var(--space-4)',
+                padding: 'var(--space-3) var(--space-4)',
+                background: 'var(--color-base)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-3)'
+              }}>
+                <input
+                  id="integrity-check"
+                  type="checkbox"
+                  checked={integrityConfirmed}
+                  onChange={e => setIntegrityConfirmed(e.target.checked)}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
+                />
+                <label htmlFor="integrity-check" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-deep)', cursor: 'pointer', margin: 0 }}>
+                  <ShieldCheck size={14} style={{ display: 'inline', verticalAlign: 'text-bottom', color: 'var(--color-primary)', marginRight: '4px' }} />
+                  I verify that these notes are academically relevant, legible, and accurate for student study.
+                </label>
+              </div>
+
               {/* Summary Pill Bar */}
               <div style={{
-                marginTop: 'var(--space-5)',
+                marginTop: 'var(--space-4)',
                 padding: 'var(--space-3) var(--space-4)',
                 background: 'var(--color-base)',
                 border: '1px solid var(--color-border)',
@@ -1051,7 +1166,7 @@ export default function UploadModal() {
                   REVIEW INDEXING TARGET
                 </span>
                 <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)', color: 'var(--color-deep)' }}>
-                  {currentSubject?.code} {currentSubject?.name} &rsaquo; {currentUnit?.name} &rsaquo; <span style={{ color: 'var(--color-primary)' }}>{primaryTopic || 'All Topics'}</span>
+                  {courseTitle || currentSubject?.name || 'General Course'} &rsaquo; {unitTitle || 'Module'} &rsaquo; <span style={{ color: 'var(--color-primary)' }}>{primaryTopic || 'All Topics'}</span>
                 </div>
               </div>
 

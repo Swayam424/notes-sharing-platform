@@ -63,6 +63,13 @@ export interface NoteResource {
   userId?: string;
   status?: 'published' | 'processing' | 'flagged' | string;
   isSaved?: boolean;
+  visibility?: 'public' | 'private' | string;
+  verificationStatus?: 'community' | 'verified' | 'quarantined' | string;
+  fulfilledRequestId?: string | null;
+  fulfilledFor?: {
+    requesterName?: string;
+    topicName?: string;
+  } | null;
 }
 
 export interface NoteComment {

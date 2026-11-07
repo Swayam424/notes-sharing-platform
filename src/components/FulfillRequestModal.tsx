@@ -26,8 +26,15 @@ export default function FulfillRequestModal({
 
   if (!isOpen || !request) return null;
 
-  // The server only accepts published notes from the requested subject
-  const subjectNotes = availableNotes.filter(n => n.subjectId === request.subjectId);
+  // Find matching notes by subject ID, subject name, topic or fallback to published notes
+  const subjectNotes = availableNotes.filter(n => {
+    if (n.status === 'quarantined') return false;
+    if (n.subjectId === request.subjectId) return true;
+    if (n.subjectName && request.subjectName && n.subjectName.toLowerCase().includes(request.subjectName.toLowerCase())) return true;
+    if (n.primaryTopic && request.topicName && (n.primaryTopic.toLowerCase().includes(request.topicName.toLowerCase()) || request.topicName.toLowerCase().includes(n.primaryTopic.toLowerCase()))) return true;
+    return false;
+  });
+  const displayNotes = subjectNotes.length > 0 ? subjectNotes : availableNotes.filter(n => n.status !== 'quarantined');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,10 +76,12 @@ export default function FulfillRequestModal({
           </div>
 
           <div className="field">
-            <span className="field__label">Choose a matching note</span>
-            {subjectNotes.length > 0 ? (
-              <div className="option-list">
-                {subjectNotes.map(n => (
+            <span className="field__label">
+              {subjectNotes.length > 0 ? 'Matching library notes' : 'Choose any relevant library note'}
+            </span>
+            {displayNotes.length > 0 ? (
+              <div className="option-list" style={{ maxHeight: '240px', overflowY: 'auto' }}>
+                {displayNotes.map(n => (
                   <button
                     type="button"
                     key={n.id}
@@ -82,13 +91,13 @@ export default function FulfillRequestModal({
                   >
                     <span style={{ minWidth: 0 }}>
                       <span style={{ display: 'block', fontWeight: 550 }}>{n.title}</span>
-                      <span className="option__meta">{n.author} · {n.format} · {n.pages} pages</span>
+                      <span className="option__meta">{n.subjectName || 'Course'} · {n.author} · {n.format} · {n.pages} pages</span>
                     </span>
                   </button>
                 ))}
               </div>
             ) : (
-              <p className="field__hint">Nothing in the library matches this subject yet. Upload one and come back.</p>
+              <p className="field__hint">No notes found in library yet. Click "Upload new" below to share notes for this classmate.</p>
             )}
           </div>
 

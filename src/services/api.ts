@@ -719,10 +719,15 @@ export const api = {
   },
 
   async createNoteRequest(request: {
-    subjectId: string;
+    subjectId?: string;
+    subjectName?: string;
+    courseTitle?: string;
     unitId?: string;
+    unitName?: string;
     topicName: string;
     description?: string;
+    department?: string;
+    semester?: number;
   }): Promise<NoteRequest> {
     const res = await authFetch('/api/note-requests', {
       method: 'POST',
@@ -824,6 +829,8 @@ export interface NoteRequest {
   subjectName: string;
   subjectCode: string;
   subjectDepartment?: string;
+  department?: string;
+  semester?: number;
   unitId?: string | null;
   unitName?: string | null;
   topicName: string;

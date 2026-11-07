@@ -602,9 +602,20 @@ app.get('/api/notes', (req, res) => {
         query += " AND (status != 'quarantined' OR status IS NULL)";
       }
     }
+
+    // Visibility filter: private notes are visible only to the owner or a moderator
+    if (!requesterIsMod) {
+      if (requester) {
+        query += " AND (visibility != 'private' OR user_id = ? OR visibility IS NULL)";
+        params.push(requester.id);
+      } else {
+        query += " AND (visibility != 'private' OR visibility IS NULL)";
+      }
+    }
+
     if (search) {
-      query += ' AND (title LIKE ? OR author LIKE ? OR primary_topic LIKE ? OR description LIKE ? OR tags LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+      query += ' AND (title LIKE ? OR author LIKE ? OR primary_topic LIKE ? OR description LIKE ? OR tags LIKE ? OR subject_name LIKE ? OR unit_name LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     query += ' ORDER BY upload_date DESC';
@@ -621,6 +632,19 @@ app.get('/api/notes', (req, res) => {
         topicNames = tRows.map(r => r.name);
       }
 
+      let fulfilledFor = null;
+      if (n.fulfilled_request_id) {
+        try {
+          const reqRow = db.prepare('SELECT requester_name, topic_name FROM note_requests WHERE id = ?').get(n.fulfilled_request_id);
+          if (reqRow) {
+            fulfilledFor = {
+              requesterName: reqRow.requester_name,
+              topicName: reqRow.topic_name
+            };
+          }
+        } catch { /* ignore */ }
+      }
+
       return {
         id: n.id,
         title: n.title,
@@ -629,10 +653,14 @@ app.get('/api/notes', (req, res) => {
         userId: n.user_id || null,
         status: n.status || 'published',
         subjectId: n.subject_id,
-        subjectName: sub?.name || '',
+        subjectName: n.subject_name || sub?.name || '',
         subjectCode: sub?.code || '',
         unitId: n.unit_id,
-        unitName: unit?.name || '',
+        unitName: n.unit_name || unit?.name || '',
+        visibility: n.visibility || 'public',
+        verificationStatus: n.verification_status || 'community',
+        fulfilledRequestId: n.fulfilled_request_id || null,
+        fulfilledFor,
         topicIds: parsedTopicIds,
         topicNames,
         primaryTopic: n.primary_topic || (topicNames.length > 0 ? topicNames[0] : ''),
@@ -685,6 +713,32 @@ app.get('/api/notes/:id', (req, res) => {
         return res.status(403).json({ success: false, error: 'This note has been restricted by academic moderators.' });
       }
     }
+
+    if (n.visibility === 'private') {
+      const isOwner = reqUser && (n.user_id === reqUser.id);
+      let isRequester = false;
+      if (reqUser && n.fulfilled_request_id) {
+        const rCheck = db.prepare('SELECT 1 FROM note_requests WHERE id = ? AND user_id = ?').get(n.fulfilled_request_id, reqUser.id);
+        if (rCheck) isRequester = true;
+      }
+      if (!isModerator(reqUser) && !isOwner && !isRequester) {
+        return res.status(403).json({ success: false, error: 'This note is marked as private/direct for the requester.' });
+      }
+    }
+
+    let fulfilledFor = null;
+    if (n.fulfilled_request_id) {
+      try {
+        const reqRow = db.prepare('SELECT requester_name, topic_name FROM note_requests WHERE id = ?').get(n.fulfilled_request_id);
+        if (reqRow) {
+          fulfilledFor = {
+            requesterName: reqRow.requester_name,
+            topicName: reqRow.topic_name
+          };
+        }
+      } catch { /* ignore */ }
+    }
+
     const isUpvoted = reqUser ? !!db.prepare('SELECT 1 FROM note_upvotes WHERE user_id = ? AND note_id = ?').get(reqUser.id, n.id) : false;
     const commentCount = db.prepare('SELECT COUNT(*) as c FROM note_comments WHERE note_id = ?').get(n.id)?.c || 0;
 
@@ -696,10 +750,14 @@ app.get('/api/notes/:id', (req, res) => {
       userId: n.user_id || null,
       status: n.status || 'published',
       subjectId: n.subject_id,
-      subjectName: sub?.name || '',
+      subjectName: n.subject_name || sub?.name || '',
       subjectCode: sub?.code || '',
       unitId: n.unit_id,
-      unitName: unit?.name || '',
+      unitName: n.unit_name || unit?.name || '',
+      visibility: n.visibility || 'public',
+      verificationStatus: n.verification_status || 'community',
+      fulfilledRequestId: n.fulfilled_request_id || null,
+      fulfilledFor,
       topicIds: parsedTopicIds,
       topicNames,
       primaryTopic: n.primary_topic || (topicNames.length > 0 ? topicNames[0] : ''),
@@ -728,13 +786,96 @@ app.get('/api/notes/:id', (req, res) => {
   }
 });
 
+// Helper to resolve or register subject and unit without breaking foreign keys
+function ensureSubjectAndUnit({ subjectId, subjectName, unitId, unitName, department, semester }) {
+  let resolvedSubjectId = subjectId;
+  let resolvedSubjectName = (subjectName || '').trim();
+  let resolvedUnitId = unitId;
+  let resolvedUnitName = (unitName || '').trim();
+
+  // 1. Resolve Subject
+  if (resolvedSubjectId && resolvedSubjectId !== 'all') {
+    const existing = db.prepare('SELECT id, name, department, semester FROM subjects WHERE id = ?').get(resolvedSubjectId);
+    if (existing) {
+      if (!resolvedSubjectName) resolvedSubjectName = existing.name;
+    } else {
+      resolvedSubjectId = null;
+    }
+  }
+
+  if (!resolvedSubjectId) {
+    if (!resolvedSubjectName) {
+      resolvedSubjectName = 'General Studies';
+    }
+    const found = db.prepare('SELECT id, name FROM subjects WHERE LOWER(name) = LOWER(?) LIMIT 1').get(resolvedSubjectName);
+    if (found) {
+      resolvedSubjectId = found.id;
+      resolvedSubjectName = found.name;
+    } else {
+      resolvedSubjectId = 'sub-' + crypto.randomUUID().slice(0, 8);
+      const code = resolvedSubjectName.replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase() || 'GEN';
+      db.prepare(`
+        INSERT INTO subjects (id, name, code, department, semester, scheme, coverage)
+        VALUES (?, ?, ?, ?, ?, '2022', 0)
+      `).run(
+        resolvedSubjectId,
+        resolvedSubjectName,
+        code,
+        department || 'General',
+        semester || 1
+      );
+    }
+  }
+
+  // 2. Resolve Unit
+  if (resolvedUnitId && resolvedUnitId !== 'all') {
+    const unitRow = db.prepare('SELECT id, name FROM units WHERE id = ? AND subject_id = ?').get(resolvedUnitId, resolvedSubjectId);
+    if (unitRow) {
+      if (!resolvedUnitName) resolvedUnitName = unitRow.name;
+    } else {
+      resolvedUnitId = null;
+    }
+  }
+
+  if (!resolvedUnitId) {
+    if (!resolvedUnitName) {
+      resolvedUnitName = 'General / Comprehensive Unit';
+    }
+    const foundUnit = db.prepare('SELECT id, name FROM units WHERE subject_id = ? AND LOWER(name) = LOWER(?) LIMIT 1').get(resolvedSubjectId, resolvedUnitName);
+    if (foundUnit) {
+      resolvedUnitId = foundUnit.id;
+      resolvedUnitName = foundUnit.name;
+    } else {
+      resolvedUnitId = 'unit-' + crypto.randomUUID().slice(0, 8);
+      db.prepare(`
+        INSERT INTO units (id, subject_id, order_index, name)
+        VALUES (?, ?, 1, ?)
+      `).run(
+        resolvedUnitId,
+        resolvedSubjectId,
+        resolvedUnitName
+      );
+    }
+  }
+
+  return {
+    subjectId: resolvedSubjectId,
+    subjectName: resolvedSubjectName,
+    unitId: resolvedUnitId,
+    unitName: resolvedUnitName
+  };
+}
+
 // Upload a real resource
 app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
   try {
     const {
       title,
       subjectId,
+      subjectName,
+      courseTitle,
       unitId,
+      unitName,
       topicIds,
       primaryTopic,
       description,
@@ -743,7 +884,10 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
       semester,
       format,
       pages,
-      status
+      status,
+      visibility,
+      verificationStatus,
+      fulfilledRequestId
     } = req.body;
     const file = req.file;
     const currentUser = getUserFromRequest(req);
@@ -759,15 +903,21 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
       discardUpload(file);
       return res.status(400).json({ success: false, error: 'File contents do not match its type.' });
     }
-    if (!subjectId || !unitId) {
+
+    const effectiveSubjectName = (subjectName || courseTitle || '').trim();
+    if (!subjectId && !effectiveSubjectName) {
       discardUpload(file);
-      return res.status(400).json({ success: false, error: 'Subject and Unit are required' });
+      return res.status(400).json({ success: false, error: 'Subject / Course name is required' });
     }
-    const unitRow = db.prepare('SELECT id FROM units WHERE id = ? AND subject_id = ?').get(unitId, subjectId);
-    if (!unitRow) {
-      discardUpload(file);
-      return res.status(400).json({ success: false, error: 'Unknown subject or unit.' });
-    }
+
+    const resolved = ensureSubjectAndUnit({
+      subjectId,
+      subjectName: effectiveSubjectName,
+      unitId,
+      unitName,
+      department: department || currentUser.department,
+      semester: semester || currentUser.semester
+    });
 
     let parsedTopicIds = [];
     if (typeof topicIds === 'string') {
@@ -779,9 +929,11 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
     } else if (Array.isArray(topicIds)) {
       parsedTopicIds = topicIds;
     }
-    // Only accept topics that actually belong to the chosen unit
-    const unitTopicIds = new Set(db.prepare('SELECT id FROM topics WHERE unit_id = ?').all(unitId).map(r => r.id));
-    parsedTopicIds = [...new Set(parsedTopicIds.map(String))].filter(id => unitTopicIds.has(id));
+    // Filter topics to those belonging to unit if known
+    const unitTopicIds = new Set(db.prepare('SELECT id FROM topics WHERE unit_id = ?').all(resolved.unitId).map(r => r.id));
+    if (unitTopicIds.size > 0) {
+      parsedTopicIds = [...new Set(parsedTopicIds.map(String))].filter(id => unitTopicIds.has(id));
+    }
 
     let parsedTags = [];
     if (typeof tags === 'string') {
@@ -802,6 +954,8 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
     const finalFormat = sanitizeString(String(format || 'Lecture Notes')).slice(0, 40) || 'Lecture Notes';
     const finalPages = Math.min(2000, Math.max(1, parseInt(pages, 10) || 1));
     const noteTitle = title || (file ? file.originalname.replace(/\.[^/.]+$/, '') : 'Lecture Notes');
+    const finalVisibility = visibility === 'private' ? 'private' : 'public';
+    const finalVerificationStatus = verificationStatus || 'community';
 
     // Resolve primary topic
     let resolvedPrimaryTopic = (primaryTopic || '').trim();
@@ -809,9 +963,12 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
       const firstTopicRow = db.prepare('SELECT name FROM topics WHERE id = ?').get(parsedTopicIds[0]);
       if (firstTopicRow) resolvedPrimaryTopic = firstTopicRow.name;
     }
+    if (!resolvedPrimaryTopic) {
+      resolvedPrimaryTopic = resolved.unitName || resolved.subjectName;
+    }
 
     // Count topics in this unit for match calculation
-    const unitTopics = db.prepare('SELECT id FROM topics WHERE unit_id = ?').all(unitId);
+    const unitTopics = db.prepare('SELECT id FROM topics WHERE unit_id = ?').all(resolved.unitId);
     const totalTopics = unitTopics.length || 1;
     const topicMatchCount = parsedTopicIds.length;
     const syllabusMatch = `Matches ${topicMatchCount}/${totalTopics} topics`;
@@ -827,15 +984,16 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
         id, title, author, author_initials, subject_id, unit_id, topic_ids,
         primary_topic, description, tags, department, semester, user_id, status,
         format, pages, file_path, file_size, mime_type, upload_date, downloads,
-        topic_match_count, total_topics, syllabus_match
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        topic_match_count, total_topics, syllabus_match, subject_name, unit_name,
+        visibility, verification_status, fulfilled_request_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       noteId,
       sanitizeString(noteTitle),
       sanitizeString(finalAuthor),
       authorInitials,
-      subjectId,
-      unitId,
+      resolved.subjectId,
+      resolved.unitId,
       JSON.stringify(parsedTopicIds),
       sanitizeString(resolvedPrimaryTopic),
       sanitizeString(description || ''),
@@ -853,7 +1011,12 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
       0,
       topicMatchCount,
       totalTopics,
-      syllabusMatch
+      syllabusMatch,
+      resolved.subjectName,
+      resolved.unitName,
+      finalVisibility,
+      finalVerificationStatus,
+      fulfilledRequestId || null
     );
 
     // Update topic note counts and statuses
@@ -866,9 +1029,23 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
       `).run(tId);
     }
 
+    // If answering a note request, mark the request as fulfilled
+    if (fulfilledRequestId) {
+      const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
+      db.prepare(`
+        UPDATE note_requests
+        SET status = 'fulfilled',
+            fulfilled_note_id = ?,
+            fulfilled_by_name = ?,
+            fulfilled_by_id = ?,
+            fulfilled_at = ?
+        WHERE id = ? AND status = 'open'
+      `).run(noteId, currentUser.name, currentUser.id, now, fulfilledRequestId);
+    }
+
     // Recalculate subject coverage
-    const newCoverage = calculateCoverage(subjectId);
-    db.prepare('UPDATE subjects SET coverage = ? WHERE id = ?').run(newCoverage, subjectId);
+    const newCoverage = calculateCoverage(resolved.subjectId);
+    db.prepare('UPDATE subjects SET coverage = ? WHERE id = ?').run(newCoverage, resolved.subjectId);
     db.exec('COMMIT');
     } catch (txErr) {
       db.exec('ROLLBACK');
@@ -887,8 +1064,13 @@ app.post('/api/notes', uploadRateLimiter, upload.single('file'), (req, res) => {
         authorInitials,
         userId: currentUser.id,
         status: finalStatus,
-        subjectId,
-        unitId,
+        subjectId: resolved.subjectId,
+        subjectName: resolved.subjectName,
+        unitId: resolved.unitId,
+        unitName: resolved.unitName,
+        visibility: finalVisibility,
+        verificationStatus: finalVerificationStatus,
+        fulfilledRequestId: fulfilledRequestId || null,
         primaryTopic: resolvedPrimaryTopic,
         description: sanitizeString(description || ''),
         tags: parsedTags,
@@ -1426,13 +1608,13 @@ app.get('/api/note-requests', (req, res) => {
 
     let query = `
       SELECT nr.*,
-             s.name as subject_name,
+             COALESCE(NULLIF(nr.subject_name, ''), s.name) as display_subject_name,
              s.code as subject_code,
-             s.department as subject_department,
-             u.name as unit_name,
+             COALESCE(NULLIF(nr.department, ''), s.department) as display_department,
+             COALESCE(NULLIF(u.name, ''), nr.unit_id) as display_unit_name,
              n.title as fulfilled_note_title
       FROM note_requests nr
-      JOIN subjects s ON nr.subject_id = s.id
+      LEFT JOIN subjects s ON nr.subject_id = s.id
       LEFT JOIN units u ON nr.unit_id = u.id
       LEFT JOIN notes n ON nr.fulfilled_note_id = n.id
       WHERE 1=1
@@ -1451,17 +1633,17 @@ app.get('/api/note-requests', (req, res) => {
 
     const effectiveStream = stream || department;
     if (effectiveStream && effectiveStream !== 'all') {
-      query += ' AND (LOWER(s.department) LIKE ? OR LOWER(?) LIKE LOWER(s.department))';
+      query += " AND (LOWER(COALESCE(NULLIF(nr.department, ''), s.department, '')) LIKE ? OR LOWER(?) LIKE LOWER(COALESCE(NULLIF(nr.department, ''), s.department, '')))";
       params.push(`%${effectiveStream.toLowerCase()}%`, effectiveStream);
     }
 
     if (search && search.trim()) {
       const term = `%${search.trim().toLowerCase()}%`;
-      query += ' AND (LOWER(nr.topic_name) LIKE ? OR LOWER(nr.description) LIKE ? OR LOWER(s.name) LIKE ?)';
+      query += " AND (LOWER(nr.topic_name) LIKE ? OR LOWER(nr.description) LIKE ? OR LOWER(COALESCE(NULLIF(nr.subject_name, ''), s.name, '')) LIKE ?)";
       params.push(term, term, term);
     }
 
-    query += ' ORDER BY CASE nr.status WHEN \'open\' THEN 0 ELSE 1 END, nr.upvotes DESC, nr.created_at DESC';
+    query += " ORDER BY CASE nr.status WHEN 'open' THEN 0 ELSE 1 END, nr.upvotes DESC, nr.created_at DESC";
 
     const rows = db.prepare(query).all(...params);
 
@@ -1478,11 +1660,13 @@ app.get('/api/note-requests', (req, res) => {
       requesterName: r.requester_name,
       requesterInitials: r.requester_initials,
       subjectId: r.subject_id,
-      subjectName: r.subject_name,
-      subjectCode: r.subject_code,
-      subjectDepartment: r.subject_department,
+      subjectName: r.display_subject_name || r.subject_name || '',
+      subjectCode: r.subject_code || '',
+      subjectDepartment: r.display_department || r.department || '',
+      department: r.display_department || r.department || '',
+      semester: r.semester || 1,
       unitId: r.unit_id,
-      unitName: r.unit_name || null,
+      unitName: r.display_unit_name || null,
       topicName: r.topic_name,
       description: r.description,
       status: r.status,
@@ -1510,31 +1694,47 @@ app.post('/api/note-requests', (req, res) => {
       return res.status(401).json({ success: false, error: 'Authentication required to create a note request' });
     }
 
-    const { subjectId, unitId, topicName, description } = req.body;
-    if (!subjectId || !topicName || !topicName.trim()) {
-      return res.status(400).json({ success: false, error: 'Subject and Topic / Lecture Name are required.' });
+    const { subjectId, subjectName, courseTitle, unitId, unitName, topicName, description, department, semester } = req.body;
+    const effectiveSubjectName = (subjectName || courseTitle || '').trim();
+    if ((!subjectId && !effectiveSubjectName) || !topicName || !topicName.trim()) {
+      return res.status(400).json({ success: false, error: 'Subject / Course name and Topic are required.' });
     }
+
+    const resolved = ensureSubjectAndUnit({
+      subjectId,
+      subjectName: effectiveSubjectName,
+      unitId,
+      unitName,
+      department: department || user.department,
+      semester: semester || user.semester
+    });
 
     const safeTopic = sanitizeString(topicName);
     const safeDesc = description ? sanitizeString(description) : '';
     const requestId = 'req-' + crypto.randomUUID();
     const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
+    const finalSemester = semester ? Math.min(8, Math.max(1, parseInt(semester, 10) || 1)) : (user.semester || 1);
+    const finalDepartment = sanitizeString(String(department || user.department || '')).slice(0, 80);
 
     db.prepare(`
       INSERT INTO note_requests (
         id, user_id, requester_name, requester_initials, subject_id, unit_id,
-        topic_name, description, status, upvotes, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', 1, ?)
+        topic_name, description, status, upvotes, created_at, subject_name,
+        semester, department
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', 1, ?, ?, ?, ?)
     `).run(
       requestId,
       user.id,
       user.name,
       user.initials || 'ST',
-      subjectId,
-      unitId || null,
+      resolved.subjectId,
+      resolved.unitId || null,
       safeTopic,
       safeDesc,
-      now
+      now,
+      resolved.subjectName,
+      finalSemester,
+      finalDepartment
     );
 
     // Initial requester upvote recorded
@@ -1542,18 +1742,18 @@ app.post('/api/note-requests', (req, res) => {
       db.prepare('INSERT INTO note_request_upvotes (request_id, user_id, created_at) VALUES (?, ?, ?)').run(requestId, user.id, now);
     } catch { /* ignore */ }
 
-    // Fetch subject for enriched response
-    const sub = db.prepare('SELECT name, code FROM subjects WHERE id = ?').get(subjectId);
-
     const created = {
       id: requestId,
       userId: user.id,
       requesterName: user.name,
       requesterInitials: user.initials || 'ST',
-      subjectId,
-      subjectName: sub?.name || '',
-      subjectCode: sub?.code || '',
-      unitId: unitId || null,
+      subjectId: resolved.subjectId,
+      subjectName: resolved.subjectName,
+      subjectCode: '',
+      department: finalDepartment,
+      semester: finalSemester,
+      unitId: resolved.unitId || null,
+      unitName: resolved.unitName || null,
       topicName: safeTopic,
       description: safeDesc,
       status: 'open',
@@ -1624,12 +1824,9 @@ app.post('/api/note-requests/:id/fulfill', (req, res) => {
     if (request.status === 'fulfilled') {
       return res.status(409).json({ success: false, error: 'This request has already been fulfilled.' });
     }
-    const note = db.prepare("SELECT id, title, subject_id FROM notes WHERE id = ? AND status = 'published'").get(noteId);
+    const note = db.prepare("SELECT id, title, subject_id FROM notes WHERE id = ? AND (status = 'published' OR status IS NULL)").get(noteId);
     if (!note) {
       return res.status(404).json({ success: false, error: 'Linked note was not found in library.' });
-    }
-    if (request.subject_id && note.subject_id !== request.subject_id) {
-      return res.status(400).json({ success: false, error: 'The linked note must belong to the requested subject.' });
     }
 
     const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
@@ -1643,6 +1840,11 @@ app.post('/api/note-requests/:id/fulfill', (req, res) => {
           fulfilled_at = ?
       WHERE id = ?
     `).run(note.id, user.name, user.id, now, request.id);
+
+    // Also link note back to request
+    try {
+      db.prepare('UPDATE notes SET fulfilled_request_id = ? WHERE id = ?').run(request.id, note.id);
+    } catch { /* ignore */ }
 
     res.json({
       success: true,

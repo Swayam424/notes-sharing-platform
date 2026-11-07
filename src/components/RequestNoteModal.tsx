@@ -19,7 +19,8 @@ export default function RequestNoteModal({
   onRequestCreated
 }: RequestNoteModalProps) {
   const [subjectId, setSubjectId] = useState(initialSubjectId || (subjects[0]?.id || ''));
-  const [unitId, setUnitId] = useState<string>('');
+  const [courseTitle, setCourseTitle] = useState('');
+  const [unitName, setUnitName] = useState('');
   const [topicName, setTopicName] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,25 +29,29 @@ export default function RequestNoteModal({
   if (!isOpen) return null;
 
   const currentSubject = subjects.find(s => s.id === subjectId) || subjects[0];
-  const units = currentSubject?.units || [];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!subjectId) return setError('Choose a subject.');
+    const effectiveSubject = courseTitle.trim() || currentSubject?.name || '';
+    if (!effectiveSubject && !subjectId) return setError('Please enter or select a course / subject.');
     if (!topicName.trim()) return setError('Tell classmates which topic you need.');
 
     setIsSubmitting(true);
     setError(null);
     try {
       const created = await api.createNoteRequest({
-        subjectId,
-        unitId: unitId || undefined,
+        subjectId: subjectId || undefined,
+        subjectName: effectiveSubject,
+        courseTitle: effectiveSubject,
+        unitName: unitName.trim() || undefined,
         topicName: topicName.trim(),
         description: description.trim() || undefined
       });
       onRequestCreated(created);
       setTopicName('');
       setDescription('');
+      setCourseTitle('');
+      setUnitName('');
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not post your request. Try again.');
@@ -69,24 +74,38 @@ export default function RequestNoteModal({
         </div>
 
         <div className="sheet__body">
-          <div className="field-row">
-            <label className="field">
-              <span className="field__label">Subject</span>
-              <select value={subjectId} onChange={e => { setSubjectId(e.target.value); setUnitId(''); }}>
-                {subjects.map(s => (
-                  <option key={s.id} value={s.id}>{s.code ? `${s.code} · ` : ''}{s.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span className="field__label">Unit</span>
-              <select value={unitId} onChange={e => setUnitId(e.target.value)} disabled={units.length === 0}>
-                <option value="">Any unit</option>
-                {units.map((u, idx) => (
-                  <option key={u.id} value={u.id}>Unit {idx + 1}: {u.name}</option>
-                ))}
-              </select>
-            </label>
+          <div className="field">
+            <span className="field__label">Course / Subject Name <span style={{ color: 'var(--color-primary)' }}>*</span></span>
+            <input
+              type="text"
+              value={courseTitle}
+              onChange={e => setCourseTitle(e.target.value)}
+              placeholder={currentSubject?.name ? `e.g. ${currentSubject.name}` : 'e.g. Operating Systems, Data Structures, Applied Physics'}
+              style={{ width: '100%' }}
+            />
+            {subjects.length > 0 && (
+              <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--color-muted)' }}>
+                Or pick from common subjects:{' '}
+                <select
+                  value={courseTitle ? '' : subjectId}
+                  onChange={e => {
+                    if (e.target.value) {
+                      const found = subjects.find(s => s.id === e.target.value);
+                      if (found) {
+                        setCourseTitle(found.name);
+                        setSubjectId(found.id);
+                      }
+                    }
+                  }}
+                  style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px' }}
+                >
+                  <option value="">-- Choose suggested course --</option>
+                  {subjects.map(s => (
+                    <option key={s.id} value={s.id}>{s.code ? `${s.code} · ` : ''}{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <label className="field">

@@ -640,6 +640,54 @@ export default function NotesLibrary() {
                       <span className="discovery-topic-badge">
                         <Sparkles size={11} /> {displayTopic}
                       </span>
+                      {note.fulfilledFor ? (
+                        <span
+                          className="chip"
+                          style={{
+                            background: 'rgba(16, 185, 129, 0.1)',
+                            color: '#059669',
+                            borderColor: 'rgba(16, 185, 129, 0.3)',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            padding: '2px 8px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                          title={`Fulfilled for classmate request: "${note.fulfilledFor.topicName}"`}
+                        >
+                          🏆 Fulfilled for {note.fulfilledFor.requesterName}
+                        </span>
+                      ) : note.fulfilledRequestId ? (
+                        <span
+                          className="chip"
+                          style={{
+                            background: 'rgba(16, 185, 129, 0.1)',
+                            color: '#059669',
+                            borderColor: 'rgba(16, 185, 129, 0.3)',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            padding: '2px 8px'
+                          }}
+                        >
+                          🏆 Fulfilled Request
+                        </span>
+                      ) : null}
+                      {note.visibility === 'private' && (
+                        <span
+                          className="chip"
+                          style={{
+                            background: 'rgba(245, 158, 11, 0.1)',
+                            color: '#d97706',
+                            borderColor: 'rgba(245, 158, 11, 0.3)',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            padding: '2px 8px'
+                          }}
+                        >
+                          🔒 Direct Request
+                        </span>
+                      )}
                       <div className="discovery-academic-path">
                         <span>{deptText}</span>
                         <span>•</span>

@@ -78,6 +78,11 @@ export function initDatabase() {
       topic_match_count INTEGER DEFAULT 0,
       total_topics INTEGER DEFAULT 0,
       syllabus_match TEXT,
+      subject_name TEXT,
+      unit_name TEXT,
+      visibility TEXT DEFAULT 'public',
+      verification_status TEXT DEFAULT 'community',
+      fulfilled_request_id TEXT,
       FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
       FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE
     );
@@ -325,6 +330,33 @@ export function initDatabase() {
   }
   if (!noteCols.includes('upvotes')) {
     db.exec('ALTER TABLE notes ADD COLUMN upvotes INTEGER DEFAULT 0;');
+  }
+  if (!noteCols.includes('subject_name')) {
+    db.exec('ALTER TABLE notes ADD COLUMN subject_name TEXT;');
+  }
+  if (!noteCols.includes('unit_name')) {
+    db.exec('ALTER TABLE notes ADD COLUMN unit_name TEXT;');
+  }
+  if (!noteCols.includes('visibility')) {
+    db.exec("ALTER TABLE notes ADD COLUMN visibility TEXT DEFAULT 'public';");
+  }
+  if (!noteCols.includes('verification_status')) {
+    db.exec("ALTER TABLE notes ADD COLUMN verification_status TEXT DEFAULT 'community';");
+  }
+  if (!noteCols.includes('fulfilled_request_id')) {
+    db.exec('ALTER TABLE notes ADD COLUMN fulfilled_request_id TEXT;');
+  }
+
+  // Migrate existing note_requests table if columns don't exist
+  const reqCols = db.prepare('PRAGMA table_info(note_requests)').all().map(c => c.name);
+  if (!reqCols.includes('subject_name')) {
+    db.exec('ALTER TABLE note_requests ADD COLUMN subject_name TEXT;');
+  }
+  if (!reqCols.includes('semester')) {
+    db.exec('ALTER TABLE note_requests ADD COLUMN semester INTEGER;');
+  }
+  if (!reqCols.includes('department')) {
+    db.exec('ALTER TABLE note_requests ADD COLUMN department TEXT;');
   }
 
   // Migrate existing moderation table if columns don't exist
