@@ -34,14 +34,22 @@ function clearToken(): void {
   }
 }
 
-/** Wrapper around fetch that automatically attaches the Bearer token. */
+export const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+
+export function apiUrl(path: string): string {
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return API_BASE ? `${API_BASE}${cleanPath}` : cleanPath;
+}
+
+/** Wrapper around fetch that automatically attaches the Bearer token and resolves remote API URL. */
 async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const token = getToken();
   const headers = new Headers(init.headers);
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
-  return fetch(url, { ...init, headers });
+  return fetch(apiUrl(url), { ...init, headers });
 }
 
 /** Extract a readable error from a failed response. */
@@ -72,7 +80,7 @@ async function postAuth(
 ): Promise<{ token: string; user: AuthUser }> {
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetch(apiUrl(url), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -523,7 +531,7 @@ export const api = {
   },
 
   getDownloadUrl(noteId: string): string {
-    return `/api/notes/${noteId}/download`;
+    return apiUrl(`/api/notes/${noteId}/download`);
   },
 
   // -------------------- PYQs --------------------
@@ -590,7 +598,7 @@ export const api = {
   },
 
   getPYQDownloadUrl(pyqId: string): string {
-    return `/api/pyqs/${pyqId}/download`;
+    return apiUrl(`/api/pyqs/${pyqId}/download`);
   },
 
   // -------------------- Moderation --------------------
@@ -804,6 +812,10 @@ export const api = {
       throw new Error(data.error || 'Failed to get AI response');
     }
     return data.data;
+  },
+
+  apiUrl(path: string): string {
+    return apiUrl(path);
   }
 };
 

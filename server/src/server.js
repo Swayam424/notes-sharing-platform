@@ -63,14 +63,25 @@ if (process.env.TRUST_PROXY) {
   app.set('trust proxy', /^\d+$/.test(process.env.TRUST_PROXY) ? Number(process.env.TRUST_PROXY) : process.env.TRUST_PROXY);
 }
 
-const allowedOrigins = new Set(
-  (process.env.CLIENT_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3001')
-    .split(',').map(o => o.trim()).filter(Boolean)
-);
+const defaultOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://notes-sharing-platform-psi.vercel.app'
+];
+const envOrigins = (process.env.CLIENT_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
+const allowedOrigins = new Set([...defaultOrigins, ...envOrigins]);
+
 app.use(cors({
   origin: (origin, cb) => {
     // Same-origin and non-browser requests carry no Origin header
     if (!origin || allowedOrigins.has(origin)) return cb(null, true);
+    // Allow any Vercel deployment preview or production domain
+    try {
+      const hostname = new URL(origin).hostname;
+      if (hostname.endsWith('.vercel.app')) return cb(null, true);
+    } catch { /* ignore */ }
     cb(new Error('CORS blocked'));
   },
   credentials: true,

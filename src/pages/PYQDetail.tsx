@@ -165,7 +165,7 @@ export default function PYQDetail() {
   const handleDownload = async () => {
     if (!pyq) return;
     try {
-      const res = await fetch(`/api/pyqs/${pyq.id}/download`);
+      const res = await fetch(api.getPYQDownloadUrl(pyq.id));
       const data = await res.json();
       showToast(`Downloading: ${data.fileName || `${pyq.title || 'Paper'}.pdf`}`);
       // Create synthetic link
@@ -206,7 +206,7 @@ export default function PYQDetail() {
     setReportError(null);
 
     try {
-      const res = await fetch('/api/moderation', {
+      const res = await fetch(api.apiUrl('/api/moderation'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

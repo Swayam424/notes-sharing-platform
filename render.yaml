@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: notes-sharing-backend
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install
+    startCommand: node server/src/server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+      - key: CLIENT_ORIGINS
+        value: https://notes-sharing-platform-psi.vercel.app,http://localhost:5173
+      - key: TRUST_PROXY
+        value: "true"
+      - key: GEMINI_API_KEY
+        sync: false

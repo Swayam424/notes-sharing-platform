@@ -160,7 +160,7 @@ export default function PYQArchive() {
   const handleDownload = async (e: React.MouseEvent, pyq: PYQEntry) => {
     e.stopPropagation();
     try {
-      const res = await fetch(`/api/pyqs/${pyq.id}/download`);
+      const res = await fetch(api.getPYQDownloadUrl(pyq.id));
       const data = await res.json();
       showToast(`Downloading: ${data.fileName || `${pyq.title || 'Paper'}.pdf`}`);
       const blob = new Blob([`Examination Paper: ${pyq.title || 'Paper'}\nSession: ${pyq.month} ${pyq.year}\nQuestions count: ${pyq.questionCount}`], { type: 'text/plain' });
