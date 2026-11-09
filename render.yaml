@@ -17,3 +17,4 @@ services:
         value: "true"
       - key: GEMINI_API_KEY
         sync: false
+

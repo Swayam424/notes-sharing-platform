@@ -34,7 +34,10 @@ function clearToken(): void {
   }
 }
 
-export const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+export const API_BASE = (
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? '' : 'https://notes-sharing-platform-fjjl.onrender.com')
+).replace(/\/$/, '');
 
 export function apiUrl(path: string): string {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
