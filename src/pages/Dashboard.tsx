@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   ArrowRight, Bookmark, BookmarkCheck, Search, Upload,
-  Download, Calendar, Sparkles, BookOpen
+  Download, Calendar, Sparkles, BookOpen, Sun, Moon, Sunrise, Sunset
 } from 'lucide-react';
 import { api, type WeeklyStats } from '../services/api';
 import { useApp } from '../context/appState';
@@ -10,11 +10,53 @@ import { savedNotesService } from '../services/savedNotes';
 import { useOnChange } from '../hooks/useOnChange';
 import type { NoteResource } from '../data/mockData';
 
-function greetingFor(hour: number) {
-  if (hour < 5) return 'Up late';
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
+interface ClaudeGreeting {
+  title: string;
+  badge: string;
+  icon: typeof Sun;
+  color: string;
+  bgTint: string;
+}
+
+export function getClaudeGreeting(hour: number, name?: string): ClaudeGreeting {
+  const cleanName = name?.trim();
+  const hasRealName = !!cleanName && cleanName.toLowerCase() !== 'there';
+  const nameSuffix = hasRealName ? `, ${cleanName}.` : '.';
+
+  if (hour >= 22 || hour < 5) {
+    return {
+      title: `Hello, night owl${nameSuffix}`,
+      badge: 'Night Owl Mode',
+      icon: Moon,
+      color: '#818cf8',
+      bgTint: 'rgba(129, 140, 248, 0.12)',
+    };
+  }
+  if (hour < 12) {
+    return {
+      title: `Good morning${nameSuffix}`,
+      badge: 'Morning Study',
+      icon: Sunrise,
+      color: '#f59e0b',
+      bgTint: 'rgba(245, 158, 11, 0.12)',
+    };
+  }
+  if (hour < 17) {
+    return {
+      title: `Good afternoon${nameSuffix}`,
+      badge: 'Afternoon Focus',
+      icon: Sun,
+      color: '#eab308',
+      bgTint: 'rgba(234, 179, 8, 0.12)',
+    };
+  }
+  return {
+    title: `Good evening${nameSuffix}`,
+    badge: 'Evening Review',
+    icon: Sunset,
+    color: '#f97316',
+    bgTint: 'rgba(249, 115, 22, 0.12)',
+  };
 }
 
 export default function Dashboard() {
@@ -28,7 +70,23 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [savedIds, setSavedIds] = useState<string[]>(() => savedNotesService.getSavedIds());
-  const [hour] = useState(() => new Date().getHours());
+  const [currentHour, setCurrentHour] = useState(() => new Date().getHours());
+
+  // Dynamically update greeting as the time of day changes without page reload
+  useEffect(() => {
+    const updateTime = () => {
+      const nowHour = new Date().getHours();
+      setCurrentHour(prev => (prev !== nowHour ? nowHour : prev));
+    };
+
+    const timer = setInterval(updateTime, 15000);
+    window.addEventListener('focus', updateTime);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', updateTime);
+    };
+  }, []);
 
   useOnChange(`${refreshKey}|${user?.stream}|${user?.semester}`, () => {
     setLoading(true);
@@ -71,7 +129,11 @@ export default function Dashboard() {
       .slice(0, 6);
   }, [notes]);
 
-  const firstName = user?.name?.split(' ')[0] || 'there';
+  const firstName = user?.name?.split(' ')[0] || '';
+  const greeting = useMemo(
+    () => getClaudeGreeting(currentHour, firstName),
+    [currentHour, firstName]
+  );
 
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +160,28 @@ export default function Dashboard() {
     <div className="dash">
       <header className="dash-head">
         <div>
-          <h1 className="page-title">{greetingFor(hour)}, {firstName}.</h1>
+          <h1 className="page-title" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                background: greeting.bgTint,
+                border: '1px solid var(--color-border)',
+                color: greeting.color,
+                flexShrink: 0,
+                transition: 'all 0.3s ease',
+              }}
+              title={greeting.badge}
+              aria-label={greeting.badge}
+            >
+              <greeting.icon size={22} strokeWidth={2.2} />
+            </span>
+            <span>{greeting.title}</span>
+          </h1>
           <p className="page-subtitle">
             {user?.degree || 'B.Tech / B.E.'} · {user?.stream || user?.department || 'Engineering'} · Sem {user?.semester || 1}
             {user?.college && ` · ${user.college}`}
